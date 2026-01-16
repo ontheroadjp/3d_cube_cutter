@@ -14,37 +14,22 @@ export class PresetManager {
         if (!preset) return;
 
         console.log(`--- Applying Preset: ${name} ---`);
-        preset.points.forEach(ptDef => {
-            let point, object;
+        // getPointsで生成された{point, object}のリストを取得
+        const pointsToSelect = preset.getPoints(this.cube);
 
-            if (ptDef.type === 'vertex') {
-                object = this.cube.getVertexObjectByName(ptDef.name);
-                if (!object) {
-                    console.warn(`Vertex preset point ${ptDef.name} not found.`);
-                    return;
-                }
-                point = this.cube.vertices[object.userData.index];
-                console.log(`Type: vertex, Name: ${ptDef.name}, Point:`, point);
-            } 
-            else if (ptDef.type === 'edge') {
-                object = this.cube.getEdgeObjectByName(ptDef.name);
-                if (!object) {
-                    console.warn(`Edge preset point ${ptDef.name} not found.`);
-                    return;
-                }
-                const edge = this.cube.edges[object.userData.index];
-                point = new THREE.Vector3().lerpVectors(edge.start, edge.end, ptDef.ratio);
-                console.log(`Type: edge, Name: ${ptDef.name}, Ratio: ${ptDef.ratio}`);
-                console.log('Edge start:', edge.start);
-                console.log('Edge end:', edge.end);
-                console.log('Calculated Point:', point);
-            }
-
-            if (point && object) {
-                this.selectionManager.addPoint({ point, object });
+        // リストをループして、各点をSelectionManagerに追加
+        pointsToSelect.forEach(selectionInfo => {
+            if (selectionInfo && selectionInfo.point && selectionInfo.object) {
+                this.selectionManager.addPoint(selectionInfo);
+            } else {
+                console.warn(`Invalid point definition in preset: ${name}`);
             }
         });
         console.log('---------------------------------');
+    }
+    
+    getPresets() {
+        return this.presets;
     }
     
     getNames() {

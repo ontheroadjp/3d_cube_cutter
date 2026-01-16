@@ -20,6 +20,11 @@ export class Cutter {
     this.lastPoints = null; // 再計算用に保持
     this.lastCube = null;
     this.intersections = []; // 交点を保持
+    this.cutPlane = null; // 切断面の平面情報
+  }
+
+  getCutPlaneNormal() {
+    return this.cutPlane ? this.cutPlane.normal : null;
   }
 
   setTransparency(transparent) {
@@ -57,6 +62,7 @@ export class Cutter {
 
     // 1. 平面の定義（同一直線上にない3点を探す）
     const plane = new THREE.Plane();
+    this.cutPlane = plane; // クラスプロパティに保存
     let validPlane = false;
     for (let i = 0; i < points.length; i++) {
         for (let j = i + 1; j < points.length; j++) {
@@ -202,17 +208,59 @@ export class Cutter {
     this.scene.add(this.removedMesh);
 
     // 5. 輪郭線の描画
-    const intersections = [];
-    cube.edges.forEach(line => {
+    // ユーザーが選択した点 (points) を最優先で交点リストに含める
+    const intersections = points.slice(); // points のコピーで初期化
+    console.log("--- DEBUG: Initial intersections (from points) ---");
+    intersections.forEach((p, i) => console.log(`  [${i}] Point: (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`));
+
+    cube.edges.forEach((line, lineIndex) => {
         const target = new THREE.Vector3();
-        if (plane.intersectLine(line, target)) {
-            if (!intersections.some(v => v.distanceTo(target) < 0.001)) {
-                intersections.push(target.clone());
+        const lineStart = line.start;
+        const lineEnd = line.end;
+        // edgeNameの取得はcube.idxにアクセスしないと難しいため、デバッグ目的ではlineIndexと座標で識別
+        // const edgeV1Name = cube.vertexLabels[cube.idx[lineIndex][0]]; // エラー原因
+        // const edgeV2Name = cube.vertexLabels[cube.idx[lineIndex][1]]; // エラー原因
+        // const edgeName = `${edgeV1Name}${edgeV2Name}`;
+
+        const doesIntersect = plane.intersectLine(line, target);
+        console.log(`--- Checking Edge (Line ${lineIndex}) ---`); // edgeName取得ロジック修正まで一時的に無効
+        console.log(`  Start: (${lineStart.x.toFixed(2)}, ${lineStart.y.toFixed(2)}, ${lineStart.z.toFixed(2)})`);
+        console.log(`  End:   (${lineEnd.x.toFixed(2)}, ${lineEnd.y.toFixed(2)}, ${lineEnd.z.toFixed(2)})`);
+        console.log(`  Does intersect plane: ${doesIntersect}`);
+
+        if (doesIntersect) {
+            console.log(`  Plane intersection point (target): (${target.x.toFixed(2)}, ${target.y.toFixed(2)}, ${target.z.toFixed(2)})`);
+            // 交点が線分の範囲内にあるか厳密にチェック（THREE.Plane.intersectLineは線分を考慮するはずだが念のため）
+            // targetがstartとendの間にあるかを確認
+            // 距離ベースのチェックの方が安定する可能性もある
+            const distToStart = target.distanceTo(lineStart);
+            const distToEnd = target.distanceTo(lineEnd);
+            const edgeLength = line.distance(); // THREE.Line3の長さ
+
+            // 交点が線分上にあると判断するための閾値
+            const segmentThreshold = 1e-3; 
+                        const isWithinSegment = Math.abs((distToStart + distToEnd) - edgeLength) < segmentThreshold;
+
+
+            console.log(`  Distance to Start: ${distToStart.toExponential(2)}, Distance to End: ${distToEnd.toExponential(2)}, Edge Length: ${edgeLength.toExponential(2)}`);
+            console.log(`  Is within segment (distance check): ${isWithinSegment}`);
+
+            if (isWithinSegment) {
+                if (!intersections.some(v => v.distanceTo(target) < 1e-2)) {
+                    intersections.push(target.clone());
+                    console.log(`  Added new intersection point to list: (${target.x.toFixed(2)}, ${target.y.toFixed(2)}, ${target.z.toFixed(2)})`);
+                } else {
+                    console.log(`  Skipped edge intersection (duplicate with existing intersection): (${target.x.toFixed(2)}, ${target.y.toFixed(2)}, ${target.z.toFixed(2)})`);
+                }
+            } else {
+                console.log(`  Intersection point is outside edge segment, skipping.`);
             }
         }
     });
     this.intersections = intersections; // 交点をクラスプロパティに保存
-    
+    console.log("--- DEBUG: Final intersections (after edge intersections) ---");
+    this.intersections.forEach((p, i) => console.log(`  [${i}] Point: (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`));
+
     if(intersections.length >= 3){
         const center = new THREE.Vector3();
         intersections.forEach(p => center.add(p));
@@ -234,18 +282,23 @@ export class Cutter {
         );
         this.scene.add(this.outline);
 
-        // 切断面の頂点（交点）にマーカーを表示
-        // 既に選択点(points)としてマーカーがある場所には重複して表示しない
+        // 切断面の頂点（交点）にマーкерを表示
+        console.log("--- DEBUG: Yellow marker generation loop ---");
         intersections.forEach(p => {
             // 重複チェック
             let isDuplicate = false;
             for (let sp of points) {
-                if (p.distanceTo(sp) < 0.1) {
+                const dist = p.distanceTo(sp);
+                console.log(`  Checking intersection point (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)}) vs selection point (${sp.x.toFixed(2)}, ${sp.y.toFixed(2)}, ${sp.z.toFixed(2)}). Distance: ${dist.toExponential(2)}`);
+                if (dist < 1e-2) {
                     isDuplicate = true;
                     break;
                 }
             }
-            if (isDuplicate) return;
+            if (isDuplicate) {
+                console.log(`  Duplicate found with selection point, skipping yellow marker for (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`);
+                return;
+            }
 
             // 切断の結果できた交点は基本黄色
             let markerColor = 0xffff00;
@@ -255,7 +308,7 @@ export class Cutter {
             for(let edge of cube.edges) {
                 const center = new THREE.Vector3();
                 edge.getCenter(center);
-                if (p.distanceTo(center) < 0.1) {
+                if (p.distanceTo(center) < 1e-3) { // 閾値をより厳密に
                     markerColor = 0x00ff00; // 緑色
                     isOutline = true; // 塗りつぶしなし
                     break;
@@ -264,6 +317,7 @@ export class Cutter {
 
             const m = createMarker(p, this.scene, markerColor, isOutline);
             this.vertexMarkers.push(m);
+            console.log(`  Creating yellow marker for intersection point (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`);
         });
     }
 
@@ -348,6 +402,7 @@ export class Cutter {
     this.originalCube = null;
     this.lastCube = null;
     this.lastPoints = null;
+    this.cutPlane = null;
   }
   
   resetInversion() {

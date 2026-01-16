@@ -1,16 +1,16 @@
 import * as THREE from 'three';
 
-export function createLabel(text, scale=0.5){
+export function createLabel(text, scale=0.5, color = 'black'){
   const canvas = document.createElement('canvas');
   canvas.width = 128; canvas.height = 128;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = 'black';
+  ctx.fillStyle = color;
   ctx.font = '64px Arial';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text,64,64);
   const texture = new THREE.CanvasTexture(canvas);
-  const material = new THREE.SpriteMaterial({ map: texture });
+  const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
   const sprite = new THREE.Sprite(material);
   sprite.scale.set(scale, scale, scale);
   return sprite;
