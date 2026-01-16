@@ -3,75 +3,71 @@ export const PRESETS = [
         name: "正三角形 (角切り)",
         description: "頂点Aに集まる3つの辺の中点を結ぶ",
         points: [
-            { edge: "AB", ratio: 0.5 },
-            { edge: "AD", ratio: 0.5 },
-            { edge: "AE", ratio: 0.5 }
-        ]
-    },
-    {
-        name: "正六角形",
-        description: "辺の中点を結んで正六角形を作る",
-        points: [
-            { edge: "AB", ratio: 0.5 },
-            { edge: "EH", ratio: 0.5 }, // 順序が大事。I, J, Kの3点で平面が決まる。
-            { edge: "CG", ratio: 0.5 }  // 適切な3点を選ばないと平面が決まらない、あるいは意図した六角形にならない可能性があるが、Cutterは3点で平面を作るので、同一平面上の3点ならOK。
-            // 正六角形になる平面は、例えば AB中点, AD中点, FG中点 は同一平面ではない。
-            // 正六角形を作る平面: AB中点, BC中点, ... ではなく、点対称な位置など。
-            // AB中点、AD中点を通る平面で正六角形になるのは...
-            // 立方体の中心を通る平面。
-            // AB中点(上・前), CG中点(右・後) ? 
-            // 頂点Aに近い中点群と頂点Gに近い中点群。
-            // AB中点, AD中点, FG中点 ではない。
-            // 平面の方程式 x+y+z = const。
-            // 典型的なのは、AB中点, BC中点, ... だと五角形になったりする。
-            // 正六角形: AB中点, BC中点 は同じ高さではない。
-            // 頂点Aからの距離が等しい3点 -> 正三角形。
-            // 正六角形: 辺の中点を順に通る。
-            // 点I(AB中点), 点J(AD中点) と... 点Kをどこにするか。
-            // 平面が (中点, 中点, 中点, 中点, 中点, 中点) を通る。
-            // I(AB中点), J(BC中点) だとBに近い。
-            // I(AB中点), K(HG中点) ... 点対称。
-            // I(AB中点), L(EH中点) ?
-            // I(AB中点), J(CG中点), K(EH中点) でいけるか？
-            // ABの中点(0, 5, 5) [size=10, center=0の場合、A(-5,5,-5), B(5,5,-5) -> (0,5,-5)]
-            // CGの中点(5, 0, 5) [C(5,5,-5), G(5,5,5) -> (5,5,0)?? いやCは(5,5,-5), Gは(5,5,5)なら中点は(5,5,0)だが、Cはy=-5? 
-            // Cube.jsの頂点定義確認が必要。
-        ]
-    },
-    {
-        name: "長方形 (垂直)",
-        description: "直方体を垂直に切る",
-        points: [
-            { edge: "AB", ratio: 0.5 },
-            { edge: "CD", ratio: 0.5 },
-            { edge: "EF", ratio: 0.5 } // 平面上にないといけない
-        ]
-    },
-    {
-        name: "ひし形 (平行四辺形)",
-        description: "斜めに切ってひし形を作る",
-        points: [
-            { edge: "AB", ratio: 0.5 },
-            { edge: "AD", ratio: 0.5 },
-            { edge: "FG", ratio: 0.5 } // これは同一平面か？
-        ]
-    },
-    {
-        name: "五角形",
-        description: "5つの辺を通る切断",
-        points: [
-            { edge: "AB", ratio: 0.5 }, // 奥・下
-            { edge: "AD", ratio: 0.5 }, // 奥・左
-            { edge: "FG", ratio: 0.5 }  // 手前・上
+            { type: 'edge', name: 'AD', ratio: 0.5 },
+            { type: 'edge', name: 'AE', ratio: 0.5 },
+            { type: 'edge', name: 'AB', ratio: 0.5 }
         ]
     },
     {
         name: "台形",
         description: "台形の切り口",
         points: [
-            { edge: "EF", ratio: 0.2 }, // 手前・下
-            { edge: "EF", ratio: 0.8 }, // 手前・下 (2点指定)
-            { edge: "CD", ratio: 0.5 }  // 奥・上 (平行な辺)
+            { type: 'edge', name: 'AB', ratio: 0.4 },
+            { type: 'edge', name: 'AE', ratio: 0.4 },
+            { type: 'vertex', name: 'C' }
+        ]
+    },
+    {
+        name: "長方形（垂直）",
+        description: "直方体を水平に（y軸に垂直に）切る",
+        points: [
+            { type: 'edge', name: 'AE', ratio: 0.5 },
+            { type: 'edge', name: 'BF', ratio: 0.5 },
+            { type: 'edge', name: 'CG', ratio: 0.5 },
+            { type: 'edge', name: 'DH', ratio: 0.5 }
+        ]
+    },
+    {
+        name: "長方形",
+        description: "4つの頂点を通る対角線的な長方形",
+        points: [
+            { type: 'vertex', name: 'A' },
+            { type: 'vertex', name: 'C' },
+            { type: 'vertex', name: 'G' },
+            { type: 'vertex', name: 'E' }
+        ]
+    },
+    {
+        name: "長方形（その他）",
+        description: "直方体を斜めに切る長方形",
+        points: [
+            { type: 'edge', name: 'AE', ratio: 0.5 },
+            { type: 'edge', name: 'BF', ratio: 0.5 },
+            { type: 'edge', name: 'FG', ratio: 0.5 },
+            { type: 'edge', name: 'EH', ratio: 0.5 }
+        ]
+    },
+    {
+        name: "五角形",
+        description: "5つの辺を通る切断",
+        points: [
+            { type: 'edge', name: 'AE', ratio: 0.3 },
+            { type: 'edge', name: 'AB', ratio: 0.6 },
+            { type: 'edge', name: 'BC', ratio: 0.4 },
+            { type: 'edge', name: 'CG', ratio: 0.7 },
+            { type: 'edge', name: 'DH', ratio: 0.9 }
+        ]
+    },
+    {
+        name: "正六角形",
+        description: "立方体の中心を通り、6つの中点を結ぶ",
+        points: [
+            { type: 'edge', name: 'AE', ratio: 0.5 },
+            { type: 'edge', name: 'EF', ratio: 0.5 },
+            { type: 'edge', name: 'FG', ratio: 0.5 },
+            { type: 'edge', name: 'GC', ratio: 0.5 },
+            { type: 'edge', name: 'CD', ratio: 0.5 },
+            { type: 'edge', name: 'DA', ratio: 0.5 }
         ]
     }
 ];

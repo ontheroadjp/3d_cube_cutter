@@ -12,6 +12,8 @@ export class Cube {
     this.edgeLines = null;
     this.vertexSprites = [];
     this.edgeLabels = []; // 辺の長さラベル用
+    this.vertexMeshes = []; // 頂点の当たり判定用メッシュ
+    this.edgeMeshes = []; // 辺の当たり判定用メッシュ
     this.createCube([size,size,size]);
   }
 
@@ -23,6 +25,10 @@ export class Cube {
     this.vertexSprites = [];
     this.edgeLabels.forEach(s => this.scene.remove(s));
     this.edgeLabels = [];
+    this.vertexMeshes.forEach(m => this.scene.remove(m));
+    this.vertexMeshes = [];
+    this.edgeMeshes.forEach(m => this.scene.remove(m));
+    this.edgeMeshes = [];
 
     const [lx,ly,lz] = Array.isArray(edgeLengths)? edgeLengths : [edgeLengths,edgeLengths,edgeLengths];
     this.size = Math.max(lx,ly,lz);
@@ -64,6 +70,16 @@ export class Cube {
       this.vertexSprites.push(sprite);
     });
 
+    // 頂点の当たり判定用メッシュ
+    const vertexMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.0 });
+    this.vertices.forEach((v, i) => {
+        const vertexHitbox = new THREE.Mesh(new THREE.SphereGeometry(0.3), vertexMaterial);
+        vertexHitbox.position.copy(v);
+        vertexHitbox.userData = { type: 'vertex', index: i, name: this.vertexLabels[i] };
+        this.scene.add(vertexHitbox);
+        this.vertexMeshes.push(vertexHitbox);
+    });
+
     // 辺オブジェクト
     const idx = [
       [0,1],[1,2],[2,3],[3,0],
@@ -81,6 +97,28 @@ export class Cube {
       sprite.position.copy(center);
       this.scene.add(sprite);
       this.edgeLabels.push(sprite);
+    });
+
+    // 辺の当たり判定用メッシュ
+    const edgeMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.0 });
+    this.edges.forEach((edge, i) => {
+        const edgeVector = new THREE.Vector3().subVectors(edge.end, edge.start);
+        const edgeLength = edgeVector.length();
+        const edgeCenter = new THREE.Vector3().addVectors(edge.start, edge.end).multiplyScalar(0.5);
+
+        const edgeHitbox = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, edgeLength), edgeMaterial);
+        edgeHitbox.position.copy(edgeCenter);
+        
+        // 辺の向きに合わせる
+        const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), edgeVector.normalize());
+        edgeHitbox.setRotationFromQuaternion(quat);
+        
+        const v1_name = this.vertexLabels[idx[i][0]];
+        const v2_name = this.vertexLabels[idx[i][1]];
+        edgeHitbox.userData = { type: 'edge', index: i, name: `${v1_name}${v2_name}` };
+
+        this.scene.add(edgeHitbox);
+        this.edgeMeshes.push(edgeHitbox);
     });
   }
 
@@ -135,14 +173,6 @@ export class Cube {
     }
   }
 
-  raycast(mouse, camera){
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(mouse,camera);
-    const hit = raycaster.intersectObject(this.cubeMesh)[0];
-    if(!hit) return null;
-    return hit.point;
-  }
-
   resize(camera){
     const aspect = innerWidth/innerHeight;
     const padding = 5;
@@ -152,5 +182,14 @@ export class Cube {
     camera.top = newSize;
     camera.bottom = -newSize;
     camera.updateProjectionMatrix();
+  }
+
+  getVertexObjectByName(name) {
+      return this.vertexMeshes.find(m => m.userData.name === name);
+  }
+
+  getEdgeObjectByName(name) {
+      // "AB" と "BA" を同一視する
+      return this.edgeMeshes.find(m => m.userData.name === name || m.userData.name === `${name[1]}${name[0]}`);
   }
 }

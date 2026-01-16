@@ -42,38 +42,85 @@ const selection = new SelectionManager(scene,cube,ui);
 const presetManager = new PresetManager(selection, cube, cutter);
 
 let isCutExecuted = false; // 切断済みフラグ
+let highlightedObject = null; // ハイライト中のオブジェクト
 
 // プリセット一覧をUIに反映
-ui.populatePresets(presetManager.getPresetNames());
+ui.populatePresets(presetManager.getNames());
 
-/* ===== Mouse Click ===== */
-addEventListener('click', e=>{
-  if (isCutExecuted) return; // 切断後は点を追加できない
+function executeCut() {
+    const points = selection.selected.map(s => s.point);
+    if (points.length < 3) return;
 
-  // 制限撤廃: if(selection.selected.length>=3) return;
-  const mouse = new THREE.Vector2(
-    e.clientX/innerWidth*2-1,
-    -e.clientY/innerHeight*2+1
-  );
-  const p = cube.raycast(mouse,camera);
-  if(!p) return;
-  selection.addPoint(p);
-  // 新規追加されたラベルの表示状態を同期
-  selection.toggleVertexLabels(ui.isVertexLabelsChecked());
+    const success = cutter.cut(cube, points);
+    if (!success) {
+        // cutter.cut が false を返した場合（例：有効な平面が見つからない）
+        console.warn("切断処理に失敗しました。点を選択し直してください。");
+        isCutExecuted = false; // 切断が実行されなかったのでフラグをリセット
+        selection.reset(); // 点をリセットして再選択を促す
+        return; // 何もせず終了
+    }
 
-  // 3点以上選択されたら切断実行（常に最初の3点、またはロジック次第で最適化）
-  // Cutter側で「最初の3点」を使うようにする
-  if(selection.selected.length >= 3){
-    cutter.cut(cube, selection.selected);
     cutter.toggleSurface(ui.isCutSurfaceChecked());
     cutter.togglePyramid(ui.isPyramidChecked());
-    // 展開図更新
     netManager.update(cutter.getCutLines(), cube);
-    // 辺の分割表示更新 (全ての交点について)
     selection.updateSplitLabels(cutter.getIntersections());
-    
     isCutExecuted = true;
-  }
+}
+
+/* ===== Mouse Click ===== */
+addEventListener('click', e => {
+    if (isCutExecuted) return;
+
+    const mouse = new THREE.Vector2(
+        (e.clientX / window.innerWidth) * 2 - 1,
+        -(e.clientY / window.innerHeight) * 2 + 1
+    );
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects([...cube.vertexMeshes, ...cube.edgeMeshes]);
+
+    if (intersects.length === 0) return;
+
+    const intersection = intersects[0];
+    const object = intersection.object;
+    const userData = object.userData;
+
+    let point;
+    if (userData.type === 'vertex') {
+        point = cube.vertices[userData.index];
+    } else { // edge
+        point = intersection.point;
+    }
+
+    // --- Validation Checks ---
+    if (selection.isObjectSelected(object)) {
+        // 頂点または辺がすでに選択されている場合は何もしない
+        return;
+    }
+    
+    if (selection.selected.length === 2) {
+        const p0 = selection.selected[0].point;
+        const p1 = selection.selected[1].point;
+        const p2 = point;
+        const v1 = new THREE.Vector3().subVectors(p1, p0);
+        const v2 = new THREE.Vector3().subVectors(p2, p0);
+
+        if (v1.cross(v2).lengthSq() < 1e-6) {
+            ui.showMessage("3つの点が同一直線上になるため、選択できません。", "warning");
+            return;
+        }
+    }
+
+    if (selection.selected.length >= 3) return;
+
+    // --- Add Point ---
+    selection.addPoint({ point, object });
+    selection.toggleVertexLabels(ui.isVertexLabelsChecked());
+
+    // 3点目が選択されたら自動で切断
+    if (selection.selected.length === 3) {
+        executeCut();
+    }
 });
 
 /* ===== Event Listeners via UIManager ===== */
@@ -83,26 +130,23 @@ ui.onVertexLabelChange((checked) => {
 });
 
 ui.onPresetChange((name) => {
-    if (name === 'free') {
-        // 自由選択モード：リセットのみ
-        selection.reset();
-        cutter.resetInversion();
-        cutter.reset();
-        netManager.update([], cube);
-        isCutExecuted = false;
-    } else {
+    // 常にリセットから始める
+    selection.reset();
+    cutter.resetInversion();
+    cutter.reset();
+    netManager.update([], cube);
+    isCutExecuted = false;
+
+    if (name !== 'free') {
         presetManager.applyPreset(name);
+        // プリセット適用後、即座に切断を実行
+        executeCut();
         // 適用後の状態同期
-        selection.toggleVertexLabels(ui.isVertexLabelsChecked());
+        // executeCut内で更新されない場合、または失敗した場合のためにここで再度設定
         cutter.toggleSurface(ui.isCutSurfaceChecked());
         cutter.togglePyramid(ui.isPyramidChecked());
         cutter.setTransparency(ui.isTransparencyChecked());
-        // 展開図更新
-        netManager.update(cutter.getCutLines(), cube);
-        // 辺の分割表示更新
-        selection.updateSplitLabels(cutter.getIntersections());
-        
-        isCutExecuted = true;
+        selection.toggleVertexLabels(ui.isVertexLabelsChecked()); // Preset適用後の点ラベルも同期
     }
 });
 
@@ -186,26 +230,43 @@ const initialEdgeMode = ui.getEdgeLabelMode();
 cube.setEdgeLabelMode(initialEdgeMode);
 selection.setEdgeLabelMode(initialEdgeMode);
 
-/* ===== Mouse Move (Tooltip) ===== */
+/* ===== Mouse Move (Highlighting) ===== */
+const raycaster = new THREE.Raycaster();
+function unhighlightVertex(obj) {
+    if (!obj) return;
+    obj.material.opacity = 0.0;
+    obj.scale.set(1, 1, 1);
+}
+function highlightVertex(obj) {
+    if (!obj) return;
+    obj.material.opacity = 0.5;
+    obj.scale.set(1.5, 1.5, 1.5);
+}
+
 addEventListener('mousemove', e => {
-  if (ui.getEdgeLabelMode() !== 'popup') return;
+    const mouse = new THREE.Vector2(
+        (e.clientX / window.innerWidth) * 2 - 1,
+        -(e.clientY / window.innerHeight) * 2 + 1
+    );
 
-  const mouse = new THREE.Vector3(
-    (e.clientX / innerWidth) * 2 - 1,
-    -(e.clientY / innerHeight) * 2 + 1,
-    0
-  );
-  
-  const raycaster = new THREE.Raycaster();
-  raycaster.setFromCamera(new THREE.Vector2(mouse.x, mouse.y), camera);
-  
-  const text = selection.getTooltipInfo(raycaster);
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(cube.vertexMeshes);
 
-  if (text) {
-      ui.showTooltip(text, e.clientX, e.clientY);
-  } else {
-      ui.hideTooltip();
-  }
+    if (intersects.length > 0) {
+        const foundObj = intersects[0].object;
+        if (highlightedObject !== foundObj) {
+            unhighlightVertex(highlightedObject);
+            highlightVertex(foundObj);
+            highlightedObject = foundObj;
+            document.body.style.cursor = 'pointer';
+        }
+    } else {
+        if (highlightedObject) {
+            unhighlightVertex(highlightedObject);
+            highlightedObject = null;
+            document.body.style.cursor = 'auto';
+        }
+    }
 });
 
 /* ===== Resize ===== */

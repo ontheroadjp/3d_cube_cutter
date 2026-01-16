@@ -6,12 +6,12 @@ export class SelectionManager {
     this.scene = scene;
     this.cube = cube;
     this.ui = ui;
-    this.selected = [];
+    this.selected = []; // オブジェクトの配列 { point, object }
     this.markers = []; // 赤丸、点ラベル、辺ラベル(分割分) 全て含むが、管理しやすくする
     this.splitEdgeLabels = []; // 分割辺の長さラベルだけ別途保持
     this.hiddenEdgeLabels = []; // 隠した元の辺ラベルのインデックス
-    // ラベルは動的に生成する
     this.currentEdgeLabelMode = 'visible';
+    this.selectedObjects = new Set(); // 選択されたオブジェクトのuuidを管理
   }
 
   getLabel(index) {
@@ -24,8 +24,26 @@ export class SelectionManager {
   updateSplitLabels(intersections) {
       if (!intersections || intersections.length === 0) return;
       
+      // projectToEdge の簡易版をここに実装
+      const project = (p) => {
+          let best=null, min=Infinity, bestIdx = -1;
+          this.cube.edges.forEach((line, i)=>{
+              const a=line.start, b=line.end;
+              const ab=b.clone().sub(a);
+              const lenSq = ab.lengthSq();
+              if(lenSq < 1e-10) return;
+              let t=ab.dot(p.clone().sub(a))/lenSq;
+              if(t < -0.01 || t > 1.01) return;
+              t = Math.max(0, Math.min(1, t));
+              const q=a.clone().add(ab.multiplyScalar(t));
+              const d=q.distanceTo(p);
+              if(d < min){ min=d; best=q; bestIdx=i; }
+          });
+          return min < 1.0 ? { point: best, index: bestIdx } : null;
+      };
+
       intersections.forEach(p => {
-          const result = this.projectToEdge(p);
+          const result = project(p);
           if (!result) return;
           const { index: edgeIdx } = result;
           
@@ -38,63 +56,31 @@ export class SelectionManager {
       });
   }
 
-  projectToEdge(p){
-    let best=null, min=Infinity, bestIdx = -1;
-    this.cube.edges.forEach((line, i)=>{
-      const a=line.start, b=line.end;
-      const ab=b.clone().sub(a);
-      const lenSq = ab.lengthSq();
-      if(lenSq < 1e-10) return; 
-
-      let t=ab.dot(p.clone().sub(a))/lenSq;
-      
-      // 許容誤差 
-      if(t < -0.01 || t > 1.01) return;
-      t = Math.max(0, Math.min(1, t));
-
-      const q=a.clone().add(ab.multiplyScalar(t));
-      const d=q.distanceTo(p);
-      
-      // 距離チェックの閾値をさらに緩和し、最も近いものを選ぶ
-      // 交点は「辺の延長線上」にある可能性は低い（Cutterが交点計算しているため）
-      // しかし、頂点付近の点は複数の辺に近い。
-      // 最も近い辺を選ぶロジックは正しい。
-      if(d < min){ 
-          min=d; 
-          best=q; 
-          bestIdx=i; 
-      }
-    });
-    // 閾値を1.0まで緩和（計算誤差対策）
-    return min<1.0 ? { point: best, index: bestIdx } : null;
-  }
-
-  addPoint(p){
-    const result = this.projectToEdge(p);
-    if(!result) return;
+  addPoint(selectionInfo) {
+    const { point, object } = selectionInfo;
     
-    const { point: proj, index: edgeIdx } = result;
-
-    this.selected.push(proj);
-    const li = this.selected.length-1;
+    this.selected.push(selectionInfo);
+    this.selectedObjects.add(object.uuid);
+    
+    const li = this.selected.length - 1;
     const label = this.getLabel(li);
 
-    // 赤球
-    const m = createMarker(proj, this.scene);
+    // 赤球マーカー
+    const m = createMarker(point, this.scene);
     this.markers.push(m);
 
-    // 選択点ラベル
-    const sprite = createLabel(label, this.cube.size/10);
-    sprite.position.copy(proj).add(new THREE.Vector3(0,0.8,0));
+    // 選択点ラベル (I, J, K...)
+    const sprite = createLabel(label, this.cube.size / 10);
+    sprite.position.copy(point).add(new THREE.Vector3(0, 0.8, 0));
     this.scene.add(sprite);
     this.markers.push(sprite);
 
-    // 頂点ラベルの表示状態同期
+    // 頂点ラベルの表示状態を同期
     sprite.visible = true;
 
-    // 辺の分割表示（共通処理へ）
-    if (edgeIdx !== -1) {
-        this._addSplitLabel(edgeIdx, proj);
+    // 選択が辺の場合、辺の長さを分割表示する
+    if (object.userData.type === 'edge') {
+        this._addSplitLabel(object.userData.index, point);
     }
    
     this.ui.updateSelectionCount(this.selected.length);
@@ -158,58 +144,9 @@ export class SelectionManager {
     const visible = (mode === 'visible');
     this.splitEdgeLabels.forEach(s => s.visible = visible);
   }
-  
-  // マウス位置(raycaster)を受け取り、ツールチップに表示すべきテキストを返す
-  getTooltipInfo(raycaster) {
-      // Cubeの辺との交差判定
-      let minDist = 0.5;
-      let hitEdge = null;
-      let hitPoint = new THREE.Vector3();
-      let hitEdgeIndex = -1;
 
-      this.cube.edges.forEach((edge, i) => {
-          const pOnRay = new THREE.Vector3();
-          const pOnSeg = new THREE.Vector3();
-          const distSq = raycaster.ray.distanceSqToSegment(edge.start, edge.end, pOnRay, pOnSeg);
-          if (distSq < minDist * minDist) {
-              minDist = Math.sqrt(distSq);
-              hitEdge = edge;
-              hitPoint.copy(pOnSeg);
-              hitEdgeIndex = i;
-          }
-      });
-
-      if (!hitEdge) return null;
-
-      // 分割判定
-      // 選択点の中に、この辺上にある点があるか
-      let splitPoint = null;
-      for(let p of this.selected){
-          const lineObj = new THREE.Line3(hitEdge.start, hitEdge.end);
-          const closest = lineObj.closestPointToPoint(p, true, new THREE.Vector3());
-          if(closest.distanceTo(p) < 0.01){
-              splitPoint = p;
-              break;
-          }
-      }
-
-      let text = "";
-      if(splitPoint){
-          // 分割されている。マウス位置(hitPoint)がどちら側か判定。
-          const dStart = hitEdge.start.distanceTo(hitPoint);
-          const dSplitStart = hitEdge.start.distanceTo(splitPoint);
-          
-          if(dStart < dSplitStart){
-              text = hitEdge.start.distanceTo(splitPoint).toFixed(1).replace(/\.0$/, '') + "cm";
-          } else {
-              text = hitEdge.end.distanceTo(splitPoint).toFixed(1).replace(/\.0$/, '') + "cm";
-          }
-      } else {
-          // 分割されていない
-          text = hitEdge.distance().toFixed(0) + "cm";
-      }
-
-      return text;
+  isObjectSelected(object) {
+      return this.selectedObjects.has(object.uuid);
   }
 
   reset(){
@@ -217,6 +154,7 @@ export class SelectionManager {
     this.markers.forEach(m=>this.scene.remove(m));
     this.markers=[];
     this.splitEdgeLabels=[];
+    this.selectedObjects.clear();
     
     // 隠した辺ラベルを復元
     // 元々はここで currentEdgeLabelMode をチェックしていたが、

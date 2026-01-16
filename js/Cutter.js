@@ -19,6 +19,7 @@ export class Cutter {
     this.cutInverted = false; // 切り取り反転フラグ
     this.lastPoints = null; // 再計算用に保持
     this.lastCube = null;
+    this.intersections = []; // 交点を保持
   }
 
   setTransparency(transparent) {
@@ -52,12 +53,39 @@ export class Cutter {
     this.lastCube = cube;
     this.lastPoints = points;
 
-    if (points.length < 3) return;
+    if (points.length < 3) return false;
 
-    // 1. 平面の定義（最初の3点を使用）
-    const p0 = points[0], p1 = points[1], p2 = points[2];
+    // 1. 平面の定義（同一直線上にない3点を探す）
     const plane = new THREE.Plane();
-    plane.setFromCoplanarPoints(p0, p1, p2);
+    let validPlane = false;
+    for (let i = 0; i < points.length; i++) {
+        for (let j = i + 1; j < points.length; j++) {
+            for (let k = j + 1; k < points.length; k++) {
+                const p0 = points[i], p1 = points[j], p2 = points[k];
+                try {
+                    plane.setFromCoplanarPoints(p0, p1, p2);
+                    // 3点が同一直線上にあると normal が (0,0,0) になる場合がある
+                    if (plane.normal.lengthSq() > 0.0001) {
+                        validPlane = true;
+                        break;
+                    }
+                } catch (e) {
+                    // setFromCoplanarPoints がエラーを投げる場合もある
+                    continue;
+                }
+            }
+            if (validPlane) break;
+        }
+        if (validPlane) break;
+    }
+
+    if (!validPlane) {
+        console.warn("有効な切断面を定義できませんでした。選択したすべての点が同一直線上にある可能性があります。");
+        return false;
+    }
+
+    // p0, p1, p2は古い参照なので、平面の基点として最初の点を使う
+    const p0 = points[0];
 
     // 2. 切り取る側の判定
     // 直方体の8頂点が平面のどちら側にあるか数える
@@ -183,6 +211,7 @@ export class Cutter {
             }
         }
     });
+    this.intersections = intersections; // 交点をクラスプロパティに保存
     
     if(intersections.length >= 3){
         const center = new THREE.Vector3();
@@ -207,7 +236,7 @@ export class Cutter {
 
         // 切断面の頂点（交点）にマーカーを表示
         // 既に選択点(points)としてマーカーがある場所には重複して表示しない
-        this.intersections.forEach(p => {
+        intersections.forEach(p => {
             // 重複チェック
             let isDuplicate = false;
             for (let sp of points) {
@@ -240,6 +269,7 @@ export class Cutter {
 
     // 元のCubeを非表示
     cube.cubeMesh.visible = false;
+    return true; // 成功したことを示す
   }
   
   toggleSurface(visible) {
@@ -250,6 +280,10 @@ export class Cutter {
     if (this.outline) {
         this.outline.visible = visible;
     }
+  }
+
+  getIntersections() {
+      return this.intersections;
   }
 
   // 展開図描画用に切断線のリスト（Line3配列）を返す

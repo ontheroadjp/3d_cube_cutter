@@ -17,6 +17,7 @@ export class UIManager {
     this.presetButtonsContainer = document.getElementById('presetButtons');
     this.toggleNetBtn = document.getElementById('toggleNet');
     this.countSpan = document.getElementById('count');
+    this.alertContainer = document.getElementById('alert-container');
   }
 
   // --- Getters for UI State ---
@@ -122,6 +123,27 @@ export class UIManager {
   // --- UI Updates ---
   updateSelectionCount(count) {
     this.countSpan.textContent = count;
+  }
+
+  showMessage(message, type = 'warning', duration = 5000) {
+      const alertEl = document.createElement('div');
+      alertEl.className = `alert alert-${type} alert-dismissible fade show m-0`;
+      alertEl.role = 'alert';
+      alertEl.innerHTML = `
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      `;
+
+      this.alertContainer.appendChild(alertEl);
+
+      if (duration > 0) {
+          setTimeout(() => {
+              const bsAlert = bootstrap.Alert.getOrCreateInstance(alertEl);
+              if (bsAlert) {
+                  bsAlert.close();
+              }
+          }, duration);
+      }
   }
 
   showTooltip(text, x, y) {
