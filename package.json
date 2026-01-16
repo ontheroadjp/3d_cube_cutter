@@ -1,0 +1,30 @@
+{
+  "name": "3d_cube_cutter",
+  "version": "1.0.0",
+  "description": "A 3D simulation tool designed to help students preparing for middle school entrance exams understand the concept of \"Solid Cutting\" (cutting cubes and cuboids) in arithmetic geometry.",
+  "main": "main.js",
+  "type": "module",
+  "directories": {
+    "doc": "doc",
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --no-cache"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ontheroadjp/3d_cube_cutter.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ontheroadjp/3d_cube_cutter/issues"
+  },
+  "homepage": "https://github.com/ontheroadjp/3d_cube_cutter#readme",
+  "devDependencies": {
+    "jest": "^30.2.0",
+    "three": "^0.182.0",
+    "three-bvh-csg": "^0.0.17"
+  }
+}

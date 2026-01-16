@@ -7,276 +7,307 @@ import { Cutter } from './js/Cutter.js';
 import { PresetManager } from './js/presets/PresetManager.js';
 import { NetManager } from './js/net/NetManager.js';
 
-/* ===== Scene, Camera, Renderer, Controls ===== */
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xf0f0f0);
+class App {
+    constructor() {
+        // --- State Properties ---
+        this.isCutExecuted = false;
+        this.snappedPointInfo = null;
+        this.cameraTargetPosition = null;
+        this.isCameraAnimating = false;
 
-let size = 10;
-let aspect = innerWidth / innerHeight;
-const camera = new THREE.OrthographicCamera(-size*aspect, size*aspect, size, -size, 0.1, 100);
-camera.position.set(10, 5, 3);
-camera.lookAt(0,0,0);
+        // --- Core Three.js Components ---
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0xf0f0f0);
 
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(innerWidth, innerHeight);
-document.body.appendChild(renderer.domElement);
+        const size = 10;
+        const aspect = window.innerWidth / window.innerHeight;
+        this.camera = new THREE.OrthographicCamera(-size * aspect, size * aspect, size, -size, 0.1, 100);
+        this.camera.position.set(10, 5, 3);
+        this.camera.lookAt(0, 0, 0);
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.target.set(0,0,0);
-controls.update();
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(this.renderer.domElement);
 
-let cameraTargetPosition = null;
-let isCameraAnimating = false;
+        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.enableDamping = true;
+        this.controls.target.set(0, 0, 0);
+        this.controls.update();
 
-controls.addEventListener('start', () => { isCameraAnimating = false; });
+        this.raycaster = new THREE.Raycaster();
 
-scene.add(new THREE.AmbientLight(0xffffff,0.8));
-const light = new THREE.DirectionalLight(0xffffff,0.6);
-light.position.set(5,5,5);
-scene.add(light);
+        // --- Lights and Helpers ---
+        this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const light = new THREE.DirectionalLight(0xffffff, 0.6);
+        light.position.set(5, 5, 5);
+        this.scene.add(light);
 
-/* ===== Highlight Marker ===== */
-const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0x808080, transparent: true, opacity: 0.7 });
-const midPointHighlightMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.7 });
-const highlightMarker = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), highlightMaterial);
-highlightMarker.visible = false;
-scene.add(highlightMarker);
+        const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0x808080, transparent: true, opacity: 0.7 });
+        this.midPointHighlightMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.7 });
+        this.highlightMarker = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), highlightMaterial);
+        this.highlightMarker.visible = false;
+        this.scene.add(this.highlightMarker);
 
-/* ===== Instantiate Managers ===== */
-const ui = new UIManager();
-const cube = new Cube(scene);
-const cutter = new Cutter(scene);
-const netManager = new NetManager();
-const selection = new SelectionManager(scene,cube,ui);
-const presetManager = new PresetManager(selection, cube, cutter);
-
-let isCutExecuted = false;
-let snappedPointInfo = null;
-
-ui.populatePresets(presetManager.getPresets());
-
-function executeCut() {
-    const points = selection.selected.map(s => s.point);
-    if (points.length < 3) return;
-
-    const success = cutter.cut(cube, points);
-    if (!success) {
-        console.warn("切断処理に失敗しました。点を選択し直してください。");
-        isCutExecuted = false;
-        selection.reset();
-        return;
+        // --- Managers ---
+        this.ui = new UIManager();
+        this.cube = new Cube(this.scene);
+        this.cutter = new Cutter(this.scene);
+        this.netManager = new NetManager();
+        this.selection = new SelectionManager(this.scene, this.cube, this.ui);
+        this.presetManager = new PresetManager(this.selection, this.cube, this.cutter);
     }
-    cutter.toggleSurface(ui.isCutSurfaceChecked());
-    cutter.togglePyramid(ui.isPyramidChecked());
-    netManager.update(cutter.getCutLines(), cube);
-    selection.updateSplitLabels(cutter.getIntersections());
-    isCutExecuted = true;
-}
 
-function resetScene() {
-    selection.reset();
-    cutter.resetInversion();
-    cutter.reset();
-    netManager.update([], cube);
-    isCutExecuted = false;
-    snappedPointInfo = null;
-    highlightMarker.visible = false;
-    isCameraAnimating = true;
-    cameraTargetPosition = new THREE.Vector3(10, 5, 3);
-    controls.target.set(0, 0, 0);
-}
+    init() {
+        this.ui.populatePresets(this.presetManager.getPresets());
+        this.bindEventListeners();
+        this.setInitialState();
+        this.animate();
+    }
 
-/* ===== Mouse Click ===== */
-addEventListener('click', e => {
-    if (isCutExecuted) return;
-    if (ui.modeSelector.value !== 'free') return;
-    if (!snappedPointInfo) return;
-    if (selection.isObjectSelected(snappedPointInfo.object)) return;
+    setInitialState() {
+        this.cube.toggleTransparency(this.ui.isTransparencyChecked());
+        this.cutter.setTransparency(this.ui.isTransparencyChecked());
+        this.cube.toggleVertexLabels(this.ui.isVertexLabelsChecked());
+        this.selection.toggleVertexLabels(this.ui.isVertexLabelsChecked());
+        this.cube.toggleFaceLabels(this.ui.isFaceLabelsChecked());
+        const initialEdgeMode = this.ui.getEdgeLabelMode();
+        this.cube.setEdgeLabelMode(initialEdgeMode);
+        this.selection.setEdgeLabelMode(initialEdgeMode);
+    }
     
-    if (selection.selected.length === 2) {
-        const p0 = selection.selected[0].point;
-        const p1 = selection.selected[1].point;
-        const p2 = snappedPointInfo.point;
-        const v1 = new THREE.Vector3().subVectors(p1, p0);
-        const v2 = new THREE.Vector3().subVectors(p2, p0);
-        if (v1.cross(v2).lengthSq() < 1e-6) {
-            ui.showMessage("3つの点が同一直線上になるため、選択できません。", "warning");
+    bindEventListeners() {
+        // Browser Events
+        window.addEventListener('click', this.handleClick.bind(this));
+        window.addEventListener('mousemove', this.handleMouseMove.bind(this));
+        window.addEventListener('resize', this.handleResize.bind(this));
+        this.controls.addEventListener('start', () => { this.isCameraAnimating = false; });
+
+        // UI Manager Events
+        this.ui.onModeChange(this.handleModeChange.bind(this));
+        this.ui.onPresetCategoryChange(this.handlePresetCategoryChange.bind(this));
+        this.ui.onSettingsCategoryChange(this.handleSettingsCategoryChange.bind(this));
+        this.ui.onPresetChange(this.handlePresetChange.bind(this));
+        this.ui.onResetClick(this.handleResetClick.bind(this));
+        this.ui.onConfigureClick(this.handleConfigureClick.bind(this));
+        this.ui.onFlipCutClick(this.handleFlipCutClick.bind(this));
+        
+        // Display Toggles
+        this.ui.onVertexLabelChange(checked => { this.cube.toggleVertexLabels(checked); this.selection.toggleVertexLabels(checked); });
+        this.ui.onFaceLabelChange(checked => this.cube.toggleFaceLabels(checked));
+        this.ui.onToggleNetClick(() => { this.netManager.toggle(); this.netManager.update(this.cutter.getCutLines(), this.cube); });
+        this.ui.onEdgeLabelModeChange(mode => { this.cube.setEdgeLabelMode(mode); this.selection.setEdgeLabelMode(mode); });
+        this.ui.onCutSurfaceChange(checked => this.cutter.toggleSurface(checked));
+        this.ui.onPyramidChange(checked => this.cutter.togglePyramid(checked));
+        this.ui.onTransparencyChange(checked => { this.cube.toggleTransparency(checked); this.cutter.setTransparency(checked); });
+    }
+
+    // --- Core Logic Methods ---
+    executeCut() {
+        const points = this.selection.selected.map(s => s.point);
+        if (points.length < 3) return;
+
+        const success = this.cutter.cut(this.cube, points);
+        if (!success) {
+            console.warn("切断処理に失敗しました。点を選択し直してください。");
+            this.isCutExecuted = false;
+            this.selection.reset();
             return;
         }
+        this.cutter.toggleSurface(this.ui.isCutSurfaceChecked());
+        this.cutter.togglePyramid(this.ui.isPyramidChecked());
+        this.netManager.update(this.cutter.getCutLines(), this.cube);
+        this.selection.updateSplitLabels(this.cutter.getIntersections());
+        this.isCutExecuted = true;
     }
-    if (selection.selected.length >= 3) return;
 
-    selection.addPoint(snappedPointInfo);
-    selection.toggleVertexLabels(ui.isVertexLabelsChecked());
-
-    if (selection.selected.length === 3) executeCut();
-});
-
-
-/* ===== Event Listeners via UIManager ===== */
-
-ui.onModeChange(mode => {
-    resetScene();
-    ui.showPresetControls(false);
-    ui.showSettingsControls(false);
-    ui.showSettingsPanels(false);
-
-    if (mode === 'preset') {
-        ui.showPresetControls(true);
-        ui.presetCategoryFilter.value = 'triangle';
-        ui.filterPresetButtons('triangle');
-    } else if (mode === 'settings') {
-        ui.showSettingsControls(true);
-        ui.showSettingsPanels(true);
-        ui.settingsCategorySelector.value = 'display';
-        ui.showSettingsPanel('display');
+    resetScene() {
+        this.selection.reset();
+        this.cutter.resetInversion();
+        this.cutter.reset();
+        this.netManager.update([], this.cube);
+        this.isCutExecuted = false;
+        this.snappedPointInfo = null;
+        this.highlightMarker.visible = false;
+        this.isCameraAnimating = true;
+        this.cameraTargetPosition = new THREE.Vector3(10, 5, 3);
+        this.controls.target.set(0, 0, 0);
     }
-});
 
-ui.onPresetCategoryChange(category => {
-    if (category) ui.filterPresetButtons(category);
-});
+    // --- Event Handlers ---
+    handleClick(e) {
+        if (this.isCutExecuted) return;
+        if (this.ui.modeSelector.value !== 'free') return;
+        if (!this.snappedPointInfo) return;
+        if (this.selection.isObjectSelected(this.snappedPointInfo.object)) return;
 
-ui.onSettingsCategoryChange(category => {
-    ui.showSettingsPanel(category);
-});
+        if (this.selection.selected.length === 2) {
+            const p0 = this.selection.selected[0].point;
+            const p1 = this.selection.selected[1].point;
+            const p2 = this.snappedPointInfo.point;
+            const v1 = new THREE.Vector3().subVectors(p1, p0);
+            const v2 = new THREE.Vector3().subVectors(p2, p0);
+            if (v1.cross(v2).lengthSq() < 1e-6) {
+                this.ui.showMessage("3つの点が同一直線上になるため、選択できません。", "warning");
+                return;
+            }
+        }
+        if (this.selection.selected.length >= 3) return;
 
-ui.onPresetChange(name => {
-    resetScene();
-    presetManager.applyPreset(name);
-    executeCut();
-    const normal = cutter.getCutPlaneNormal();
-    if (normal) {
-        const distance = cube.size * 1.5;
-        const offset = new THREE.Vector3(0.5, 0.5, 0.5).normalize();
-        cameraTargetPosition = normal.clone().multiplyScalar(distance).add(offset.multiplyScalar(distance * 0.3));
-        isCameraAnimating = true;
+        this.selection.addPoint(this.snappedPointInfo);
+        this.selection.toggleVertexLabels(this.ui.isVertexLabelsChecked());
+
+        if (this.selection.selected.length === 3) this.executeCut();
     }
-    cutter.toggleSurface(ui.isCutSurfaceChecked());
-    cutter.togglePyramid(ui.isPyramidChecked());
-    cutter.setTransparency(ui.isTransparencyChecked());
-    selection.toggleVertexLabels(ui.isVertexLabelsChecked());
-});
 
-ui.onResetClick(() => {
-    resetScene();
-    ui.resetToFreeSelectMode();
-});
-
-ui.onConfigureClick(() => {
-  const lx = parseFloat(prompt("辺ABの長さ(cm)","10"));
-  const ly = parseFloat(prompt("辺ADの長さ(cm)","10"));
-  const lz = parseFloat(prompt("辺AEの長さ(cm)","10"));
-  if(!isNaN(lx)&&!isNaN(ly)&&!isNaN(lz)){
-    resetScene();
-    ui.resetToFreeSelectMode();
-    cube.createCube([lx,ly,lz]);
-    const mode = ui.getEdgeLabelMode();
-    cube.setEdgeLabelMode(mode);
-    selection.setEdgeLabelMode(mode);
-    const isTrans = ui.isTransparencyChecked();
-    cube.toggleTransparency(isTrans);
-    cutter.setTransparency(isTrans);
-  }
-});
-
-// Other display toggles
-ui.onVertexLabelChange((checked) => { cube.toggleVertexLabels(checked); selection.toggleVertexLabels(checked); });
-ui.onFaceLabelChange((checked) => { cube.toggleFaceLabels(checked); });
-ui.onToggleNetClick(() => { netManager.toggle(); netManager.update(cutter.getCutLines(), cube); });
-ui.onEdgeLabelModeChange((mode) => { cube.setEdgeLabelMode(mode); selection.setEdgeLabelMode(mode); });
-ui.onCutSurfaceChange((checked) => { cutter.toggleSurface(checked); });
-ui.onPyramidChange((checked) => { cutter.togglePyramid(checked); });
-ui.onTransparencyChange((checked) => { cube.toggleTransparency(checked); cutter.setTransparency(checked); });
-ui.onFlipCutClick(() => {
-    cutter.flipCut();
-    cutter.toggleSurface(ui.isCutSurfaceChecked());
-    cutter.togglePyramid(ui.isPyramidChecked());
-    netManager.update(cutter.getCutLines(), cube);
-    selection.updateSplitLabels(cutter.getIntersections());
-});
-
-// Initial state reflects default UI toggles
-cube.toggleTransparency(ui.isTransparencyChecked());
-cutter.setTransparency(ui.isTransparencyChecked());
-cube.toggleVertexLabels(ui.isVertexLabelsChecked());
-selection.toggleVertexLabels(ui.isVertexLabelsChecked());
-cube.toggleFaceLabels(ui.isFaceLabelsChecked());
-const initialEdgeMode = ui.getEdgeLabelMode();
-cube.setEdgeLabelMode(initialEdgeMode);
-selection.setEdgeLabelMode(initialEdgeMode);
-
-const raycaster = new THREE.Raycaster();
-
-/* ===== Mouse Move (Highlighting) ===== */
-addEventListener('mousemove', e => {
-    if (isCutExecuted || ui.modeSelector.value !== 'free') {
-        highlightMarker.visible = false;
-        snappedPointInfo = null;
-        document.body.style.cursor = 'auto';
-        return;
-    }
-    const mouse = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects([...cube.vertexMeshes, ...cube.edgeMeshes]);
-    selection.clearPreview();
-    if (intersects.length > 0) {
-        const intersection = intersects[0];
-        const object = intersection.object;
-        const userData = object.userData;
-        if (selection.isObjectSelected(object)) {
-            highlightMarker.visible = false;
-            snappedPointInfo = null;
+    handleMouseMove(e) {
+        if (this.isCutExecuted || this.ui.modeSelector.value !== 'free') {
+            this.highlightMarker.visible = false;
+            this.snappedPointInfo = null;
             document.body.style.cursor = 'auto';
             return;
         }
-        let snappedPoint;
-        let isMidpoint = false;
-        if (userData.type === 'vertex') {
-            snappedPoint = cube.vertices[userData.index];
-            highlightMarker.material = highlightMaterial;
+        const mouse = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+        this.raycaster.setFromCamera(mouse, this.camera);
+        const intersects = this.raycaster.intersectObjects([...this.cube.vertexMeshes, ...this.cube.edgeMeshes]);
+        this.selection.clearPreview();
+
+        if (intersects.length > 0) {
+            const intersection = intersects[0];
+            const object = intersection.object;
+            const userData = object.userData;
+
+            if (this.selection.isObjectSelected(object)) {
+                this.highlightMarker.visible = false;
+                this.snappedPointInfo = null;
+                document.body.style.cursor = 'auto';
+                return;
+            }
+
+            let snappedPoint;
+            let isMidpoint = false;
+
+            if (userData.type === 'vertex') {
+                snappedPoint = this.cube.vertices[userData.index];
+                this.highlightMarker.material.color.set(0x808080);
+            } else {
+                const edge = this.cube.edges[userData.index];
+                const edgeDir = new THREE.Vector3().subVectors(edge.end, edge.start);
+                const edgeLength = edgeDir.length();
+                edgeDir.normalize();
+                const intersectVec = new THREE.Vector3().subVectors(intersection.point, edge.start);
+                let projectedLength = intersectVec.dot(edgeDir);
+                let snappedLength = Math.round(projectedLength);
+                snappedLength = Math.max(0, Math.min(edgeLength, snappedLength));
+                snappedPoint = edge.start.clone().add(edgeDir.multiplyScalar(snappedLength));
+                isMidpoint = Math.abs(snappedLength - edgeLength / 2) < 0.1;
+                this.highlightMarker.material = isMidpoint ? this.midPointHighlightMaterial : this.highlightMarker.material;
+                this.highlightMarker.material.color.set(isMidpoint ? 0x00ff00 : 0x808080);
+                this.selection.previewSplit(edge, snappedPoint);
+            }
+            this.highlightMarker.position.copy(snappedPoint);
+            this.highlightMarker.visible = true;
+            this.snappedPointInfo = { point: snappedPoint, object: object, isMidpoint: isMidpoint };
+            document.body.style.cursor = 'pointer';
         } else {
-            const edge = cube.edges[userData.index];
-            const edgeDir = new THREE.Vector3().subVectors(edge.end, edge.start);
-            const edgeLength = edgeDir.length();
-            edgeDir.normalize();
-            const intersectVec = new THREE.Vector3().subVectors(intersection.point, edge.start);
-            let projectedLength = intersectVec.dot(edgeDir);
-            let snappedLength = Math.round(projectedLength);
-            snappedLength = Math.max(0, Math.min(edgeLength, snappedLength));
-            snappedPoint = edge.start.clone().add(edgeDir.multiplyScalar(snappedLength));
-            isMidpoint = Math.abs(snappedLength - edgeLength / 2) < 0.1;
-            highlightMarker.material = isMidpoint ? midPointHighlightMaterial : highlightMaterial;
-            selection.previewSplit(edge, snappedPoint);
+            this.highlightMarker.visible = false;
+            this.snappedPointInfo = null;
+            document.body.style.cursor = 'auto';
         }
-        highlightMarker.position.copy(snappedPoint);
-        highlightMarker.visible = true;
-        snappedPointInfo = { point: snappedPoint, object: object, isMidpoint: isMidpoint };
-        document.body.style.cursor = 'pointer';
-    } else {
-        highlightMarker.visible = false;
-        snappedPointInfo = null;
-        document.body.style.cursor = 'auto';
     }
-});
 
-/* ===== Resize ===== */
-addEventListener('resize',()=>{
-  cube.resize(camera);
-  renderer.setSize(innerWidth,innerHeight);
-});
+    handleResize() {
+        this.cube.resize(this.camera);
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    
+    handleModeChange(mode) {
+        this.resetScene();
+        this.ui.showPresetControls(false);
+        this.ui.showSettingsControls(false);
+        this.ui.showSettingsPanels(false);
 
-/* ===== Animate ===== */
-(function animate(){
-  requestAnimationFrame(animate);
-  if (isCameraAnimating && cameraTargetPosition) {
-      camera.position.lerp(cameraTargetPosition, 0.05);
-      if (camera.position.distanceTo(cameraTargetPosition) < 0.1) {
-          isCameraAnimating = false;
-          camera.position.copy(cameraTargetPosition);
-      }
-  }
-  controls.update();
-  renderer.render(scene,camera);
-})();
+        if (mode === 'preset') {
+            this.ui.showPresetControls(true);
+            this.ui.presetCategoryFilter.value = 'triangle';
+            this.ui.filterPresetButtons('triangle');
+        } else if (mode === 'settings') {
+            this.ui.showSettingsControls(true);
+            this.ui.showSettingsPanels(true);
+            this.ui.settingsCategorySelector.value = 'display';
+            this.ui.showSettingsPanel('display');
+        }
+    }
+
+    handlePresetCategoryChange(category) {
+        if (category) this.ui.filterPresetButtons(category);
+    }
+    
+    handleSettingsCategoryChange(category) {
+        this.ui.showSettingsPanel(category);
+    }
+
+    handlePresetChange(name) {
+        this.resetScene();
+        this.presetManager.applyPreset(name);
+        this.executeCut();
+        const normal = this.cutter.getCutPlaneNormal();
+        if (normal) {
+            const distance = this.cube.size * 1.5;
+            const offset = new THREE.Vector3(0.5, 0.5, 0.5).normalize();
+            this.cameraTargetPosition = normal.clone().multiplyScalar(distance).add(offset.multiplyScalar(distance * 0.3));
+            this.isCameraAnimating = true;
+        }
+        this.cutter.toggleSurface(this.ui.isCutSurfaceChecked());
+        this.cutter.togglePyramid(this.ui.isPyramidChecked());
+        this.cutter.setTransparency(this.ui.isTransparencyChecked());
+        this.selection.toggleVertexLabels(this.ui.isVertexLabelsChecked());
+    }
+
+    handleResetClick() {
+        this.resetScene();
+        this.ui.resetToFreeSelectMode();
+    }
+
+    handleConfigureClick() {
+        const lx = parseFloat(prompt("辺ABの長さ(cm)", "10"));
+        const ly = parseFloat(prompt("辺ADの長さ(cm)", "10"));
+        const lz = parseFloat(prompt("辺AEの長さ(cm)", "10"));
+        if (!isNaN(lx) && !isNaN(ly) && !isNaN(lz)) {
+            this.resetScene();
+            this.ui.resetToFreeSelectMode();
+            this.cube.createCube([lx, ly, lz]);
+            const mode = this.ui.getEdgeLabelMode();
+            this.cube.setEdgeLabelMode(mode);
+            this.selection.setEdgeLabelMode(mode);
+            const isTrans = this.ui.isTransparencyChecked();
+            this.cube.toggleTransparency(isTrans);
+            this.cutter.setTransparency(isTrans);
+        }
+    }
+
+    handleFlipCutClick() {
+        this.cutter.flipCut();
+        this.cutter.toggleSurface(this.ui.isCutSurfaceChecked());
+        this.cutter.togglePyramid(this.ui.isPyramidChecked());
+        this.netManager.update(this.cutter.getCutLines(), this.cube);
+        this.selection.updateSplitLabels(this.cutter.getIntersections());
+    }
+
+    // --- Animation Loop ---
+    animate() {
+        requestAnimationFrame(this.animate.bind(this));
+        if (this.isCameraAnimating && this.cameraTargetPosition) {
+            this.camera.position.lerp(this.cameraTargetPosition, 0.05);
+            if (this.camera.position.distanceTo(this.cameraTargetPosition) < 0.1) {
+                this.isCameraAnimating = false;
+                this.camera.position.copy(this.cameraTargetPosition);
+            }
+        }
+        this.controls.update();
+        this.renderer.render(this.scene, this.camera);
+    }
+}
+
+// --- Application Start ---
+const app = new App();
+app.init();
