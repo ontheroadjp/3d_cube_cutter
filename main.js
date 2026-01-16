@@ -221,7 +221,9 @@ class App {
     }
     
     handleModeChange(mode) {
-        this.resetScene();
+        if (mode !== 'settings') {
+            this.resetScene();
+        }
         this.ui.showPresetControls(false);
         this.ui.showSettingsControls(false);
         this.ui.showSettingsPanels(false);
