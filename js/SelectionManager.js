@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import { createLabel, createMarker } from './utils.js';
+import { parseSnapPointId, normalizeSnapPointId } from './geometry/snapPointId.js';
 
 export class SelectionManager {
-  constructor(scene, cube, ui){
+  constructor(scene, cube, ui, resolver = null){
     this.scene = scene;
     this.cube = cube;
     this.ui = ui;
-    this.selected = []; // オブジェクトの配列 { point, object }
+    this.resolver = resolver;
+    this.selected = []; // オブジェクトの配列 { snapId, point, object, isMidpoint }
     this.markers = []; // 赤丸、点ラベル、辺ラベル(分割分) 全て含むが、管理しやすくする
     this.splitEdgeLabels = []; // 分割辺の長さラベルだけ別途保持
     this.hiddenEdgeLabels = []; // 隠した元の辺ラベルのインデックス
@@ -25,56 +27,107 @@ export class SelectionManager {
   // 外部(Cutter)から計算された交点を受け取り、その辺の長さを分割表示する
   updateSplitLabels(intersections) {
       if (!intersections || intersections.length === 0) return;
+      if (!this.resolver || !this.cube.getStructure) return;
+      const structure = this.cube.getStructure();
+      if (!structure || !structure.edges) return;
+
+      if (typeof intersections[0] === 'object' && intersections[0] && intersections[0].id) {
+          intersections
+              .filter(ref => ref && ref.id && ref.type === 'intersection')
+              .forEach(ref => {
+                  const edgeId = ref.edgeId || null;
+                  if (!edgeId) return;
+                  const point = ref.position
+                      ? ref.position
+                      : (this.resolver ? this.resolver.resolveSnapPoint(ref.id) : null);
+                  if (!point) return;
+                  const edgeIdx = this.cube.getEdgeMeshIndexById(edgeId);
+                  if (edgeIdx !== -1 && edgeIdx !== null) {
+                      const isHidden = this.hiddenEdgeLabels && this.hiddenEdgeLabels.includes(edgeIdx);
+                      if (!isHidden) {
+                          this._addSplitLabel(edgeId, point);
+                      }
+                  }
+              });
+          return;
+      }
       
-      // projectToEdge の簡易版をここに実装
-      const project = (p) => {
-          let best=null, min=Infinity, bestIdx = -1;
-          this.cube.edges.forEach((line, i)=>{
-              const a=line.start, b=line.end;
-              const ab=b.clone().sub(a);
+      // TODO: intersectionRefsが全経路で供給されるようになったら、この投影フォールバックを削除する
+      const projectWithResolver = (p) => {
+          let best=null, min=Infinity, bestEdgeId = null;
+          structure.edges.forEach(edge => {
+              const resolved = this.resolver.resolveEdge(edge.id);
+              if (!resolved) return;
+              const a = resolved.start;
+              const b = resolved.end;
+              const ab = b.clone().sub(a);
               const lenSq = ab.lengthSq();
-              if(lenSq < 1e-10) return;
-              let t=ab.dot(p.clone().sub(a))/lenSq;
-              if(t < -0.01 || t > 1.01) return;
+              if (lenSq < 1e-10) return;
+              let t = ab.dot(p.clone().sub(a)) / lenSq;
+              if (t < -0.01 || t > 1.01) return;
               t = Math.max(0, Math.min(1, t));
-              const q=a.clone().add(ab.multiplyScalar(t));
-              const d=q.distanceTo(p);
-              if(d < min){ min=d; best=q; bestIdx=i; }
+              const q = a.clone().add(ab.multiplyScalar(t));
+              const d = q.distanceTo(p);
+              if (d < min) { min = d; best = q; bestEdgeId = edge.id; }
           });
-          return min < 1.0 ? { point: best, index: bestIdx } : null;
+          if (min >= 1.0 || !bestEdgeId) return null;
+          return { point: best, edgeId: bestEdgeId };
       };
 
       intersections.forEach(p => {
-          const result = project(p);
+          const result = projectWithResolver(p);
           if (!result) return;
-          const { index: edgeIdx } = result;
+          const edgeIdx = this.cube.getEdgeMeshIndexById(result.edgeId);
           
-          if (edgeIdx !== -1) {
+          if (edgeIdx !== -1 && edgeIdx !== null) {
               const isHidden = this.hiddenEdgeLabels && this.hiddenEdgeLabels.includes(edgeIdx);
               if (!isHidden) {
-                  this._addSplitLabel(edgeIdx, p);
+                  this._addSplitLabel(result.edgeId || edgeIdx, p);
               }
           }
       });
   }
 
   addPoint(selectionInfo) {
-    const { point, object, isMidpoint } = selectionInfo; // isMidpoint情報を追加で受け取る
+    const { point, object, isMidpoint, snapId } = selectionInfo; // isMidpoint情報を追加で受け取る
     
-    this.selected.push(selectionInfo);
-    this.selectedObjects.add(object.uuid);
+    if (!snapId) {
+      console.warn('SnapPointID が指定されていません。');
+      return;
+    }
+    let resolvedPoint = point || null;
+    if (!resolvedPoint && this.resolver) {
+        resolvedPoint = this.resolver.resolveSnapPoint(snapId);
+    }
+    if (!resolvedPoint) {
+        console.warn('SnapPointID から座標を解決できません。');
+        return;
+    }
+
+    const parsed = normalizeSnapPointId(parseSnapPointId(snapId));
+    let resolvedIsMidpoint = !!isMidpoint;
+    let edgeRef = null;
+    if (parsed && parsed.type === 'edge') {
+        edgeRef = `E:${parsed.edgeIndex}`;
+        if (parsed.ratio && isMidpoint === undefined) {
+            resolvedIsMidpoint = parsed.ratio.numerator * 2 === parsed.ratio.denominator;
+        }
+    }
+
+    this.selected.push({ snapId, point: resolvedPoint, object, isMidpoint: resolvedIsMidpoint });
+    if (object) this.selectedObjects.add(object.uuid);
     
     const li = this.selected.length - 1;
     const label = this.getLabel(li);
 
     // 中点の場合は緑、それ以外は赤のマーカーを作成
-    const markerColor = isMidpoint ? 0x00ff00 : 0xff0000;
-    const m = createMarker(point, this.scene, markerColor);
+    const markerColor = resolvedIsMidpoint ? 0x00ff00 : 0xff0000;
+    const m = createMarker(resolvedPoint, this.scene, markerColor);
     this.markers.push(m);
 
     // 選択点ラベル (I, J, K...)
     const sprite = createLabel(label, this.cube.size / 10);
-    sprite.position.copy(point).add(new THREE.Vector3(0, 0.8, 0));
+    sprite.position.copy(resolvedPoint).add(new THREE.Vector3(0, 0.8, 0));
     this.scene.add(sprite);
     this.markers.push(sprite);
 
@@ -82,38 +135,60 @@ export class SelectionManager {
     sprite.visible = true;
 
     // 選択が辺の場合、辺の長さを分割表示する
-    if (object.userData.type === 'edge') {
-        this._addSplitLabel(object.userData.index, point);
+    if (edgeRef) {
+        this._addSplitLabel(edgeRef, resolvedPoint);
+    } else if (object && object.userData.type === 'edge') {
+        this._addSplitLabel(object.userData.edgeId || object.userData.index, resolvedPoint);
     }
    
     this.ui.updateSelectionCount(this.selected.length);
   }
 
-  _addSplitLabel(edgeIdx, proj) {
+  addPointFromSnapId(snapId, selectionInfo = {}) {
+    if (!this.resolver) return;
+    this.addPoint({ ...selectionInfo, snapId });
+  }
+
+  getSelectedSnapIds() {
+    return this.selected.map(s => s.snapId).filter(Boolean);
+  }
+
+  _addSplitLabel(edgeRef, proj) {
+      const edgeId = typeof edgeRef === 'string' ? edgeRef : null;
+      const edgeIdx = edgeId ? this.cube.getEdgeMeshIndexById(edgeId) : edgeRef;
       // 既に処理済みの辺なら何もしない
-      if (this.hiddenEdgeLabels && this.hiddenEdgeLabels.includes(edgeIdx)) {
+      if (edgeIdx !== null && this.hiddenEdgeLabels && this.hiddenEdgeLabels.includes(edgeIdx)) {
           return;
       }
 
       // 元の辺のラベルを非表示にする
-      if (this.cube.edgeLabels[edgeIdx]) {
+      if (edgeIdx !== null && this.cube.edgeLabels[edgeIdx]) {
           this.cube.setEdgeLabelVisible(edgeIdx, false);
       }
       
       if(!this.hiddenEdgeLabels) this.hiddenEdgeLabels = [];
-      this.hiddenEdgeLabels.push(edgeIdx);
+      if (edgeIdx !== null) this.hiddenEdgeLabels.push(edgeIdx);
 
       // 分割された辺の長さを表示
-      const edge = this.cube.edges[edgeIdx];
-      const d1 = edge.start.distanceTo(proj);
-      const d2 = edge.end.distanceTo(proj);
+      let start = null;
+      let end = null;
+      if (this.resolver && edgeId) {
+          const resolved = this.resolver.resolveEdge(edgeId);
+          if (resolved) {
+              start = resolved.start;
+              end = resolved.end;
+          }
+      }
+      if (!start || !end) return;
+      const d1 = start.distanceTo(proj);
+      const d2 = end.distanceTo(proj);
       
       const l1 = d1.toFixed(1).replace(/\.0$/, '') + "cm";
       const l2 = d2.toFixed(1).replace(/\.0$/, '') + "cm";
 
       // 位置計算（中点）
-      const center1 = new THREE.Vector3().addVectors(edge.start, proj).multiplyScalar(0.5);
-      const center2 = new THREE.Vector3().addVectors(proj, edge.end).multiplyScalar(0.5);
+      const center1 = new THREE.Vector3().addVectors(start, proj).multiplyScalar(0.5);
+      const center2 = new THREE.Vector3().addVectors(proj, end).multiplyScalar(0.5);
 
       // 分割された辺のラベルを作成・表示（'visible'モード用）
       const s1 = createLabel(l1, this.cube.size/15);
@@ -148,11 +223,12 @@ export class SelectionManager {
     this.splitEdgeLabels.forEach(s => s.visible = visible);
   }
 
-  previewSplit(edge, point) {
+  previewSplit(edgeRef, point) {
     this.clearPreview(); // 既存のプレビューをクリア
 
-    const edgeIdx = this.cube.edges.indexOf(edge);
-    if (edgeIdx === -1) return;
+    const edgeId = typeof edgeRef === 'string' ? edgeRef : null;
+    const edgeIdx = edgeId ? this.cube.getEdgeMeshIndexById(edgeId) : edgeRef;
+    if (edgeIdx === -1 || edgeIdx === null) return;
 
     // バグ修正: 既に確定選択で分割されている辺にはプレビューを表示しない
     if (this.hiddenEdgeLabels.includes(edgeIdx)) {
@@ -166,13 +242,23 @@ export class SelectionManager {
     }
 
     // 分割された辺の長さを計算・表示
-    const d1 = edge.start.distanceTo(point);
-    const d2 = edge.end.distanceTo(point);
+    let start = null;
+    let end = null;
+    if (this.resolver && edgeId) {
+        const resolved = this.resolver.resolveEdge(edgeId);
+        if (resolved) {
+            start = resolved.start;
+            end = resolved.end;
+        }
+    }
+    if (!start || !end) return;
+    const d1 = start.distanceTo(point);
+    const d2 = end.distanceTo(point);
     const l1 = d1.toFixed(1).replace(/\.0$/, '') + "cm";
     const l2 = d2.toFixed(1).replace(/\.0$/, '') + "cm";
 
-    const center1 = new THREE.Vector3().addVectors(edge.start, point).multiplyScalar(0.5);
-    const center2 = new THREE.Vector3().addVectors(point, edge.end).multiplyScalar(0.5);
+    const center1 = new THREE.Vector3().addVectors(start, point).multiplyScalar(0.5);
+    const center2 = new THREE.Vector3().addVectors(point, end).multiplyScalar(0.5);
 
     const s1 = createLabel(l1, this.cube.size/15);
     s1.position.copy(center1);

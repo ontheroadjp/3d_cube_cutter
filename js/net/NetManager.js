@@ -1,8 +1,12 @@
+import * as THREE from 'three';
+import { parseSnapPointId, normalizeSnapPointId } from '../geometry/snapPointId.js';
+
 // 展開図 (Development / Net) を管理するクラス
 // 立方体の展開図（十字型）を表示し、そこに切断線を描画する
 
 export class NetManager {
     constructor() {
+        this.resolver = null;
         // コンテナの作成（初回のみ）
         this.container = document.createElement('div');
         this.container.id = 'net-view';
@@ -15,7 +19,7 @@ export class NetManager {
         this.container.style.border = '1px solid #ccc';
         this.container.style.borderRadius = '8px';
         this.container.style.display = 'none'; // 初期は非表示
-        this.container.style.zIndex = '20';
+        this.container.style.zIndex = '50';
         this.container.style.padding = '10px';
         
         // 閉じるボタン
@@ -71,21 +75,18 @@ export class NetManager {
             offsetX: 20,
             offsetY: 20,
             faces: [
-                { name: 'Front', indices: [4,5,6,7], grid: {x:1, y:1} },
-                { name: 'Back',  indices: [1,0,3,2], grid: {x:3, y:1} }, // Rightの隣
-                { name: 'Top',   indices: [7,6,2,3], grid: {x:1, y:0}, connectTo: 'Front' }, // Frontの上 (H,G,C,D) -> Frontは(E,F,G,H)なので、Frontの上辺HGとTopの下辺HGが接続
-                // Top indices: D,C,G,H -> Front(E,F,G,H)の上はH-G. Topの下はH-G (7-6). 
-                // Topの並びは標準化が必要。
-                // 展開図の「上」方向をY-とするキャンバス座標系に注意。
-                
-                { name: 'Bottom', indices: [0,1,5,4], grid: {x:1, y:2} },
-                { name: 'Left',   indices: [0,3,7,4], grid: {x:0, y:1} }, // Left(E,H,D,A) -> Front(E,F,G,H)の左はE-H. Leftの右はE-H.
-                { name: 'Right',  indices: [1,2,6,5], grid: {x:2, y:1} }, // Right(B,C,G,F) -> Front(E,F,G,H)の右はF-G. Rightの左はF-G.
+                { name: 'Front', faceId: 'F:0154', grid: {x:1, y:1}, uvVertices: ['V:4', 'V:5', 'V:1', 'V:0'] },
+                { name: 'Back',  faceId: 'F:2376', grid: {x:3, y:1}, uvVertices: ['V:6', 'V:7', 'V:3', 'V:2'] },
+                { name: 'Top',   faceId: 'F:4567', grid: {x:1, y:0}, connectTo: 'Front', uvVertices: ['V:7', 'V:6', 'V:5', 'V:4'] },
+                { name: 'Bottom', faceId: 'F:0321', grid: {x:1, y:2}, uvVertices: ['V:0', 'V:1', 'V:2', 'V:3'] },
+                { name: 'Left',   faceId: 'F:0473', grid: {x:0, y:1}, uvVertices: ['V:7', 'V:4', 'V:0', 'V:3'] },
+                { name: 'Right',  faceId: 'F:1265', grid: {x:2, y:1}, uvVertices: ['V:5', 'V:6', 'V:2', 'V:1'] },
             ]
         };
     }
 
     show() {
+        this.updatePosition();
         this.container.style.display = 'block';
     }
 
@@ -98,22 +99,46 @@ export class NetManager {
         else this.hide();
     }
 
+    setResolver(resolver) {
+        this.resolver = resolver;
+    }
+
+    updatePosition() {
+        const uiContainer = document.getElementById('ui-container');
+        if (!uiContainer) return;
+        const rect = uiContainer.getBoundingClientRect();
+        const offset = Math.max(0, rect.height);
+        this.container.style.top = `${offset + 10}px`;
+    }
+
     // 切断線を描画
-    // cutLines: Array of Line3 (切断線分) - これらはWorld座標系
+    // cutSegments: Array of {startId, endId, start, end} (World座標系)
     // cube: Cube instance (to get vertices and transform to local/face coords)
-    update(cutLines, cube) {
+    update(cutSegments, cube, resolver = null) {
         if (this.container.style.display === 'none') return;
+        this.updatePosition();
         
         const ctx = this.ctx;
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
         const L = this.layout;
         const s = L.scale;
+        const activeResolver = resolver || this.resolver;
+        const structure = cube && cube.getStructure ? cube.getStructure() : null;
+        const faceData = L.faces.map(face => {
+            if (structure && structure.faceMap && !structure.faceMap.has(face.faceId)) return null;
+            return {
+                name: face.name,
+                grid: face.grid,
+                faceId: face.faceId,
+                uvVertices: face.uvVertices || null,
+            };
+        }).filter(Boolean);
         
         // グリッド描画
         ctx.strokeStyle = '#ccc';
         ctx.lineWidth = 1;
-        L.faces.forEach(face => {
+        faceData.forEach(face => {
             const x = L.offsetX + face.grid.x * s;
             const y = L.offsetY + face.grid.y * s;
             ctx.strokeRect(x, y, s, s);
@@ -123,7 +148,7 @@ export class NetManager {
             ctx.fillText(face.name, x+2, y+10);
         });
 
-        if(!cutLines || cutLines.length === 0) return;
+        if(!cutSegments || cutSegments.length === 0) return;
 
         // 切断線の描画
         // 各線分について、どの面の上にあるか判定し、その面の2D座標に変換して描画
@@ -133,70 +158,115 @@ export class NetManager {
 
         // 面の法線と中心点（判定用）
         // Cubeのサイズは可変なので、現在の頂点座標を使う
-        const vertices = cube.vertices;
-        
-        // 簡易的な面判定: 線分の中点が、面の中心から法線方向に垂直な距離がほぼ0かどうか
-        // あるいは、線分の両端点がその面を構成する4頂点の平面上にあるか。
-        
-        // 線分ごとのループ
-        // outline は LineLoop なので、点列を受け取ったほうが楽だが、Line3[] で来る想定で。
-        // cutter.outline.geometry から点列を取得したほうが良いかも。
-        // ここでは引数 cutLines を Line3[] と仮定。
-        
-        cutLines.forEach(line => {
-            const p1 = line.start;
-            const p2 = line.end;
-            const mid = p1.clone().add(p2).multiplyScalar(0.5);
-            
-            // どの面に属するか？
-            // 全面をチェック
-            L.faces.forEach(face => {
-                // 面の4頂点
-                const v0 = vertices[face.indices[0]];
-                const v1 = vertices[face.indices[1]];
-                const v2 = vertices[face.indices[2]];
-                
-                // 平面を作る
-                const plane = new THREE.Plane();
-                plane.setFromCoplanarPoints(v0, v1, v2);
-                
-                // 距離チェック
-                if (Math.abs(plane.distanceToPoint(mid)) < 0.01) {
-                    // この面にある。
-                    // 3D座標(p1, p2)を2D面座標(u, v) [0~1] に変換
-                    // そのために、面の「左上」「右上」「左下」などを定義する必要がある。
-                    // 展開図の向きに合わせてローカル座標系を定義。
-                    
-                    // Front (E,F,G,H) -> Grid(1,1)
-                    // 左上:H, 右上:G, 左下:E, 右下:F ? 
-                    // 座標系: x右, y下 (Canvas)
-                    // 3D Front: x右, y上
-                    // よって 3D(x, y) -> 2D(x, -y)
-                    
-                    // 各面ごとに「Canvas上の左上に対応する3D頂点」と「X軸ベクトル」「Y軸ベクトル」を定義すれば変換可能。
-                    // Front: 左上H(-x,+y,+z), 右上G(+x,+y,+z), 左下E(-x,-y,+z)
-                    // Canvas X軸: H->G (x増加)
-                    // Canvas Y軸: H->E (y減少)
-                    
-                    const drawLine = (start3d, end3d) => {
-                        const uv1 = this.map3Dto2D(start3d, face, vertices);
-                        const uv2 = this.map3Dto2D(end3d, face, vertices);
-                        
-                        const ox = L.offsetX + face.grid.x * s;
-                        const oy = L.offsetY + face.grid.y * s;
-                        
-                        ctx.moveTo(ox + uv1.x * s, oy + uv1.y * s);
-                        ctx.lineTo(ox + uv2.x * s, oy + uv2.y * s);
-                    };
-                    drawLine(p1, p2);
+        if (!activeResolver) return;
+        const vertices = Array.from({ length: 8 }, (_, i) => activeResolver.resolveVertex(`V:${i}`));
+        if (vertices.some(v => !v)) return;
+        if (!structure) return;
+        const faceIndex = new Map(faceData.map(face => [face.faceId, face]));
+
+        const getFacesForSnapId = (snapId) => {
+            const parsed = normalizeSnapPointId(parseSnapPointId(snapId));
+            if (!parsed) return [];
+            if (parsed.type === 'vertex') {
+                const vertex = structure.vertexMap.get(`V:${parsed.vertexIndex}`);
+                return vertex ? vertex.faces : [];
+            }
+            if (parsed.type === 'edge') {
+                const edge = structure.edgeMap.get(`E:${parsed.edgeIndex}`);
+                return edge ? edge.faces : [];
+            }
+            if (parsed.type === 'face') {
+                return [`F:${parsed.faceIndex}`];
+            }
+            return [];
+        };
+
+        const resolveFaceForSegment = (segment) => {
+            if (!segment || !segment.startId || !segment.endId) return null;
+            if (segment.faceId) return segment.faceId;
+            if (segment.faceIds && segment.faceIds.length === 1) return segment.faceIds[0];
+            if (segment.faceIds && segment.faceIds.length > 1) {
+                const mid = segment.start.clone().add(segment.end).multiplyScalar(0.5);
+                let best = null;
+                let bestDist = Infinity;
+                segment.faceIds.forEach(faceId => {
+                    const resolved = activeResolver.resolveFace(faceId);
+                    if (!resolved) return;
+                    const origin = resolved.vertices[0];
+                    const dist = Math.abs(resolved.normal.dot(new THREE.Vector3().subVectors(mid, origin)));
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        best = faceId;
+                    }
+                });
+                return best;
+            }
+            const startFaces = getFacesForSnapId(segment.startId);
+            const endFaces = getFacesForSnapId(segment.endId);
+            const shared = startFaces.filter(faceId => endFaces.includes(faceId));
+            if (shared.length === 0) return null;
+            if (shared.length === 1) return shared[0];
+            const mid = segment.start.clone().add(segment.end).multiplyScalar(0.5);
+            let best = null;
+            let bestDist = Infinity;
+            shared.forEach(faceId => {
+                const resolved = activeResolver.resolveFace(faceId);
+                if (!resolved) return;
+                const origin = resolved.vertices[0];
+                const dist = Math.abs(resolved.normal.dot(new THREE.Vector3().subVectors(mid, origin)));
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    best = faceId;
                 }
             });
+            return best;
+        };
+
+        cutSegments.forEach(segment => {
+            const faceId = resolveFaceForSegment(segment);
+            if (!faceId) return;
+            const face = faceIndex.get(faceId);
+            if (!face) return;
+            const uv1 = this.map3Dto2D(segment.start, face, vertices, activeResolver);
+            const uv2 = this.map3Dto2D(segment.end, face, vertices, activeResolver);
+            const ox = L.offsetX + face.grid.x * s;
+            const oy = L.offsetY + face.grid.y * s;
+            ctx.moveTo(ox + uv1.x * s, oy + uv1.y * s);
+            ctx.lineTo(ox + uv2.x * s, oy + uv2.y * s);
         });
         
         ctx.stroke();
     }
     
-    map3Dto2D(p, face, vertices) {
+    map3Dto2D(p, face, vertices, resolver = null) {
+        if (resolver && face.uvVertices && face.uvVertices.length === 4) {
+            const corners = face.uvVertices.map(id => resolver.resolveVertex(id));
+            if (corners.every(v => v)) {
+                const [tl, tr, br, bl] = corners;
+                const uVec = new THREE.Vector3().subVectors(tr, tl);
+                const vVec = new THREE.Vector3().subVectors(bl, tl);
+                const uLen = uVec.length();
+                const vLen = vVec.length();
+                if (uLen > 0 && vLen > 0) {
+                    const vec = new THREE.Vector3().subVectors(p, tl);
+                    const u = vec.dot(uVec.clone().normalize()) / uLen;
+                    const v = vec.dot(vVec.clone().normalize()) / vLen;
+                    return { x: u, y: v };
+                }
+            }
+        }
+        if (resolver && face.faceId) {
+            const resolvedFace = resolver.resolveFace(face.faceId);
+            if (resolvedFace) {
+                const origin = resolvedFace.vertices[0];
+                const uLen = origin.distanceTo(resolvedFace.vertices[1]);
+                const vLen = origin.distanceTo(resolvedFace.vertices[3]);
+                const vec = new THREE.Vector3().subVectors(p, origin);
+                const u = vec.dot(resolvedFace.basisU) / uLen;
+                const v = vec.dot(resolvedFace.basisV) / vLen;
+                return { x: u, y: v };
+            }
+        }
         // 面ごとの基準点（Canvasの左上になる点）と方向
         // indices順序に依存
         // Front[4,5,6,7] = E,F,G,H.

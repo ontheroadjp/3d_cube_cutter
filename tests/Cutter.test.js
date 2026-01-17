@@ -1,44 +1,46 @@
 // tests/Cutter.test.js
 
-import { jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 
 // Mock utils.js to prevent DOM-related errors in Node.js environment
 // This mock creates plain objects with the same "shape" as the real ones,
 // without referencing out-of-scope variables like THREE.
-jest.mock('../js/utils.js', () => ({
-    createLabel: jest.fn(() => ({
+vi.mock('../js/utils.js', () => ({
+    createLabel: vi.fn(() => ({
         position: {
-            copy: jest.fn(function() { return this; }),
-            add: jest.fn(function() { return this; })
+            copy: vi.fn(function() { return this; }),
+            add: vi.fn(function() { return this; })
         },
         scale: {
-            copy: jest.fn(function() { return this; }),
-            add: jest.fn(function() { return this; })
+            copy: vi.fn(function() { return this; }),
+            add: vi.fn(function() { return this; })
         },
         visible: false,
     })),
-    createMarker: jest.fn((position) => ({
+    createMarker: vi.fn((position) => ({
         position: {
             x: position ? position.x : 0,
             y: position ? position.y : 0,
             z: position ? position.z : 0,
-            clone: jest.fn(function() { return {...this}; })
+            clone: vi.fn(function() { return {...this}; })
         },
-        geometry: { dispose: jest.fn() },
-        material: { dispose: jest.fn() },
+        geometry: { dispose: vi.fn() },
+        material: { dispose: vi.fn() },
         userData: {}
     }))
 }));
 
 import { Cutter } from '../js/Cutter.js';
 import { Cube } from '../js/Cube.js';
+import { GeometryResolver } from '../js/geometry/GeometryResolver.js';
+import { buildUserPresetState } from '../js/presets/userPresetState.js';
 
 // Helper function to create a simple scene for testing and spy on its methods
 const createTestScene = () => {
     const scene = new THREE.Scene();
-    scene.add = jest.fn(scene.add);
-    scene.remove = jest.fn(scene.remove);
+    scene.add = vi.fn();
+    scene.remove = vi.fn();
     return scene;
 };
 
@@ -71,11 +73,12 @@ const getVolumeOfMesh = (mesh) => {
 
 
 describe('Cutter', () => {
-    let scene, cube, cutter;
+    let scene, cube, cutter, resolver;
 
     beforeEach(() => {
         scene = createTestScene();
         cube = new Cube(scene, 10);
+        resolver = new GeometryResolver({ size: cube.getSize(), indexMap: cube.getIndexMap() });
         cutter = new Cutter(scene);
         scene.add.mockClear();
         scene.remove.mockClear();
@@ -108,12 +111,9 @@ describe('Cutter', () => {
 
     describe('cut method', () => {
         it('should perform a simple corner cut successfully and validate volume', () => {
-            const p1 = new THREE.Vector3(0, -5, 5);
-            const p2 = new THREE.Vector3(5, -5, 0);
-            const p3 = new THREE.Vector3(5, 0, 5);
-            const points = [p1, p2, p3];
+            const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
 
-            const success = cutter.cut(cube, points);
+            const success = cutter.cut(cube, snapIds, resolver);
 
             expect(success).toBe(true);
             expect(cutter.resultMesh).toBeDefined();
@@ -126,14 +126,46 @@ describe('Cutter', () => {
             expect(removedVolume).toBeCloseTo(expectedRemovedVolume, 1);
         });
 
-        it('should return false for collinear points', () => {
-            const edgeAB = cube.getEdgeLine('AB');
-            const p1 = edgeAB.start.clone().lerp(edgeAB.end, 0.1);
-            const p2 = edgeAB.start.clone().lerp(edgeAB.end, 0.5);
-            const p3 = edgeAB.start.clone().lerp(edgeAB.end, 0.9);
-            const points = [p1, p2, p3];
+        it('should expose cut result with outline refs and cut segments', () => {
+            const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
 
-            const success = cutter.cut(cube, points);
+            const success = cutter.cut(cube, snapIds, resolver);
+
+            expect(success).toBe(true);
+            const cutResult = cutter.getCutResult();
+            const outline = cutResult.outline.points;
+            expect(Array.isArray(outline)).toBe(true);
+            expect(outline.length).toBeGreaterThanOrEqual(3);
+            outline.forEach(ref => {
+                expect(ref.id).toBeDefined();
+                expect(ref.position).toBeDefined();
+            });
+            expect(cutter.getOutlineRefs().length).toBe(outline.length);
+            expect(cutResult.cutSegments.length).toBe(outline.length);
+            cutResult.cutSegments.forEach(segment => {
+                expect(segment.startId).toBeDefined();
+                expect(segment.endId).toBeDefined();
+            });
+        });
+
+        it('should assign faceIds to intersection refs for snapId inputs', () => {
+            const snapIds = ['V:1', 'V:3', 'E:47@3/10'];
+
+            const success = cutter.cut(cube, snapIds, resolver);
+
+            expect(success).toBe(true);
+            const refs = cutter.getIntersectionRefs();
+            expect(refs.length).toBeGreaterThan(0);
+            refs.forEach(ref => {
+                expect(Array.isArray(ref.faceIds)).toBe(true);
+                expect(ref.faceIds.length).toBeGreaterThan(0);
+            });
+        });
+
+        it('should return false for collinear points', () => {
+            const snapIds = ['E:01@1/4', 'E:01@1/2', 'E:01@3/4'];
+
+            const success = cutter.cut(cube, snapIds, resolver);
 
             expect(success).toBe(false);
             expect(cutter.resultMesh).toBeNull();
@@ -141,25 +173,47 @@ describe('Cutter', () => {
         });
 
         it('should find 4 intersection points for a square cut', () => {
-            const p1 = cube.getEdgeLine('DH').start.clone().lerp(cube.getEdgeLine('DH').end, 0.5);
-            const p2 = cube.getEdgeLine('CG').start.clone().lerp(cube.getEdgeLine('CG').end, 0.5);
-            const p3 = cube.getEdgeLine('BF').start.clone().lerp(cube.getEdgeLine('BF').end, 0.5);
-
-            const points = [p1, p2, p3];
-            const success = cutter.cut(cube, points);
+            const snapIds = ['E:04@1/2', 'E:15@1/2', 'E:26@1/2'];
+            const success = cutter.cut(cube, snapIds, resolver);
 
             expect(success).toBe(true);
             expect(cutter.intersections.length).toBe(4);
+        });
+
+        it('should assign faceIds for cut segments', () => {
+            const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
+            const success = cutter.cut(cube, snapIds, resolver);
+
+            expect(success).toBe(true);
+            const segments = cutter.getCutSegments();
+            expect(segments.length).toBeGreaterThanOrEqual(3);
+            segments.forEach(segment => {
+                expect(Array.isArray(segment.faceIds)).toBe(true);
+                expect(segment.faceIds.length).toBeGreaterThan(0);
+            });
+        });
+
+        it('should form a closed outline loop from cut segments', () => {
+            const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
+            const success = cutter.cut(cube, snapIds, resolver);
+
+            expect(success).toBe(true);
+            const segments = cutter.getCutSegments();
+            const degrees = new Map();
+            segments.forEach(seg => {
+                degrees.set(seg.startId, (degrees.get(seg.startId) || 0) + 1);
+                degrees.set(seg.endId, (degrees.get(seg.endId) || 0) + 1);
+            });
+            degrees.forEach(deg => {
+                expect(deg).toBe(2);
+            });
         });
     });
 
     describe('flipCut method', () => {
         it('should swap resultMesh and removedMesh volumes after flipping', () => {
-            const p1 = new THREE.Vector3(0, -5, 5);
-            const p2 = new THREE.Vector3(5, -5, 0);
-            const p3 = new THREE.Vector3(5, 0, 5);
-            const points = [p1, p2, p3];
-            cutter.cut(cube, points);
+            const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
+            cutter.cut(cube, snapIds, resolver);
 
             const initialResultVolume = getVolumeOfMesh(cutter.resultMesh);
             const initialRemovedVolume = getVolumeOfMesh(cutter.removedMesh);
@@ -173,6 +227,32 @@ describe('Cutter', () => {
             expect(flippedResultVolume).toBeCloseTo(initialRemovedVolume, 1);
             expect(flippedRemovedVolume).toBeCloseTo(initialResultVolume, 1);
             expect(flippedResultVolume + flippedRemovedVolume).toBeCloseTo(totalCubeVolume, 1);
+        });
+
+        it('should restore cut result meta from user preset state', () => {
+            const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
+            cutter.cut(cube, snapIds, resolver);
+
+            const selection = { getSelectedSnapIds: () => snapIds };
+            const ui = { getDisplayState: () => null };
+            const state = buildUserPresetState({ cube, selection, cutter, ui });
+
+            const cutter2 = new Cutter(scene);
+            cutter2.cut(cube, snapIds, resolver);
+            const applied = cutter2.applyCutResultMeta(state.cut.result, resolver);
+
+            expect(applied).toBe(true);
+            expect(cutter2.getOutlineRefs().length).toBe(state.cut.result.outline.length);
+            expect(cutter2.getIntersectionRefs().length).toBe(state.cut.result.intersections.length);
+            expect(cutter2.getCutSegments().length).toBe(state.cut.result.cutSegments.length);
+
+            const expectedSegments = state.cut.result.cutSegments.filter(seg => seg.faceIds && seg.faceIds.length);
+            if (expectedSegments.length > 0) {
+                const hasFaceIds = cutter2.getCutSegments().some(seg => seg.faceIds && seg.faceIds.length);
+                expect(hasFaceIds).toBe(true);
+            }
+
+            cutter2.reset();
         });
     });
 });

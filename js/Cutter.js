@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { SUBTRACTION, INTERSECTION, Brush, Evaluator } from 'three-bvh-csg';
 import { createMarker } from './utils.js';
+import { canonicalizeSnapPointId, normalizeSnapPointId, parseSnapPointId, stringifySnapPointId } from './geometry/snapPointId.js';
 
 export class Cutter {
   constructor(scene) {
@@ -17,10 +18,20 @@ export class Cutter {
     this.isTransparent = true; // デフォルト半透明
     this.vertexMarkers = []; // 切り取られる頂点のマーカー
     this.cutInverted = false; // 切り取り反転フラグ
-    this.lastPoints = null; // 再計算用に保持
+    this.lastSnapIds = null;
+    this.lastResolver = null;
     this.lastCube = null;
     this.intersections = []; // 交点を保持
+    this.intersectionRefs = []; // 交点の構造情報
+    this.outlineRefs = []; // 断面ポリゴンの構造情報（順序付き）
+    this.cutSegments = []; // 展開図用の切断線セグメント
+    this.edgeHighlights = []; // 教育用の重要辺ハイライト
     this.cutPlane = null; // 切断面の平面情報
+    this.debug = false;
+  }
+
+  setDebug(debug) {
+    this.debug = !!debug;
   }
 
   getCutPlaneNormal() {
@@ -44,19 +55,45 @@ export class Cutter {
       updateMat(this.resultMesh);
       updateMat(this.removedMesh);
   }
+
+  isCutInverted() {
+      return this.cutInverted;
+  }
+
+  setCutInverted(inverted, rerun = true) {
+      const next = !!inverted;
+      if (this.cutInverted === next) return;
+      this.cutInverted = next;
+      if (!rerun) return;
+      if (this.lastCube && this.lastSnapIds && this.lastResolver) {
+          this.cut(this.lastCube, this.lastSnapIds, this.lastResolver);
+      }
+  }
   
   flipCut() {
       this.cutInverted = !this.cutInverted;
-      if (this.lastCube && this.lastPoints) {
-          this.cut(this.lastCube, this.lastPoints);
+      if (this.lastCube && this.lastSnapIds && this.lastResolver) {
+          this.cut(this.lastCube, this.lastSnapIds, this.lastResolver);
       }
   }
 
-  cut(cube, points) {
+  cut(cube, snapIds, resolver = null) {
     this.reset();
     this.originalCube = cube;
     this.lastCube = cube;
-    this.lastPoints = points;
+    this.lastSnapIds = null;
+    this.lastResolver = resolver || null;
+
+    if (!snapIds || snapIds.length < 3) return false;
+    if (!resolver) return false;
+    if (typeof snapIds[0] !== 'string') return false;
+
+    const resolvedPoints = snapIds
+        .map(id => resolver.resolveSnapPoint(id))
+        .filter(p => p);
+    if (resolvedPoints.length < 3) return false;
+    const points = resolvedPoints;
+    this.lastSnapIds = snapIds.slice();
 
     if (points.length < 3) return false;
 
@@ -99,7 +136,11 @@ export class Cutter {
     let negativeCount = 0;
     const positiveVertices = [];
     const negativeVertices = [];
-    const vertices = cube.vertices;
+    if (!resolver) return false;
+    const structure = cube.getStructure ? cube.getStructure() : null;
+    if (!structure || !structure.vertices || !structure.edges) return false;
+    const vertices = structure.vertices.map(v => resolver.resolveVertex(v.id)).filter(Boolean);
+    if (vertices.length !== structure.vertices.length) return false;
     
     vertices.forEach(v => {
         const dist = plane.distanceToPoint(v);
@@ -210,10 +251,33 @@ export class Cutter {
     // 5. 輪郭線の描画
     // ユーザーが選択した点 (points) を最優先で交点リストに含める
     const intersections = points.slice(); // points のコピーで初期化
-    console.log("--- DEBUG: Initial intersections (from points) ---");
-    intersections.forEach((p, i) => console.log(`  [${i}] Point: (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`));
+    const intersectionRefs = [];
+    if (this.lastSnapIds && this.lastSnapIds.length && this.lastResolver) {
+        this.lastSnapIds.forEach(snapId => {
+            const parsed = normalizeSnapPointId(parseSnapPointId(snapId));
+            if (!parsed) return;
+            const normalizedId = stringifySnapPointId(parsed);
+            if (!normalizedId) return;
+            intersectionRefs.push({
+                id: canonicalizeSnapPointId(normalizedId) || normalizedId,
+                type: 'snap',
+                position: this.lastResolver.resolveSnapPoint(normalizedId)
+            });
+        });
+    }
+    if (this.debug) {
+        console.log("--- DEBUG: Initial intersections (from points) ---");
+        intersections.forEach((p, i) => console.log(`  [${i}] Point: (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`));
+    }
 
-    cube.edges.forEach((line, lineIndex) => {
+    const edgeLines = structure.edges.map(edge => {
+        const resolved = resolver.resolveEdge(edge.id);
+        return resolved ? new THREE.Line3(resolved.start, resolved.end) : null;
+    }).filter(Boolean);
+    if (edgeLines.length !== structure.edges.length) return false;
+
+    const edgeEntries = structure.edges.map((edge, index) => ({ edgeId: edge.id, line: edgeLines[index] })).filter(e => e.line);
+    edgeEntries.forEach(({ edgeId, line }, lineIndex) => {
         const target = new THREE.Vector3();
         const lineStart = line.start;
         const lineEnd = line.end;
@@ -223,13 +287,17 @@ export class Cutter {
         // const edgeName = `${edgeV1Name}${edgeV2Name}`;
 
         const doesIntersect = plane.intersectLine(line, target);
-        console.log(`--- Checking Edge (Line ${lineIndex}) ---`); // edgeName取得ロジック修正まで一時的に無効
-        console.log(`  Start: (${lineStart.x.toFixed(2)}, ${lineStart.y.toFixed(2)}, ${lineStart.z.toFixed(2)})`);
-        console.log(`  End:   (${lineEnd.x.toFixed(2)}, ${lineEnd.y.toFixed(2)}, ${lineEnd.z.toFixed(2)})`);
-        console.log(`  Does intersect plane: ${doesIntersect}`);
+        if (this.debug) {
+            console.log(`--- Checking Edge (Line ${lineIndex}) ---`);
+            console.log(`  Start: (${lineStart.x.toFixed(2)}, ${lineStart.y.toFixed(2)}, ${lineStart.z.toFixed(2)})`);
+            console.log(`  End:   (${lineEnd.x.toFixed(2)}, ${lineEnd.y.toFixed(2)}, ${lineEnd.z.toFixed(2)})`);
+            console.log(`  Does intersect plane: ${doesIntersect}`);
+        }
 
         if (doesIntersect) {
-            console.log(`  Plane intersection point (target): (${target.x.toFixed(2)}, ${target.y.toFixed(2)}, ${target.z.toFixed(2)})`);
+            if (this.debug) {
+                console.log(`  Plane intersection point (target): (${target.x.toFixed(2)}, ${target.y.toFixed(2)}, ${target.z.toFixed(2)})`);
+            }
             // 交点が線分の範囲内にあるか厳密にチェック（THREE.Plane.intersectLineは線分を考慮するはずだが念のため）
             // targetがstartとendの間にあるかを確認
             // 距離ベースのチェックの方が安定する可能性もある
@@ -241,40 +309,268 @@ export class Cutter {
             const segmentThreshold = 1e-3; 
                         const isWithinSegment = Math.abs((distToStart + distToEnd) - edgeLength) < segmentThreshold;
 
-
-            console.log(`  Distance to Start: ${distToStart.toExponential(2)}, Distance to End: ${distToEnd.toExponential(2)}, Edge Length: ${edgeLength.toExponential(2)}`);
-            console.log(`  Is within segment (distance check): ${isWithinSegment}`);
+            if (this.debug) {
+                console.log(`  Distance to Start: ${distToStart.toExponential(2)}, Distance to End: ${distToEnd.toExponential(2)}, Edge Length: ${edgeLength.toExponential(2)}`);
+                console.log(`  Is within segment (distance check): ${isWithinSegment}`);
+            }
 
             if (isWithinSegment) {
                 if (!intersections.some(v => v.distanceTo(target) < 1e-2)) {
                     intersections.push(target.clone());
-                    console.log(`  Added new intersection point to list: (${target.x.toFixed(2)}, ${target.y.toFixed(2)}, ${target.z.toFixed(2)})`);
-                } else {
+                    if (this.debug) {
+                        console.log(`  Added new intersection point to list: (${target.x.toFixed(2)}, ${target.y.toFixed(2)}, ${target.z.toFixed(2)})`);
+                    }
+                    const ratioRaw = lineStart.distanceTo(target) / lineStart.distanceTo(lineEnd);
+                    const denominator = 1000;
+                    const numerator = Math.max(0, Math.min(denominator, Math.round(ratioRaw * denominator)));
+                    const parsed = normalizeSnapPointId({
+                        type: 'edge',
+                        edgeIndex: edgeId.slice(2),
+                        ratio: { numerator, denominator }
+                    });
+                    const snapId = parsed ? stringifySnapPointId(parsed) : null;
+                    if (snapId) {
+                        const id = canonicalizeSnapPointId(snapId) || snapId;
+                        if (!intersectionRefs.some(ref => ref.id === id)) {
+                            intersectionRefs.push({
+                                id,
+                                type: 'intersection',
+                                edgeId,
+                                ratio: parsed.ratio,
+                                position: target.clone()
+                            });
+                        }
+                    }
+                }
+                else if (this.debug) {
                     console.log(`  Skipped edge intersection (duplicate with existing intersection): (${target.x.toFixed(2)}, ${target.y.toFixed(2)}, ${target.z.toFixed(2)})`);
                 }
-            } else {
+            }
+            else if (this.debug) {
                 console.log(`  Intersection point is outside edge segment, skipping.`);
             }
         }
     });
     this.intersections = intersections; // 交点をクラスプロパティに保存
-    console.log("--- DEBUG: Final intersections (after edge intersections) ---");
-    this.intersections.forEach((p, i) => console.log(`  [${i}] Point: (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`));
+    const resolveFaceIdsForRef = (ref) => {
+        if (!ref || !structure) return null;
+        if (ref.edgeId && structure.edgeMap) {
+            const edge = structure.edgeMap.get(ref.edgeId);
+            return edge ? edge.faces : null;
+        }
+        if (!ref.id) return null;
+        const parsed = normalizeSnapPointId(parseSnapPointId(ref.id));
+        if (!parsed) return null;
+        if (parsed.type === 'vertex' && structure.vertexMap) {
+            const vertex = structure.vertexMap.get(`V:${parsed.vertexIndex}`);
+            return vertex ? vertex.faces : null;
+        }
+        if (parsed.type === 'edge' && structure.edgeMap) {
+            const edge = structure.edgeMap.get(`E:${parsed.edgeIndex}`);
+            return edge ? edge.faces : null;
+        }
+        if (parsed.type === 'face') {
+            return [`F:${parsed.faceIndex}`];
+        }
+        return null;
+    };
+    intersectionRefs.forEach(ref => {
+        if (ref.faceIds && ref.faceIds.length) return;
+        const faceIds = resolveFaceIdsForRef(ref);
+        if (faceIds && faceIds.length) {
+            ref.faceIds = Array.from(new Set(faceIds));
+        }
+    });
+    this.intersectionRefs = intersectionRefs;
+
+    this.edgeHighlights.forEach(edge => {
+        this.scene.remove(edge);
+    });
+    this.edgeHighlights = [];
+    if (resolver && structure) {
+        const edgeIds = new Map();
+        intersectionRefs.forEach(ref => {
+            let edgeIdFromRef = ref.edgeId || null;
+            if (!ref.id) return;
+            const parsed = normalizeSnapPointId(parseSnapPointId(ref.id));
+            if (!parsed) return;
+            const isNearMidpoint = (ratio) => {
+                if (!ratio || !ratio.denominator) return false;
+                return Math.abs(ratio.numerator * 2 - ratio.denominator) <= 1;
+            };
+
+            if (parsed.type === 'edge') {
+                edgeIdFromRef = `E:${parsed.edgeIndex}`;
+                if (!edgeIds.has(edgeIdFromRef)) edgeIds.set(edgeIdFromRef, { hasMidpoint: false });
+                if (isNearMidpoint(parsed.ratio)) {
+                    edgeIds.get(edgeIdFromRef).hasMidpoint = true;
+                }
+                return;
+            }
+            if (parsed.type === 'vertex' && structure.vertexMap) {
+                const vertex = structure.vertexMap.get(`V:${parsed.vertexIndex}`);
+                if (vertex && vertex.edges) {
+                    vertex.edges.forEach(edgeId => {
+                        if (!edgeIds.has(edgeId)) edgeIds.set(edgeId, { hasMidpoint: false });
+                    });
+                }
+                return;
+            }
+            if (edgeIdFromRef) {
+                if (!edgeIds.has(edgeIdFromRef)) edgeIds.set(edgeIdFromRef, { hasMidpoint: false });
+                if (ref.ratio && isNearMidpoint(ref.ratio)) {
+                    edgeIds.get(edgeIdFromRef).hasMidpoint = true;
+                }
+            }
+        });
+        edgeIds.forEach((meta, edgeId) => {
+            const resolved = resolver.resolveEdge(edgeId);
+            if (!resolved) return;
+            const geometry = new THREE.BufferGeometry().setFromPoints([resolved.start, resolved.end]);
+            const color = meta && meta.hasMidpoint ? 0x00cc66 : 0xff8800;
+            const material = new THREE.LineBasicMaterial({ color });
+            const line = new THREE.Line(geometry, material);
+            line.userData = { type: 'education-edge', edgeId };
+            this.scene.add(line);
+            this.edgeHighlights.push(line);
+        });
+    }
+    if (this.debug) {
+        console.log("--- DEBUG: Final intersections (after edge intersections) ---");
+        this.intersections.forEach((p, i) => console.log(`  [${i}] Point: (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`));
+    }
 
     if(intersections.length >= 3){
-        const center = new THREE.Vector3();
-        intersections.forEach(p => center.add(p));
-        center.divideScalar(intersections.length);
-        const planeNormal = plane.normal;
-        const base = new THREE.Vector3().subVectors(intersections[0], center).normalize();
-        const up = new THREE.Vector3().crossVectors(planeNormal, base).normalize();
-        intersections.sort((a, b) => {
-            const va = new THREE.Vector3().subVectors(a, center);
-            const vb = new THREE.Vector3().subVectors(b, center);
-            return Math.atan2(va.dot(up), va.dot(base)) - Math.atan2(vb.dot(up), vb.dot(base));
+        let outlinePoints = intersections.slice();
+        this.cutSegments = [];
+        this.outlineRefs = [];
+        const uniqueRefs = new Map();
+        intersectionRefs.forEach(ref => {
+            if (!ref || !ref.id || !ref.position) return;
+            if (!uniqueRefs.has(ref.id)) uniqueRefs.set(ref.id, ref);
         });
-        
-        const linePoints = [...intersections, intersections[0]];
+        const refs = Array.from(uniqueRefs.values());
+        const refById = new Map(refs.map(ref => [ref.id, ref]));
+
+        const buildSegmentsFromFaces = () => {
+            const faceBuckets = new Map();
+            refs.forEach(ref => {
+                if (!ref.faceIds || !ref.faceIds.length) return;
+                ref.faceIds.forEach(faceId => {
+                    if (!faceBuckets.has(faceId)) faceBuckets.set(faceId, []);
+                    faceBuckets.get(faceId).push(ref);
+                });
+            });
+            const segments = [];
+            faceBuckets.forEach((faceRefs, faceId) => {
+                const unique = Array.from(new Map(faceRefs.map(r => [r.id, r])).values());
+                if (unique.length < 2) return;
+                let start = unique[0];
+                let end = unique[1];
+                if (unique.length > 2) {
+                    let maxDist = -Infinity;
+                    for (let i = 0; i < unique.length; i++) {
+                        for (let j = i + 1; j < unique.length; j++) {
+                            const dist = unique[i].position.distanceTo(unique[j].position);
+                            if (dist > maxDist) {
+                                maxDist = dist;
+                                start = unique[i];
+                                end = unique[j];
+                            }
+                        }
+                    }
+                }
+                segments.push({
+                    startId: start.id,
+                    endId: end.id,
+                    start: start.position.clone(),
+                    end: end.position.clone(),
+                    faceIds: [faceId],
+                });
+            });
+            return segments;
+        };
+
+        const buildOrderedIdsFromSegments = (segments) => {
+            if (!segments.length) return null;
+            const adjacency = new Map();
+            segments.forEach(seg => {
+                if (!adjacency.has(seg.startId)) adjacency.set(seg.startId, new Set());
+                if (!adjacency.has(seg.endId)) adjacency.set(seg.endId, new Set());
+                adjacency.get(seg.startId).add(seg.endId);
+                adjacency.get(seg.endId).add(seg.startId);
+            });
+            const nodes = Array.from(adjacency.keys());
+            if (nodes.length < 3) return null;
+            const start = nodes[0];
+            const ordered = [start];
+            let prev = null;
+            let current = start;
+            const maxSteps = segments.length + 2;
+            for (let step = 0; step < maxSteps; step++) {
+                const neighbors = Array.from(adjacency.get(current) || []);
+                if (!neighbors.length) break;
+                let next = neighbors[0];
+                if (neighbors.length > 1 && next === prev) {
+                    next = neighbors[1];
+                }
+                if (!next) break;
+                if (next === start) return ordered;
+                ordered.push(next);
+                prev = current;
+                current = next;
+            }
+            return null;
+        };
+
+        let orderedRefs = refs.slice();
+        const faceSegments = buildSegmentsFromFaces();
+        const orderedIds = buildOrderedIdsFromSegments(faceSegments);
+        if (orderedIds && orderedIds.length >= 3) {
+            orderedRefs = orderedIds.map(id => refById.get(id)).filter(Boolean);
+        } else if (orderedRefs.length >= 3) {
+            const center = new THREE.Vector3();
+            orderedRefs.forEach(ref => center.add(ref.position));
+            center.divideScalar(orderedRefs.length);
+            const planeNormal = plane.normal;
+            const base = new THREE.Vector3().subVectors(orderedRefs[0].position, center).normalize();
+            const up = new THREE.Vector3().crossVectors(planeNormal, base).normalize();
+            orderedRefs.sort((a, b) => {
+                const va = new THREE.Vector3().subVectors(a.position, center);
+                const vb = new THREE.Vector3().subVectors(b.position, center);
+                return Math.atan2(va.dot(up), va.dot(base)) - Math.atan2(vb.dot(up), vb.dot(base));
+            });
+        }
+
+        if (orderedRefs.length >= 3) {
+            const segmentFaceIndex = new Map();
+            faceSegments.forEach(seg => {
+                const key = [seg.startId, seg.endId].sort().join('|');
+                if (!segmentFaceIndex.has(key)) segmentFaceIndex.set(key, []);
+                segmentFaceIndex.get(key).push(...(seg.faceIds || []));
+            });
+            outlinePoints = orderedRefs.map(ref => ref.position);
+            this.outlineRefs = orderedRefs.slice();
+            this.cutSegments = orderedRefs.map((ref, i) => {
+                const next = orderedRefs[(i + 1) % orderedRefs.length];
+                let sharedFaces = [];
+                const key = [ref.id, next.id].sort().join('|');
+                if (segmentFaceIndex.has(key)) {
+                    sharedFaces = Array.from(new Set(segmentFaceIndex.get(key)));
+                } else if (ref.faceIds && next.faceIds) {
+                    sharedFaces = ref.faceIds.filter(faceId => next.faceIds.includes(faceId));
+                }
+                return {
+                    startId: ref.id,
+                    endId: next.id,
+                    start: ref.position.clone(),
+                    end: next.position.clone(),
+                    faceIds: sharedFaces
+                };
+            });
+        }
+
+        const linePoints = [...outlinePoints, outlinePoints[0]];
         const lineGeo = new THREE.BufferGeometry().setFromPoints(linePoints);
         this.outline = new THREE.Line(
             lineGeo, 
@@ -282,43 +578,34 @@ export class Cutter {
         );
         this.scene.add(this.outline);
 
-        // 切断面の頂点（交点）にマーкерを表示
-        console.log("--- DEBUG: Yellow marker generation loop ---");
-        intersections.forEach(p => {
-            // 重複チェック
-            let isDuplicate = false;
-            for (let sp of points) {
-                const dist = p.distanceTo(sp);
-                console.log(`  Checking intersection point (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)}) vs selection point (${sp.x.toFixed(2)}, ${sp.y.toFixed(2)}, ${sp.z.toFixed(2)}). Distance: ${dist.toExponential(2)}`);
-                if (dist < 1e-2) {
-                    isDuplicate = true;
-                    break;
+        // 切断面の頂点（交点）にマーカーを表示（構造情報に依存）
+        const selectionIds = new Set(
+            (this.intersectionRefs || [])
+                .filter(ref => ref.type === 'snap' && ref.id)
+                .map(ref => ref.id)
+        );
+        const created = new Set();
+        if (this.debug) {
+            console.log("--- DEBUG: Yellow marker generation loop ---");
+        }
+        (this.intersectionRefs || [])
+            .filter(ref => ref.type === 'intersection' && ref.id)
+            .forEach(ref => {
+                if (selectionIds.has(ref.id)) return;
+                if (created.has(ref.id)) return;
+                const point = ref.position ? ref.position.clone() : (resolver ? resolver.resolveSnapPoint(ref.id) : null);
+                if (!point) return;
+                if (this.debug) {
+                    console.log(`  Creating yellow marker for intersection point (${point.x.toFixed(2)}, ${point.y.toFixed(2)}, ${point.z.toFixed(2)})`);
                 }
-            }
-            if (isDuplicate) {
-                console.log(`  Duplicate found with selection point, skipping yellow marker for (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`);
-                return;
-            }
-
-            // 切断の結果できた交点は基本黄色
-            let markerColor = 0xffff00;
-            let isOutline = false;
-
-            // pが任意の辺の中点に近いか判定
-            for(let edge of cube.edges) {
-                const center = new THREE.Vector3();
-                edge.getCenter(center);
-                if (p.distanceTo(center) < 1e-3) { // 閾値をより厳密に
-                    markerColor = 0x00ff00; // 緑色
-                    isOutline = true; // 塗りつぶしなし
-                    break;
-                }
-            }
-
-            const m = createMarker(p, this.scene, markerColor, isOutline);
-            this.vertexMarkers.push(m);
-            console.log(`  Creating yellow marker for intersection point (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`);
-        });
+                const parsed = normalizeSnapPointId(parseSnapPointId(ref.id));
+                const ratio = parsed && parsed.type === 'edge' ? parsed.ratio : null;
+                const isMidpoint = ratio ? ratio.numerator * 2 === ratio.denominator : false;
+                const markerColor = isMidpoint ? 0x00ff00 : 0xffff00;
+                const m = createMarker(point, this.scene, markerColor, isMidpoint);
+                this.vertexMarkers.push(m);
+                created.add(ref.id);
+            });
     }
 
     // 元のCubeを非表示
@@ -338,6 +625,91 @@ export class Cutter {
 
   getIntersections() {
       return this.intersections;
+  }
+
+  getIntersectionRefs() {
+      return this.intersectionRefs;
+  }
+
+  getOutlineRefs() {
+      return this.outlineRefs;
+  }
+
+  getCutSegments() {
+      return this.cutSegments;
+  }
+
+  applyCutResultMeta(meta, resolver) {
+      if (!meta || !resolver) return false;
+      const intersectionRefs = Array.isArray(meta.intersections)
+          ? meta.intersections.map(ref => {
+              if (!ref || !ref.id) return null;
+              let position = resolver.resolveSnapPoint(ref.id);
+              if (!position && ref.edgeId && ref.ratio) {
+                  const edge = resolver.resolveEdge(ref.edgeId);
+                  if (edge) {
+                      const t = ref.ratio.numerator / ref.ratio.denominator;
+                      position = new THREE.Vector3().lerpVectors(edge.start, edge.end, t);
+                  }
+              }
+              if (!position) return null;
+              return {
+                  id: ref.id,
+                  type: ref.type || 'intersection',
+                  edgeId: ref.edgeId,
+                  ratio: ref.ratio ? { ...ref.ratio } : undefined,
+                  faceIds: Array.isArray(ref.faceIds) ? [...ref.faceIds] : undefined,
+                  position
+              };
+          }).filter(Boolean)
+          : [];
+      const byId = new Map(intersectionRefs.map(ref => [ref.id, ref]));
+      const outlineRefs = Array.isArray(meta.outline)
+          ? meta.outline.map(id => {
+              if (!id) return null;
+              if (byId.has(id)) return byId.get(id);
+              const position = resolver.resolveSnapPoint(id);
+              if (!position) return null;
+              return { id, type: 'intersection', position };
+          }).filter(Boolean)
+          : [];
+      const cutSegments = Array.isArray(meta.cutSegments)
+          ? meta.cutSegments.map(seg => {
+              if (!seg || !seg.startId || !seg.endId) return null;
+              const start = resolver.resolveSnapPoint(seg.startId);
+              const end = resolver.resolveSnapPoint(seg.endId);
+              if (!start || !end) return null;
+              return {
+                  startId: seg.startId,
+                  endId: seg.endId,
+                  start,
+                  end,
+                  faceIds: Array.isArray(seg.faceIds) ? [...seg.faceIds] : undefined
+              };
+          }).filter(Boolean)
+          : [];
+
+      this.intersectionRefs = intersectionRefs;
+      this.outlineRefs = outlineRefs;
+      this.cutSegments = cutSegments;
+      this.intersections = intersectionRefs.map(ref => ref.position);
+
+      if (this.outline && this.outline.geometry && outlineRefs.length >= 3) {
+          const points = outlineRefs.map(ref => ref.position);
+          const linePoints = [...points, points[0]];
+          const lineGeo = new THREE.BufferGeometry().setFromPoints(linePoints);
+          this.outline.geometry.dispose();
+          this.outline.geometry = lineGeo;
+      }
+      return true;
+  }
+
+  getCutResult() {
+      return {
+          outline: { points: this.outlineRefs.slice() },
+          intersections: this.intersectionRefs.slice(),
+          cutSegments: this.cutSegments.slice(),
+      };
   }
 
   // 展開図描画用に切断線のリスト（Line3配列）を返す
@@ -394,6 +766,14 @@ export class Cutter {
         });
         this.vertexMarkers = [];
     }
+    if (this.edgeHighlights) {
+        this.edgeHighlights.forEach(edge => {
+            this.scene.remove(edge);
+            if (edge.geometry) edge.geometry.dispose();
+            if (edge.material) edge.material.dispose();
+        });
+        this.edgeHighlights = [];
+    }
     
     // 元のCubeを表示に戻す
     if (this.originalCube && this.originalCube.cubeMesh) {
@@ -401,7 +781,10 @@ export class Cutter {
     }
     this.originalCube = null;
     this.lastCube = null;
-    this.lastPoints = null;
+    this.lastResolver = null;
+    this.lastSnapIds = null;
+    this.outlineRefs = [];
+    this.cutSegments = [];
     this.cutPlane = null;
   }
   

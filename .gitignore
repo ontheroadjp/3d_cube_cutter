@@ -3,4 +3,11 @@ GEMINI.md
 
 node_modules/
 package-lock.json
-
+coverage/
+dist/
+.env
+.env.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

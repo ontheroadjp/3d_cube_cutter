@@ -1,10 +1,18 @@
 import * as THREE from 'three';
 import { createLabel } from './utils.js';
+import { getDefaultIndexMap } from './geometry/indexMap.js';
+import { buildCubeStructure, applyVertexLabelMap } from './structure/structureModel.js';
 
 export class Cube {
   constructor(scene, size=10){
     this.scene = scene;
     this.size = size;
+    this.edgeLengths = { lx: size, ly: size, lz: size };
+    this.indexMap = getDefaultIndexMap();
+    this.signToIndex = {};
+    this.indexToLabel = {};
+    this.displayLabelMap = null;
+    this.structure = null;
     this.vertices = [];
     this.vertexLabels = [];
     this.edges = [];
@@ -16,6 +24,9 @@ export class Cube {
     this.edgeLabels = []; // 辺の長さラベル用
     this.vertexMeshes = []; // 頂点の当たり判定用メッシュ
     this.edgeMeshes = []; // 辺の当たり判定用メッシュ
+    this.edgeIndexPairs = [];
+    this.physicalIndexToIndex = {};
+    this.edgeIdToMeshIndex = {};
     this.createCube([size,size,size]);
   }
 
@@ -33,9 +44,11 @@ export class Cube {
     this.vertexMeshes = [];
     this.edgeMeshes.forEach(m => this.scene.remove(m));
     this.edgeMeshes = [];
+    this.edgeIdToMeshIndex = {};
 
     const [lx,ly,lz] = Array.isArray(edgeLengths)? edgeLengths : [edgeLengths,edgeLengths,edgeLengths];
     this.size = Math.max(lx,ly,lz);
+    this.edgeLengths = { lx, ly, lz };
 
     // 頂点 (物理的な座標順序はTHREE.BoxGeometryのデフォルトと一致)
     this.vertices = [
@@ -58,6 +71,15 @@ export class Cube {
         this.labelToPhysicalIndex[label] = index;
     });
 
+    this.signToIndex = this.buildSignToIndexMap();
+    this.indexToLabel = this.buildIndexToLabelMap();
+    this.physicalIndexToIndex = this.buildPhysicalIndexToIndexMap();
+    this.structure = buildCubeStructure({
+      indexMap: this.indexMap,
+      labelMap: this.displayLabelMap,
+      fallbackLabelMap: this.indexToLabel
+    });
+
     // メッシュ
     const geo = new THREE.BoxGeometry(lx,ly,lz);
     this.cubeMesh = new THREE.Mesh(geo,new THREE.MeshPhongMaterial({
@@ -75,19 +97,15 @@ export class Cube {
     this.scene.add(this.edgeLines);
 
     // 頂点ラベル
-    this.vertices.forEach((v,i)=>{
-      const sprite = createLabel(physicalIndexToLabel[i], this.size/10);
-      sprite.position.copy(v).add(new THREE.Vector3(0, 0.5, 0));
-      this.scene.add(sprite);
-      this.vertexSprites.push(sprite);
-    });
+    this.refreshVertexLabels();
 
     // 頂点の当たり判定用メッシュ
     const vertexMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.0 });
     this.vertices.forEach((v, i) => {
         const vertexHitbox = new THREE.Mesh(new THREE.SphereGeometry(0.3), vertexMaterial);
         vertexHitbox.position.copy(v);
-        vertexHitbox.userData = { type: 'vertex', index: i, name: physicalIndexToLabel[i] };
+        const vertexId = this.physicalIndexToIndex[i] !== undefined ? `V:${this.physicalIndexToIndex[i]}` : null;
+        vertexHitbox.userData = { type: 'vertex', index: i, name: physicalIndexToLabel[i], vertexId };
         this.scene.add(vertexHitbox);
         this.vertexMeshes.push(vertexHitbox);
     });
@@ -102,6 +120,12 @@ export class Cube {
       [0,3],[1,2],[5,6],[4,7]  // A-E, B-F, C-G, D-H
     ];
     this.edges = idx.map(([i,j])=>new THREE.Line3(this.vertices[i],this.vertices[j]));
+    this.edgeIndexPairs = idx.map(([i, j]) => {
+      const a = this.physicalIndexToIndex[i];
+      const b = this.physicalIndexToIndex[j];
+      if (a === undefined || b === undefined) return null;
+      return [a, b];
+    });
 
     // 辺の長さラベル
     this.edges.forEach(edge => {
@@ -130,7 +154,11 @@ export class Cube {
         
         const v1_name = this.vertexLabels[idx[i][0]];
         const v2_name = this.vertexLabels[idx[i][1]];
+        const pair = this.edgeIndexPairs[i];
+        const edgeId = pair ? `E:${Math.min(pair[0], pair[1])}${Math.max(pair[0], pair[1])}` : null;
         edgeHitbox.userData = { type: 'edge', index: i, name: `${v1_name}${v2_name}` };
+        edgeHitbox.userData.edgeId = edgeId;
+        if (edgeId) this.edgeIdToMeshIndex[edgeId] = i;
 
         this.scene.add(edgeHitbox);
         this.edgeMeshes.push(edgeHitbox);
@@ -224,6 +252,11 @@ export class Cube {
       return this.vertexMeshes.find(m => m.userData.name === name);
   }
 
+  getVertexObjectById(vertexId) {
+      if (!vertexId) return null;
+      return this.vertexMeshes.find(m => m.userData.vertexId === vertexId);
+  }
+
   getVertexPosition(name) {
       const physIdx = this.labelToPhysicalIndex[name];
       if (physIdx === undefined) {
@@ -238,6 +271,19 @@ export class Cube {
       return this.edgeMeshes.find(m => m.userData.name === name || m.userData.name === `${name[1]}${name[0]}`);
   }
 
+  getEdgeObjectById(edgeId) {
+      if (!edgeId) return null;
+      const normalized = edgeId.startsWith('E:') ? edgeId : `E:${edgeId}`;
+      return this.edgeMeshes.find(m => m.userData.edgeId === normalized);
+  }
+
+  getEdgeMeshIndexById(edgeId) {
+      if (!edgeId) return null;
+      const normalized = edgeId.startsWith('E:') ? edgeId : `E:${edgeId}`;
+      const idx = this.edgeIdToMeshIndex[normalized];
+      return idx === undefined ? null : idx;
+  }
+
   getEdgeLine(name) {
       // "AB" と "BA" を同一視する
       const edgeIndex = this.edgeMeshes.findIndex(m => m.userData.name === name || m.userData.name === `${name[1]}${name[0]}`);
@@ -245,5 +291,165 @@ export class Cube {
           return this.edges[edgeIndex];
       }
       return null;
+  }
+
+  buildSignToIndexMap() {
+      const map = {};
+      Object.entries(this.indexMap).forEach(([index, sign]) => {
+          const key = `${sign.x},${sign.y},${sign.z}`;
+          map[key] = index;
+      });
+      return map;
+  }
+
+  buildIndexToLabelMap() {
+      const map = {};
+      this.vertices.forEach((v, physicalIndex) => {
+          const sx = v.x >= 0 ? 1 : -1;
+          const sy = v.y >= 0 ? 1 : -1;
+          const sz = v.z >= 0 ? 1 : -1;
+          const key = `${sx},${sy},${sz}`;
+          const index = this.signToIndex[key];
+          if (index !== undefined) {
+              map[index] = this.vertexLabels[physicalIndex];
+          }
+      });
+      return map;
+  }
+
+  buildPhysicalIndexToIndexMap() {
+      const map = {};
+      this.vertices.forEach((v, physicalIndex) => {
+          const sx = v.x >= 0 ? 1 : -1;
+          const sy = v.y >= 0 ? 1 : -1;
+          const sz = v.z >= 0 ? 1 : -1;
+          const key = `${sx},${sy},${sz}`;
+          const index = this.signToIndex[key];
+          if (index !== undefined) {
+              map[physicalIndex] = Number(index);
+          }
+      });
+      return map;
+  }
+
+  getVertexIndexByLabel(label) {
+      const physIdx = this.labelToPhysicalIndex[label];
+      if (physIdx === undefined) return null;
+      const v = this.vertices[physIdx];
+      if (!v) return null;
+      const sx = v.x >= 0 ? 1 : -1;
+      const sy = v.y >= 0 ? 1 : -1;
+      const sz = v.z >= 0 ? 1 : -1;
+      const key = `${sx},${sy},${sz}`;
+      return this.signToIndex[key] ?? null;
+  }
+
+  getVertexLabelByIndex(index) {
+      return this.indexToLabel[index] ?? null;
+  }
+
+  getDisplayLabelByIndex(index) {
+      if (this.displayLabelMap && this.displayLabelMap[`V:${index}`]) {
+          return this.displayLabelMap[`V:${index}`];
+      }
+      return this.getVertexLabelByIndex(index);
+  }
+
+  setVertexLabelMap(labelMap) {
+      this.displayLabelMap = labelMap || null;
+      this.refreshVertexLabels();
+      applyVertexLabelMap(this.structure, this.displayLabelMap, this.indexToLabel);
+  }
+
+  refreshVertexLabels() {
+      this.vertexSprites.forEach(s => this.scene.remove(s));
+      this.vertexSprites = [];
+      this.vertices.forEach((v, physicalIndex) => {
+          const sx = v.x >= 0 ? 1 : -1;
+          const sy = v.y >= 0 ? 1 : -1;
+          const sz = v.z >= 0 ? 1 : -1;
+          const key = `${sx},${sy},${sz}`;
+          const index = this.signToIndex[key];
+          const label = this.getDisplayLabelByIndex(index);
+          const sprite = createLabel(label, this.size/10);
+          sprite.position.copy(v).add(new THREE.Vector3(0, 0.5, 0));
+          this.scene.add(sprite);
+          this.vertexSprites.push(sprite);
+      });
+  }
+
+  getEdgeIndexByName(name) {
+      if (!name || name.length < 2) return null;
+      const i1 = this.getVertexIndexByLabel(name[0]);
+      const i2 = this.getVertexIndexByLabel(name[1]);
+      if (i1 === null || i2 === null) return null;
+      return i1 <= i2 ? `${i1}${i2}` : `${i2}${i1}`;
+  }
+
+  getEdgeNameByIndex(edgeIndex) {
+      if (!edgeIndex || edgeIndex.length < 2) return null;
+      const label1 = this.getVertexLabelByIndex(edgeIndex[0]);
+      const label2 = this.getVertexLabelByIndex(edgeIndex[1]);
+      if (!label1 || !label2) return null;
+      return `${label1}${label2}`;
+  }
+
+  getSnapPointIdForEdgeId(edgeId, numerator, denominator) {
+      if (!edgeId || !denominator) return null;
+      const edgeIndex = edgeId.startsWith('E:') ? edgeId.slice(2) : edgeId;
+      const gcd = (a, b) => {
+          let x = Math.abs(a);
+          let y = Math.abs(b);
+          while (y !== 0) {
+              const t = x % y;
+              x = y;
+              y = t;
+          }
+          return x || 1;
+      };
+      const d = gcd(numerator, denominator);
+      const n = numerator / d;
+      const den = denominator / d;
+      return `E:${edgeIndex}@${n}/${den}`;
+  }
+
+  getSnapPointIdForVertexLabel(label) {
+      const index = this.getVertexIndexByLabel(label);
+      return index === null ? null : `V:${index}`;
+  }
+
+  getSnapPointIdForEdgeName(name, numerator, denominator) {
+      const edgeIndex = this.getEdgeIndexByName(name);
+      if (!edgeIndex || !denominator) return null;
+      const gcd = (a, b) => {
+          let x = Math.abs(a);
+          let y = Math.abs(b);
+          while (y !== 0) {
+              const t = x % y;
+              x = y;
+              y = t;
+          }
+          return x || 1;
+      };
+      const d = gcd(numerator, denominator);
+      const n = numerator / d;
+      const den = denominator / d;
+      return `E:${edgeIndex}@${n}/${den}`;
+  }
+
+  getIndexMap() {
+      return this.indexMap;
+  }
+
+  getStructure() {
+      return this.structure;
+  }
+
+  getVertexLabelMap() {
+      return this.displayLabelMap ? { ...this.displayLabelMap } : null;
+  }
+
+  getSize() {
+      return { ...this.edgeLengths };
   }
 }
