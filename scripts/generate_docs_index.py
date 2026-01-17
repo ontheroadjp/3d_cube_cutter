@@ -33,10 +33,18 @@ def extract_status_and_description(path: Path):
     except Exception:
         return "", ""
     status = ""
+    summary = ""
     for line in lines[:5]:
         if line.startswith("Status:"):
             status = line.replace("Status:", "").strip()
             break
+    for line in lines[:8]:
+        if line.startswith("Summary:"):
+            summary = line.replace("Summary:", "").strip()
+            break
+    if summary:
+        cleaned = summary.replace("`", "").replace("*", "").replace("_", "")
+        return status, cleaned
     # Description: first non-empty non-heading line after optional status
     description = ""
     for line in lines:
@@ -47,8 +55,11 @@ def extract_status_and_description(path: Path):
             continue
         if stripped.startswith("Status:"):
             continue
+        if stripped.startswith("Summary:"):
+            continue
         description = stripped
         break
+    description = description.replace("`", "").replace("*", "").replace("_", "")
     return status, description
 
 
@@ -66,13 +77,14 @@ def main():
         "",
         "ドキュメント一覧（Status/作成日/更新日）。日付は git log に基づきます。",
         "",
-        "| Path | Status | Description | Created (ISO) | Updated (ISO) |",
-        "| --- | --- | --- | --- | --- |",
+        "| No | Path | Status | Description | Created (ISO) | Updated (ISO) |",
+        "| --- | --- | --- | --- | --- | --- |",
     ]
-    body = [
-        f"| `{path}` | {status or '-'} | {desc or '-'} | {created or '-'} | {updated or '-'} |"
-        for path, status, desc, created, updated in rows
-    ]
+    body = []
+    for idx, (path, status, desc, created, updated) in enumerate(rows, start=1):
+        body.append(
+            f"| {idx} | `{path}` | {status or '-'} | {desc or '-'} | {created or '-'} | {updated or '-'} |"
+        )
     OUTPUT.write_text("\n".join(header + body) + "\n")
     print(f"Generated {OUTPUT}")
 

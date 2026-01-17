@@ -1,6 +1,7 @@
 # step0_current_architecture.md
 
 Status: Legacy
+Summary: 構造主体移行の前提として、現行実装の責務とフローを整理する。
 
 # ステップ0: 現行コードの責務整理
 

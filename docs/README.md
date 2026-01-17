@@ -1,6 +1,7 @@
 # 3D 立体切断シミュレーター ドキュメント
 
 Status: Active
+Summary: 本プロジェクトは、中学受験算数向けの教育ツールとして、立方体・直方体の切断操作をシミュレーションするウェブアプリケーションです。
 
 ## 1. 概要
 本プロジェクトは、中学受験算数向けの教育ツールとして、立方体・直方体の切断操作をシミュレーションするウェブアプリケーションです。
@@ -17,6 +18,8 @@ TypeScript 移行は完了しており、`dist/` を出力して動作させま�
 │  ├─ README.md
 │  ├─ architecture/
 │  │  ├─ design_principles.md
+│  │  ├─ education_engine_integrated_design.md
+│  │  ├─ engine_ui_contract.md
 │  │  ├─ structure_first_overview.md
 │  │  ├─ structure_model_spec.md
 │  │  ├─ snap_point_id_naming.md
@@ -26,6 +29,7 @@ TypeScript 移行は完了しており、`dist/` を出力して動作させま�
 │  │  └─ ui_layer_design.md
 │  ├─ migration/
 │  │  ├─ architecture_migration_plan.md
+│  │  ├─ implementation_checklist.md
 │  │  ├─ step0_current_architecture.md
 │  │  ├─ structure_first_migration_plan.md
 │  │  ├─ typescript_migration_plan.md
@@ -58,8 +62,6 @@ TypeScript 移行は完了しており、`dist/` を出力して動作させま�
 │  │     └─ storage_adapter_spec.md
 │  ├─ testing/
 │  │  └─ verification_plan.md
-│  ├─ migration/
-│  │  └─ implementation_checklist.md
 │  ├─ implementation_notes.md
 │  └─ legacy/
 │     └─ v0.0.1/

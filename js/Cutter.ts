@@ -102,12 +102,20 @@ export class Cutter {
       }
   }
 
-  cut(cube: any, snapIds: SnapPointID[], resolver: any = null) {
+  cut(
+      cube: any,
+      snapIds: SnapPointID[],
+      resolver: any = null,
+      options: { previewOnly?: boolean; suppressOutline?: boolean; suppressMarkers?: boolean } = {}
+  ) {
     this.reset();
     this.originalCube = cube;
     this.lastCube = cube;
     this.lastSnapIds = null;
     this.lastResolver = resolver || null;
+    const previewOnly = !!options.previewOnly;
+    const suppressOutline = !!options.suppressOutline;
+    const suppressMarkers = !!options.suppressMarkers;
 
     if (!snapIds || snapIds.length < 3) return false;
     if (!resolver) return false;
@@ -179,101 +187,105 @@ export class Cutter {
         }
     });
 
-    // 「頂点数が少ない方」を切り取る側とする
-    let normal = plane.normal.clone();
-    let targetVertices = [];
-    
-    // 切り取るターゲット判定
-    let cutNegative = false;
-    
-    if (positiveCount > negativeCount) {
-        // 法線側(positive)が多い -> 法線の反対側(negative)を切り取りたい
-        cutNegative = true;
-    } else {
-        // 法線側(positive)が少ない、または同じ -> 法線側を切り取る
-        cutNegative = false;
+    if (!previewOnly) {
+        // 「頂点数が少ない方」を切り取る側とする
+        let normal = plane.normal.clone();
+        let targetVertices = [];
+
+        // 切り取るターゲット判定
+        let cutNegative = false;
+
+        if (positiveCount > negativeCount) {
+            // 法線側(positive)が多い -> 法線の反対側(negative)を切り取りたい
+            cutNegative = true;
+        } else {
+            // 法線側(positive)が少ない、または同じ -> 法線側を切り取る
+            cutNegative = false;
+        }
+
+        // 反転フラグがあれば逆にする
+        if (this.cutInverted) {
+            cutNegative = !cutNegative;
+        }
+
+        if (cutNegative) {
+            normal.negate();
+            targetVertices = negativeVertices;
+        } else {
+            targetVertices = positiveVertices;
+        }
+
+        // 切り取られる頂点に赤丸を表示
+        if (!suppressMarkers) {
+            targetVertices.forEach(v => {
+                const m = createMarker(v, this.scene);
+                this.vertexMarkers.push(m);
+            });
+        }
+
+        // 3. 切断用ブラシ（巨大Box）を作成
+        const size = cube.size * 5; // 十分大きく
+        const geom = new THREE.BoxGeometry(size, size, size);
+
+        // Boxの中心を、平面から法線方向に size/2 だけずらした位置に置く
+        /** @type {any} */
+        const cutBrush = new (Brush as any)(geom) as any;
+
+        // 位置: 平面上の一点 p0 から法線方向に size/2
+        const centerOffset = normal.clone().multiplyScalar(size / 2);
+        const brushPos = p0.clone().add(centerOffset);
+        cutBrush.position.copy(brushPos);
+
+        // 回転: BoxのY軸(0,1,0)をnormalに向ける
+        const defaultUp = new THREE.Vector3(0, 1, 0);
+        const quaternion = new THREE.Quaternion().setFromUnitVectors(defaultUp, normal);
+        cutBrush.setRotationFromQuaternion(quaternion);
+
+        cutBrush.updateMatrixWorld();
+
+        // 元のCubeのBrush作成
+        /** @type {any} */
+        const cubeBrush = new (Brush as any)(cube.cubeMesh.geometry.clone()) as any;
+        cubeBrush.position.copy(cube.cubeMesh.position);
+        cubeBrush.rotation.copy(cube.cubeMesh.rotation);
+        cubeBrush.scale.copy(cube.cubeMesh.scale);
+        cubeBrush.updateMatrixWorld();
+
+        // マテリアルの設定
+        const cubeMat = cube.cubeMesh.material.clone();
+        cubeMat.side = THREE.DoubleSide;
+        cubeMat.transparent = this.isTransparent;
+        cubeMat.opacity = this.isTransparent ? 0.4 : 1.0;
+        cubeMat.depthWrite = !this.isTransparent;
+
+        const cutMat = new THREE.MeshBasicMaterial({
+            color: 0xffcccc,
+            side: THREE.DoubleSide,
+            depthTest: true,
+            polygonOffset: true,
+            polygonOffsetFactor: 1,
+            polygonOffsetUnits: 1,
+            transparent: true,
+            opacity: 0.5,
+            depthWrite: false,
+            name: 'cutFace'
+        });
+
+        cubeBrush.material = cubeMat;
+        cutBrush.material = cutMat;
+
+        // 4. 演算実行
+
+        // A - B (直方体 - 半空間) = 切り取られた後の直方体
+        this.resultMesh = /** @type {any} */ (this.evaluator.evaluate(cubeBrush, cutBrush, SUBTRACTION));
+        this.resultMesh.material = [cubeMat, cutMat];
+        this.scene.add(this.resultMesh);
+
+        // A & B (直方体 & 半空間) = 切り取られた部分
+        this.removedMesh = /** @type {any} */ (this.evaluator.evaluate(cubeBrush, cutBrush, INTERSECTION));
+        this.removedMesh.material = [cubeMat, cutMat];
+        this.scene.add(this.removedMesh);
     }
-    
-    // 反転フラグがあれば逆にする
-    if (this.cutInverted) {
-        cutNegative = !cutNegative;
-    }
-    
-    if (cutNegative) {
-        normal.negate();
-        targetVertices = negativeVertices;
-    } else {
-        targetVertices = positiveVertices;
-    }
-
-    // 切り取られる頂点に赤丸を表示
-    targetVertices.forEach(v => {
-        const m = createMarker(v, this.scene);
-        this.vertexMarkers.push(m);
-    });
-    
-    // 3. 切断用ブラシ（巨大Box）を作成
-    const size = cube.size * 5; // 十分大きく
-    const geom = new THREE.BoxGeometry(size, size, size);
-    
-    // Boxの中心を、平面から法線方向に size/2 だけずらした位置に置く
-    /** @type {any} */
-    const cutBrush = new (Brush as any)(geom) as any;
-    
-    // 位置: 平面上の一点 p0 から法線方向に size/2
-    const centerOffset = normal.clone().multiplyScalar(size / 2);
-    const brushPos = p0.clone().add(centerOffset);
-    cutBrush.position.copy(brushPos);
-    
-    // 回転: BoxのY軸(0,1,0)をnormalに向ける
-    const defaultUp = new THREE.Vector3(0, 1, 0);
-    const quaternion = new THREE.Quaternion().setFromUnitVectors(defaultUp, normal);
-    cutBrush.setRotationFromQuaternion(quaternion);
-    
-    cutBrush.updateMatrixWorld();
-
-    // 元のCubeのBrush作成
-    /** @type {any} */
-    const cubeBrush = new (Brush as any)(cube.cubeMesh.geometry.clone()) as any;
-    cubeBrush.position.copy(cube.cubeMesh.position);
-    cubeBrush.rotation.copy(cube.cubeMesh.rotation);
-    cubeBrush.scale.copy(cube.cubeMesh.scale);
-    cubeBrush.updateMatrixWorld();
-    
-    // マテリアルの設定
-    const cubeMat = cube.cubeMesh.material.clone();
-    cubeMat.side = THREE.DoubleSide; 
-    cubeMat.transparent = this.isTransparent;
-    cubeMat.opacity = this.isTransparent ? 0.4 : 1.0;
-    cubeMat.depthWrite = !this.isTransparent;
-
-    const cutMat = new THREE.MeshBasicMaterial({
-        color: 0xffcccc,
-        side: THREE.DoubleSide,
-        depthTest: true,
-        polygonOffset: true,
-        polygonOffsetFactor: 1,
-        polygonOffsetUnits: 1,
-        transparent: true,
-        opacity: 0.5,
-        depthWrite: false,
-        name: 'cutFace'
-    });
-
-    cubeBrush.material = cubeMat;
-    cutBrush.material = cutMat;
-
-    // 4. 演算実行
-    
-    // A - B (直方体 - 半空間) = 切り取られた後の直方体
-    this.resultMesh = /** @type {any} */ (this.evaluator.evaluate(cubeBrush, cutBrush, SUBTRACTION));
-    this.resultMesh.material = [cubeMat, cutMat];
-    this.scene.add(this.resultMesh);
-
-    // A & B (直方体 & 半空間) = 切り取られた部分
-    this.removedMesh = /** @type {any} */ (this.evaluator.evaluate(cubeBrush, cutBrush, INTERSECTION));
-    this.removedMesh.material = [cubeMat, cutMat];
-    this.scene.add(this.removedMesh);
 
     // 5. 輪郭線の描画
     // ユーザーが選択した点 (points) を最優先で交点リストに含める
@@ -611,11 +623,13 @@ export class Cutter {
 
         const linePoints = [...outlinePoints, outlinePoints[0]];
         const lineGeo = new THREE.BufferGeometry().setFromPoints(linePoints);
-        this.outline = new THREE.Line(
-            lineGeo, 
-            new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 })
-        );
-        this.scene.add(this.outline);
+        if (!suppressOutline) {
+            this.outline = new THREE.Line(
+                lineGeo,
+                new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 })
+            );
+            this.scene.add(this.outline);
+        }
 
         // 切断面の頂点（交点）にマーカーを表示（構造情報に依存）
         const selectionIds = new Set(
@@ -627,31 +641,35 @@ export class Cutter {
         if (this.debug) {
             console.log("--- DEBUG: Yellow marker generation loop ---");
         }
-        (this.intersectionRefs || [])
-            .filter(ref => ref.type === 'intersection' && ref.id)
-            .forEach(ref => {
-                if (selectionIds.has(ref.id)) return;
-                if (created.has(ref.id)) return;
-                const position = ref.position as THREE.Vector3 | undefined;
-                const point = position instanceof THREE.Vector3
-                    ? position.clone()
-                    : (resolver ? resolver.resolveSnapPoint(ref.id) : null);
-                if (!point) return;
-                if (this.debug) {
-                    console.log(`  Creating yellow marker for intersection point (${point.x.toFixed(2)}, ${point.y.toFixed(2)}, ${point.z.toFixed(2)})`);
-                }
-                const parsed = normalizeSnapPointId(parseSnapPointId(ref.id));
-                const ratio = parsed && parsed.type === 'edge' ? parsed.ratio : null;
-                const isMidpoint = ratio ? ratio.numerator * 2 === ratio.denominator : false;
-                const markerColor = isMidpoint ? 0x00ff00 : 0xffff00;
-                const m = createMarker(point, this.scene, markerColor, isMidpoint);
-                this.vertexMarkers.push(m);
-                created.add(ref.id);
-            });
+        if (!suppressMarkers) {
+            (this.intersectionRefs || [])
+                .filter(ref => ref.type === 'intersection' && ref.id)
+                .forEach(ref => {
+                    if (selectionIds.has(ref.id)) return;
+                    if (created.has(ref.id)) return;
+                    const position = ref.position as THREE.Vector3 | undefined;
+                    const point = position instanceof THREE.Vector3
+                        ? position.clone()
+                        : (resolver ? resolver.resolveSnapPoint(ref.id) : null);
+                    if (!point) return;
+                    if (this.debug) {
+                        console.log(`  Creating yellow marker for intersection point (${point.x.toFixed(2)}, ${point.y.toFixed(2)}, ${point.z.toFixed(2)})`);
+                    }
+                    const parsed = normalizeSnapPointId(parseSnapPointId(ref.id));
+                    const ratio = parsed && parsed.type === 'edge' ? parsed.ratio : null;
+                    const isMidpoint = ratio ? ratio.numerator * 2 === ratio.denominator : false;
+                    const markerColor = isMidpoint ? 0x00ff00 : 0xffff00;
+                    const m = createMarker(point, this.scene, markerColor, isMidpoint);
+                    this.vertexMarkers.push(m);
+                    created.add(ref.id);
+                });
+        }
     }
 
-    // 元のCubeを非表示
-    cube.cubeMesh.visible = false;
+    if (!previewOnly) {
+        // 元のCubeを非表示
+        cube.cubeMesh.visible = false;
+    }
     return true; // 成功したことを示す
   }
   

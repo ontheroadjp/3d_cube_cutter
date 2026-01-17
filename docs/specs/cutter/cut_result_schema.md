@@ -1,6 +1,7 @@
 # cut_result_schema.md
 
 Status: Active
+Summary: CutResult/IntersectionPointの構造仕様と再利用方針を定義する。
 
 # CutResult / IntersectionPoint データ仕様
 

@@ -1,6 +1,7 @@
 # engine_ui_contract.md
 
 Status: Draft
+Summary: UIとEngineの責務境界とAPI契約を定義する。
 
 # Engine / UI 契約（API設計）
 

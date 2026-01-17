@@ -9,9 +9,10 @@ describe('reactApp init', () => {
     const elements = new Map();
     elements.set('react-root', createElement());
     elements.set('react-settings-root', createElement());
-    elements.set('react-preset-root', createElement());
     elements.set('react-user-presets-root', createElement());
-    elements.set('presetButtons', createElement());
+    elements.set('react-learning-root', createElement());
+    elements.set('react-learning-header-root', createElement());
+    elements.set('react-topbar-root', createElement());
 
     global.document = /** @type {any} */ ({
       getElementById: (id) => elements.get(id) || null,
@@ -23,7 +24,7 @@ describe('reactApp init', () => {
     vi.resetModules();
   });
 
-  it('should mount react roots and hide legacy preset buttons', async () => {
+  it('should mount react roots', async () => {
     vi.mock('react-dom/client', () => ({
       createRoot: vi.fn(() => ({ render: vi.fn() })),
     }));
@@ -33,9 +34,7 @@ describe('reactApp init', () => {
 
     initReactApp();
 
-    expect(createRoot).toHaveBeenCalledTimes(4);
-    const legacy = document.getElementById('presetButtons');
-    expect(legacy.classList.add).toHaveBeenCalledWith('d-none');
+    expect(createRoot).toHaveBeenCalledTimes(6);
   });
 
   it('should call configureVertexLabels helper', async () => {

@@ -1,6 +1,7 @@
 # implementation_notes.md
 
 Status: Draft
+Summary: 現行実装の把握と構造主体移行のための実装メモを整理する。
 
 # 実装ノート (現行 + 構造主体移行向け)
 
@@ -13,15 +14,15 @@ Status: Draft
 ## 2. 現行実装の要点
 
 ### 2.1 エントリーポイント
-- `main.js` が全体の初期化とイベントを統括
+- `main.ts` が全体の初期化とイベントを統括
 
 ### 2.2 主要クラス
-- `Cube.js`: 頂点/辺/面の生成、ラベル、当たり判定
-- `SelectionManager.js`: 選択点・マーカー・辺分割ラベル
-- `Cutter.js`: CSG 切断と交点/輪郭線描画
-- `UIManager.js`: UI 操作と表示制御
-- `PresetManager.js`: プリセット適用
-- `NetManager.js`: 展開図描画
+- `Cube.ts`: 頂点/辺/面の生成、ラベル、当たり判定
+- `SelectionManager.ts`: 選択点・マーカー・辺分割ラベル
+- `Cutter.ts`: CSG 切断と交点/輪郭線描画
+- `UIManager.ts`: UI 操作と表示制御
+- `PresetManager.ts`: プリセット適用
+- `NetManager.ts`: 展開図描画
 
 ### 2.3 スナップ挙動
 - 頂点/辺の当たり判定メッシュに Raycast

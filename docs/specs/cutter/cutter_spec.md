@@ -1,6 +1,7 @@
 # Cutter モジュール仕様書（TypeScript 移行版）
 
 Status: Active
+Summary: Cutter モジュールは、3D立方体の切断処理を担当するコアコンポーネントです。
 
 ## 1. 概要
 

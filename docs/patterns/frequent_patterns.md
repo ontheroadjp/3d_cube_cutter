@@ -1,6 +1,7 @@
 # frequent_patterns.md
 
 Status: Active
+Summary: 本ファイルの上位方針は docs/architecture/educationengineintegrateddesign.md に準拠する。
 
 # 3D 立体切断シミュレーター: 典型的切断パターン一覧
 

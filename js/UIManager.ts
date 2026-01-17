@@ -6,16 +6,17 @@ export class UIManager {
   alertContainer: HTMLElement;
   explanationPanel: HTMLElement | null;
   explanationText: HTMLElement | null;
-  modeSelector: HTMLSelectElement;
-  presetControls: HTMLElement;
-  presetCategoryFilter: HTMLSelectElement;
-  presetButtonsContainer: HTMLElement;
-  settingsControls: HTMLElement;
-  settingsCategorySelector: HTMLSelectElement;
-  settingsPanels: HTMLElement;
-  displaySettingsPanel: HTMLElement;
-  cuboidSettingsPanel: HTMLElement;
-  userPresetsPanel: HTMLElement;
+  modeSelector: HTMLSelectElement | null;
+  presetControls: HTMLElement | null;
+  presetCategoryFilter: HTMLSelectElement | null;
+  presetButtonsContainer: HTMLElement | null;
+  settingsControls: HTMLElement | null;
+  settingsCategorySelector: HTMLSelectElement | null;
+  settingsPanels: HTMLElement | null;
+  learningPanels: HTMLElement | null;
+  displaySettingsPanel: HTMLElement | null;
+  cuboidSettingsPanel: HTMLElement | null;
+  userPresetsPanel: HTMLElement | null;
   saveUserPresetBtn: HTMLButtonElement | null;
   cancelUserPresetEditBtn: HTMLButtonElement | null;
   userPresetList: HTMLElement | null;
@@ -24,17 +25,20 @@ export class UIManager {
   userPresetCategory: HTMLInputElement | null;
   userPresetDescription: HTMLInputElement | null;
   userPresetStorageNote: HTMLElement | null;
-  edgeLabelSelect: HTMLSelectElement;
-  toggleVertexLabels: HTMLInputElement;
-  toggleCutSurface: HTMLInputElement;
-  togglePyramid: HTMLInputElement;
-  toggleCubeTransparency: HTMLInputElement;
-  toggleFaceLabels: HTMLInputElement;
+  edgeLabelSelect: HTMLSelectElement | null;
+  toggleVertexLabels: HTMLInputElement | null;
+  toggleCutSurface: HTMLInputElement | null;
+  togglePyramid: HTMLInputElement | null;
+  toggleCubeTransparency: HTMLInputElement | null;
+  toggleFaceLabels: HTMLInputElement | null;
   configureVertexLabelsBtn: HTMLButtonElement | null;
-  flipCutBtn: HTMLButtonElement;
-  toggleNetBtn: HTMLButtonElement;
-  resetBtn: HTMLButtonElement;
+  flipCutBtn: HTMLButtonElement | null;
+  toggleNetBtn: HTMLButtonElement | null;
+  resetBtn: HTMLButtonElement | null;
   configureBtn: HTMLButtonElement | null;
+  displayState: DisplayState;
+  currentMode: string;
+  currentSettingsCategory: string;
 
   constructor(){
     this.tooltip = document.getElementById('tooltip') as HTMLElement;
@@ -44,19 +48,20 @@ export class UIManager {
     this.explanationText = document.getElementById('explanation-text');
 
     // --- Mode/Preset/Settings Controls ---
-    this.modeSelector = document.getElementById('mode-selector') as HTMLSelectElement;
+    this.modeSelector = document.getElementById('mode-selector') as HTMLSelectElement | null;
     
-    this.presetControls = document.getElementById('preset-controls') as HTMLElement;
-    this.presetCategoryFilter = document.getElementById('preset-category-filter') as HTMLSelectElement;
-    this.presetButtonsContainer = document.getElementById('presetButtons') as HTMLElement;
+    this.presetControls = document.getElementById('preset-controls');
+    this.presetCategoryFilter = document.getElementById('preset-category-filter') as HTMLSelectElement | null;
+    this.presetButtonsContainer = document.getElementById('presetButtons');
     
-    this.settingsControls = document.getElementById('settings-controls') as HTMLElement;
-    this.settingsCategorySelector = document.getElementById('settings-category-selector') as HTMLSelectElement;
+    this.settingsControls = document.getElementById('settings-controls');
+    this.settingsCategorySelector = document.getElementById('settings-category-selector') as HTMLSelectElement | null;
     
-    this.settingsPanels = document.getElementById('settings-panels') as HTMLElement;
-    this.displaySettingsPanel = document.getElementById('display-settings-panel') as HTMLElement;
-    this.cuboidSettingsPanel = document.getElementById('cuboid-settings-panel') as HTMLElement;
-    this.userPresetsPanel = document.getElementById('user-presets-panel') as HTMLElement;
+    this.settingsPanels = document.getElementById('settings-panels');
+    this.learningPanels = document.getElementById('learning-panels');
+    this.displaySettingsPanel = document.getElementById('display-settings-panel');
+    this.cuboidSettingsPanel = document.getElementById('cuboid-settings-panel');
+    this.userPresetsPanel = document.getElementById('user-presets-panel');
     this.saveUserPresetBtn = document.getElementById('saveUserPreset') as HTMLButtonElement | null;
     this.cancelUserPresetEditBtn = document.getElementById('cancelUserPresetEdit') as HTMLButtonElement | null;
     this.userPresetList = document.getElementById('userPresetList');
@@ -67,94 +72,121 @@ export class UIManager {
     this.userPresetStorageNote = document.getElementById('userPresetStorageNote');
 
     // --- Display Settings Toggles ---
-    this.edgeLabelSelect = document.getElementById('edgeLabelMode') as HTMLSelectElement;
-    this.toggleVertexLabels = document.getElementById('toggleVertexLabels') as HTMLInputElement;
-    this.toggleCutSurface = document.getElementById('toggleCutSurface') as HTMLInputElement;
-    this.togglePyramid = document.getElementById('togglePyramid') as HTMLInputElement;
-    this.toggleCubeTransparency = document.getElementById('toggleCubeTransparency') as HTMLInputElement;
-    this.toggleFaceLabels = document.getElementById('toggleFaceLabels') as HTMLInputElement;
+    this.edgeLabelSelect = document.getElementById('edgeLabelMode') as HTMLSelectElement | null;
+    this.toggleVertexLabels = document.getElementById('toggleVertexLabels') as HTMLInputElement | null;
+    this.toggleCutSurface = document.getElementById('toggleCutSurface') as HTMLInputElement | null;
+    this.togglePyramid = document.getElementById('togglePyramid') as HTMLInputElement | null;
+    this.toggleCubeTransparency = document.getElementById('toggleCubeTransparency') as HTMLInputElement | null;
+    this.toggleFaceLabels = document.getElementById('toggleFaceLabels') as HTMLInputElement | null;
     this.configureVertexLabelsBtn = document.getElementById('configureVertexLabels') as HTMLButtonElement | null;
 
     // --- Action Buttons ---
-    this.flipCutBtn = document.getElementById('flipCut') as HTMLButtonElement;
-    this.toggleNetBtn = document.getElementById('toggleNet') as HTMLButtonElement;
-    this.resetBtn = document.getElementById('reset') as HTMLButtonElement;
+    this.flipCutBtn = document.getElementById('flipCut') as HTMLButtonElement | null;
+    this.toggleNetBtn = document.getElementById('toggleNet') as HTMLButtonElement | null;
+    this.resetBtn = document.getElementById('reset') as HTMLButtonElement | null;
     this.configureBtn = document.getElementById('configure') as HTMLButtonElement | null;
+
+    const edgeMode = this.edgeLabelSelect
+        ? this.edgeLabelSelect.value
+        : 'visible';
+    this.displayState = {
+      showVertexLabels: this.toggleVertexLabels ? this.toggleVertexLabels.checked : true,
+      showFaceLabels: this.toggleFaceLabels ? this.toggleFaceLabels.checked : true,
+      edgeLabelMode: edgeMode === 'popup' || edgeMode === 'hidden' ? edgeMode : 'visible',
+      showCutSurface: this.toggleCutSurface ? this.toggleCutSurface.checked : true,
+      showPyramid: this.togglePyramid ? this.togglePyramid.checked : false,
+      cubeTransparent: this.toggleCubeTransparency ? this.toggleCubeTransparency.checked : true
+    };
+    this.currentMode = this.modeSelector ? this.modeSelector.value : 'free';
+    this.currentSettingsCategory = this.settingsCategorySelector ? this.settingsCategorySelector.value : 'display';
   }
 
   // --- Getters for UI State ---
   getEdgeLabelMode(): DisplayState['edgeLabelMode'] {
-    const value = this.edgeLabelSelect.value;
+    const value = this.edgeLabelSelect ? this.edgeLabelSelect.value : this.displayState.edgeLabelMode;
     if (value === 'visible' || value === 'popup' || value === 'hidden') {
       return value;
     }
     return 'visible';
   }
-  isVertexLabelsChecked() { return this.toggleVertexLabels.checked; }
-  isCutSurfaceChecked() { return this.toggleCutSurface.checked; }
-  isPyramidChecked() { return this.togglePyramid.checked; }
-  isTransparencyChecked() { return this.toggleCubeTransparency.checked; }
-  isFaceLabelsChecked() { return this.toggleFaceLabels.checked; }
+  isVertexLabelsChecked() { return this.toggleVertexLabels ? this.toggleVertexLabels.checked : this.displayState.showVertexLabels; }
+  isCutSurfaceChecked() { return this.toggleCutSurface ? this.toggleCutSurface.checked : this.displayState.showCutSurface; }
+  isPyramidChecked() { return this.togglePyramid ? this.togglePyramid.checked : this.displayState.showPyramid; }
+  isTransparencyChecked() { return this.toggleCubeTransparency ? this.toggleCubeTransparency.checked : this.displayState.cubeTransparent; }
+  isFaceLabelsChecked() { return this.toggleFaceLabels ? this.toggleFaceLabels.checked : this.displayState.showFaceLabels; }
   getDisplayState(): DisplayState {
     return {
-      showVertexLabels: this.isVertexLabelsChecked(),
-      showFaceLabels: this.isFaceLabelsChecked(),
-      edgeLabelMode: this.getEdgeLabelMode(),
-      showCutSurface: this.isCutSurfaceChecked(),
-      showPyramid: this.isPyramidChecked(),
-      cubeTransparent: this.isTransparencyChecked()
+      showVertexLabels: this.displayState.showVertexLabels,
+      showFaceLabels: this.displayState.showFaceLabels,
+      edgeLabelMode: this.displayState.edgeLabelMode,
+      showCutSurface: this.displayState.showCutSurface,
+      showPyramid: this.displayState.showPyramid,
+      cubeTransparent: this.displayState.cubeTransparent
     };
   }
 
   applyDisplayState(display: Partial<DisplayState> = {}) {
-    if (display.edgeLabelMode) this.edgeLabelSelect.value = display.edgeLabelMode;
-    if (typeof display.showVertexLabels === 'boolean') this.toggleVertexLabels.checked = display.showVertexLabels;
-    if (typeof display.showFaceLabels === 'boolean') this.toggleFaceLabels.checked = display.showFaceLabels;
-    if (typeof display.showCutSurface === 'boolean') this.toggleCutSurface.checked = display.showCutSurface;
-    if (typeof display.showPyramid === 'boolean') this.togglePyramid.checked = display.showPyramid;
-    if (typeof display.cubeTransparent === 'boolean') this.toggleCubeTransparency.checked = display.cubeTransparent;
+    this.displayState = { ...this.displayState, ...display };
+    if (display.edgeLabelMode && this.edgeLabelSelect) this.edgeLabelSelect.value = display.edgeLabelMode;
+    if (typeof display.showVertexLabels === 'boolean' && this.toggleVertexLabels) this.toggleVertexLabels.checked = display.showVertexLabels;
+    if (typeof display.showFaceLabels === 'boolean' && this.toggleFaceLabels) this.toggleFaceLabels.checked = display.showFaceLabels;
+    if (typeof display.showCutSurface === 'boolean' && this.toggleCutSurface) this.toggleCutSurface.checked = display.showCutSurface;
+    if (typeof display.showPyramid === 'boolean' && this.togglePyramid) this.togglePyramid.checked = display.showPyramid;
+    if (typeof display.cubeTransparent === 'boolean' && this.toggleCubeTransparency) this.toggleCubeTransparency.checked = display.cubeTransparent;
   }
 
   // --- UI Visibility Controls ---
   showPresetControls(visible) {
+    if (!this.presetControls) return;
     if (visible) this.presetControls.classList.remove('d-none');
     else this.presetControls.classList.add('d-none');
   }
   showSettingsControls(visible) {
+    if (!this.settingsControls) return;
     if (visible) this.settingsControls.classList.remove('d-none');
     else this.settingsControls.classList.add('d-none');
   }
   showSettingsPanels(visible) {
-    if (visible) this.settingsPanels.classList.remove('d-none');
-    else this.settingsPanels.classList.add('d-none');
+    if (this.settingsPanels) {
+      if (visible) this.settingsPanels.classList.remove('d-none');
+      else this.settingsPanels.classList.add('d-none');
+    }
     if (!visible) {
       const reactToggle = /** @type {any} */ (globalThis).__setReactSettingsVisible;
       if (typeof reactToggle === 'function') reactToggle(false);
     }
   }
 
+  showLearningPanels(visible) {
+    if (!this.learningPanels) return;
+    if (visible) this.learningPanels.classList.remove('d-none');
+    else this.learningPanels.classList.add('d-none');
+  }
+
   showSettingsPanel(panelName) {
-      this.displaySettingsPanel.classList.add('d-none');
-      this.cuboidSettingsPanel.classList.add('d-none');
-      this.userPresetsPanel.classList.add('d-none');
+      if (this.displaySettingsPanel) this.displaySettingsPanel.classList.add('d-none');
+      if (this.cuboidSettingsPanel) this.cuboidSettingsPanel.classList.add('d-none');
+      if (this.userPresetsPanel) this.userPresetsPanel.classList.add('d-none');
       const reactToggle = /** @type {any} */ (globalThis).__setReactSettingsVisible;
       const hasReactSettings = typeof reactToggle === 'function';
       if (hasReactSettings) {
           reactToggle(panelName === 'display');
       }
       if (panelName === 'display') {
-          if (!hasReactSettings) {
+          if (!hasReactSettings && this.displaySettingsPanel) {
               this.displaySettingsPanel.classList.remove('d-none');
           }
       } else if (panelName === 'cuboid') {
-          this.cuboidSettingsPanel.classList.remove('d-none');
+          if (this.cuboidSettingsPanel) this.cuboidSettingsPanel.classList.remove('d-none');
       } else if (panelName === 'user-presets') {
-          this.userPresetsPanel.classList.remove('d-none');
+          if (this.userPresetsPanel) this.userPresetsPanel.classList.remove('d-none');
       }
   }
 
   filterPresetButtons(category) {
-      const buttons = this.presetButtonsContainer.querySelectorAll('button[data-preset]');
+      const container = this.presetButtonsContainer;
+      if (!container) return;
+      const buttons = container.querySelectorAll('button[data-preset]');
       buttons.forEach(btn => {
           const el = btn as HTMLElement;
           el.style.display = (category && el.dataset.category === category) ? '' : 'none';
@@ -162,6 +194,8 @@ export class UIManager {
   }
   
   populatePresets(presets) {
+      const container = this.presetButtonsContainer;
+      if (!container) return;
       presets.forEach(preset => {
           const btn = document.createElement('button');
           btn.textContent = preset.name;
@@ -169,13 +203,14 @@ export class UIManager {
           btn.dataset.category = preset.category;
           btn.className = 'btn btn-outline-secondary btn-sm';
           btn.style.display = 'none'; // Initially hidden
-          this.presetButtonsContainer.appendChild(btn);
+          container.appendChild(btn);
       });
   }
 
   // --- Event Listeners Setup ---
   /** @param {(mode: string) => void} callback */
   onModeChange(callback) {
+      if (!this.modeSelector) return;
       this.modeSelector.addEventListener('change', (e) => {
           const target = e.target as HTMLSelectElement;
           callback(target.value);
@@ -183,6 +218,7 @@ export class UIManager {
   }
   /** @param {(category: string) => void} callback */
   onPresetCategoryChange(callback) {
+      if (!this.presetCategoryFilter) return;
       this.presetCategoryFilter.addEventListener('change', (e) => {
           const target = e.target as HTMLSelectElement;
           callback(target.value);
@@ -190,6 +226,7 @@ export class UIManager {
   }
   /** @param {(category: string) => void} callback */
   onSettingsCategoryChange(callback) {
+      if (!this.settingsCategorySelector) return;
       this.settingsCategorySelector.addEventListener('change', (e) => {
           const target = e.target as HTMLSelectElement;
           callback(target.value);
@@ -202,12 +239,14 @@ export class UIManager {
   
   /** @param {(presetName: string) => void} callback */
   onPresetChange(callback) {
-      this.presetButtonsContainer.addEventListener('click', (e) => {
+      const container = this.presetButtonsContainer;
+      if (!container) return;
+      container.addEventListener('click', (e) => {
           const target = e.target as HTMLElement;
           if (target.tagName === 'BUTTON' && target.dataset.preset) {
               const presetName = target.dataset.preset;
               
-              const buttons = this.presetButtonsContainer.querySelectorAll('button[data-preset]');
+              const buttons = container.querySelectorAll('button[data-preset]');
               buttons.forEach(b => b.classList.remove('btn-secondary', 'fw-bold'));
               
               target.classList.add('btn-secondary', 'fw-bold');
@@ -217,10 +256,17 @@ export class UIManager {
   }
   
   /** @param {(checked: boolean) => void} callback */
-  onFaceLabelChange(callback) { this.toggleFaceLabels.addEventListener('change', (e) => { const target = e.target as HTMLInputElement; callback(target.checked); }); }
+  onFaceLabelChange(callback) {
+      if (!this.toggleFaceLabels) return;
+      this.toggleFaceLabels.addEventListener('change', (e) => { const target = e.target as HTMLInputElement; callback(target.checked); });
+  }
   /** @param {(checked: boolean) => void} callback */
-  onVertexLabelChange(callback) { this.toggleVertexLabels.addEventListener('change', (e) => { const target = e.target as HTMLInputElement; callback(target.checked); }); }
+  onVertexLabelChange(callback) {
+      if (!this.toggleVertexLabels) return;
+      this.toggleVertexLabels.addEventListener('change', (e) => { const target = e.target as HTMLInputElement; callback(target.checked); });
+  }
   onEdgeLabelModeChange(callback: (mode: DisplayState['edgeLabelMode']) => void) {
+    if (!this.edgeLabelSelect) return;
     this.edgeLabelSelect.addEventListener('change', (e) => {
       const target = e.target as HTMLSelectElement;
       if (target.value !== 'popup') this.hideTooltip();
@@ -228,17 +274,26 @@ export class UIManager {
     });
   }
   /** @param {() => void} callback */
-  onToggleNetClick(callback) { this.toggleNetBtn.addEventListener('click', callback); }
+  onToggleNetClick(callback) { if (this.toggleNetBtn) this.toggleNetBtn.addEventListener('click', callback); }
   /** @param {(checked: boolean) => void} callback */
-  onCutSurfaceChange(callback) { this.toggleCutSurface.addEventListener('change', (e) => { const target = e.target as HTMLInputElement; callback(target.checked); }); }
+  onCutSurfaceChange(callback) {
+      if (!this.toggleCutSurface) return;
+      this.toggleCutSurface.addEventListener('change', (e) => { const target = e.target as HTMLInputElement; callback(target.checked); });
+  }
   /** @param {(checked: boolean) => void} callback */
-  onPyramidChange(callback) { this.togglePyramid.addEventListener('change', (e) => { const target = e.target as HTMLInputElement; callback(target.checked); }); }
+  onPyramidChange(callback) {
+      if (!this.togglePyramid) return;
+      this.togglePyramid.addEventListener('change', (e) => { const target = e.target as HTMLInputElement; callback(target.checked); });
+  }
   /** @param {(checked: boolean) => void} callback */
-  onTransparencyChange(callback) { this.toggleCubeTransparency.addEventListener('change', (e) => { const target = e.target as HTMLInputElement; callback(target.checked); }); }
+  onTransparencyChange(callback) {
+      if (!this.toggleCubeTransparency) return;
+      this.toggleCubeTransparency.addEventListener('change', (e) => { const target = e.target as HTMLInputElement; callback(target.checked); });
+  }
   /** @param {() => void} callback */
-  onFlipCutClick(callback) { this.flipCutBtn.addEventListener('click', callback); }
+  onFlipCutClick(callback) { if (this.flipCutBtn) this.flipCutBtn.addEventListener('click', callback); }
   /** @param {() => void} callback */
-  onResetClick(callback) { this.resetBtn.onclick = () => { this.hideTooltip(); callback(); }; }
+  onResetClick(callback) { if (this.resetBtn) this.resetBtn.onclick = () => { this.hideTooltip(); callback(); }; }
   /** @param {() => void} callback */
   onConfigureClick(callback) {
       if (!this.configureBtn) return;
@@ -282,13 +337,18 @@ export class UIManager {
 
   // --- UI State Updates ---
   resetToFreeSelectMode() {
-      this.modeSelector.value = 'free';
+      if (this.modeSelector) {
+          this.modeSelector.value = 'free';
+          this.modeSelector.dispatchEvent(new Event('change', { bubbles: true }));
+      }
       this.showPresetControls(false);
       this.showSettingsControls(false);
       this.showSettingsPanels(false);
       
-      const buttons = this.presetButtonsContainer.querySelectorAll('button[data-preset]');
-      buttons.forEach(b => b.classList.remove('btn-secondary', 'fw-bold'));
+      if (this.presetButtonsContainer) {
+          const buttons = this.presetButtonsContainer.querySelectorAll('button[data-preset]');
+          buttons.forEach(b => b.classList.remove('btn-secondary', 'fw-bold'));
+      }
   }
   
   updateSelectionCount(count) { this.countSpan.textContent = String(count); }

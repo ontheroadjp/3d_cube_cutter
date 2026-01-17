@@ -1,6 +1,7 @@
 # preset_unification_policy.md
 
 Status: Active
+Summary: 標準プリセットとユーザープリセットの統一運用方針を定義する。
 
 # プリセット統合方針
 

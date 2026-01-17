@@ -1,6 +1,7 @@
 # storage_adapter_spec.md
 
 Status: Active
+Summary: 保存機能の無料/有料切替を支えるStorageAdapter仕様を定義する。
 
 # StorageAdapter 仕様書
 

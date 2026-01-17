@@ -1,6 +1,9 @@
 # CutResultBuilder モジュール仕様書
 
 Status: Active
+Summary: CSG の切断結果から CutResult を組み立てる仕様を定義する。
+
+CSG の切断結果から CutResult を組み立てる仕様を定義する。
 
 ## ファイル名
 docs/specs/cutter/cut_result_builder_spec.md

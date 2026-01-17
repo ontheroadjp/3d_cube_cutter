@@ -1,6 +1,7 @@
 # SnapPoint ID 命名規則 設計書
 
 Status: Active
+Summary: SnapPointID の命名規則と運用ルールを定義する。
 
 本ドキュメントは、立体切断シミュレーターにおいて
 すべてのスナップポイントを一意かつ構造的に表現するための

@@ -1,6 +1,7 @@
 # docs/patterns/frequent_patterns_snapid.md
 
 Status: Active
+Summary: 本ドキュメントの上位方針は docs/architecture/educationengineintegrateddesign.md に準拠する。
 
 # 中学受験算数: 立体切断頻出パターン (SnapPointID付き)
 

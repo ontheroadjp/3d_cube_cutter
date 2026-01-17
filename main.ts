@@ -11,7 +11,8 @@ import { buildUserPresetState } from './js/presets/userPresetState.js';
 import { NoopStorageAdapter, IndexedDbStorageAdapter } from './js/storage/storageAdapter.js';
 import { generateExplanation } from './js/education/explanationGenerator.js';
 import { initReactApp } from './js/ui/reactApp.js';
-import type { DisplayState, UserPresetState } from './js/types.js';
+import type { DisplayState, LearningProblem, UserPresetState } from './js/types.js';
+import { parseSnapPointId } from './js/geometry/snapPointId.js';
 
 const DEBUG = false;
 
@@ -31,6 +32,25 @@ class App {
     userPresetStorage: NoopStorageAdapter | IndexedDbStorageAdapter;
     useReactPresets: boolean;
     useReactUserPresets: boolean;
+    learningLines: THREE.Line[];
+    learningAnimationToken: { cancelled: boolean } | null;
+    learningPlane: THREE.Mesh | null;
+    learningHintLines: THREE.Line[];
+    learningCutSegments: Array<{ start: THREE.Vector3; end: THREE.Vector3 }>;
+    learningSteps: Array<{
+        instruction: string;
+        reason?: string;
+        action?: {
+            type: 'mark' | 'hintSegment' | 'drawSegment' | 'cut' | 'message';
+            snapId?: string;
+            startId?: string;
+            endId?: string;
+            kind?: 'edge' | 'diagonal';
+            index?: number;
+        };
+    }>;
+    learningStepIndex: number;
+    learningStepRunning: boolean;
 
     scene: THREE.Scene;
     camera: THREE.OrthographicCamera;
@@ -47,6 +67,7 @@ class App {
     netManager: NetManager;
     selection: SelectionManager;
     presetManager: PresetManager;
+    currentMode: string;
 
     constructor() {
         // --- State Properties ---
@@ -60,6 +81,15 @@ class App {
         this.userPresetStorage = this.createUserPresetStorage();
         this.useReactPresets = false;
         this.useReactUserPresets = false;
+        this.currentMode = 'free';
+        this.learningLines = [];
+        this.learningAnimationToken = null;
+        this.learningPlane = null;
+        this.learningHintLines = [];
+        this.learningCutSegments = [];
+        this.learningSteps = [];
+        this.learningStepIndex = 0;
+        this.learningStepRunning = false;
 
         // --- Core Three.js Components ---
         this.scene = new THREE.Scene();
@@ -108,13 +138,22 @@ class App {
     }
 
     init() {
-        this.useReactPresets = !!document.getElementById('react-preset-root');
+        this.useReactPresets = !!document.getElementById('react-topbar-root');
         this.useReactUserPresets = !!document.getElementById('react-user-presets-root');
         globalThis.__engine = {
             getDisplayState: () => this.ui.getDisplayState(),
             setDisplayState: (display) => this.applyDisplayState(display),
             getPresets: () => this.presetManager.getPresets(),
             applyPreset: (name) => this.handlePresetChange(name),
+            setMode: (mode) => this.handleModeChange(mode),
+            setSettingsCategory: (category) => this.handleSettingsCategoryChange(category),
+            flipCut: () => this.handleFlipCutClick(),
+            toggleNet: () => this.handleToggleNetClick(),
+            resetScene: () => this.handleResetClick(),
+            applyLearningProblem: (problem) => this.previewLearningProblem(problem),
+            previewLearningProblem: (problem) => this.previewLearningProblem(problem),
+            startLearningSolution: (problem) => this.startLearningSolution(problem),
+            advanceLearningStep: () => this.advanceLearningStep(),
             listUserPresets: () => this.userPresets.slice(),
             isUserPresetStorageEnabled: () => this.userPresetStorage.isEnabled(),
             saveUserPreset: (form) => this.handleSaveUserPreset(form),
@@ -188,14 +227,9 @@ class App {
         window.addEventListener('resize', this.handleResize.bind(this));
         this.controls.addEventListener('start', () => { this.isCameraAnimating = false; });
 
-        // UI Manager Events
-        this.ui.onModeChange(this.handleModeChange.bind(this));
-        this.ui.onPresetCategoryChange(this.handlePresetCategoryChange.bind(this));
-        this.ui.onSettingsCategoryChange(this.handleSettingsCategoryChange.bind(this));
+        // UI Manager Events (legacy fallback only)
         this.ui.onPresetChange(this.handlePresetChange.bind(this));
-        this.ui.onResetClick(this.handleResetClick.bind(this));
         this.ui.onConfigureClick(this.handleConfigureClick.bind(this));
-        this.ui.onFlipCutClick(this.handleFlipCutClick.bind(this));
         this.ui.onConfigureVertexLabelsClick(this.handleConfigureVertexLabelsClick.bind(this));
         if (!this.useReactUserPresets) {
             this.ui.onSaveUserPresetClick(this.handleSaveUserPreset.bind(this));
@@ -204,15 +238,6 @@ class App {
             this.ui.onUserPresetDelete(this.handleUserPresetDelete.bind(this));
             this.ui.onUserPresetEdit(this.handleUserPresetEdit.bind(this));
         }
-        
-        // Display Toggles
-        this.ui.onVertexLabelChange(checked => { this.cube.toggleVertexLabels(checked); this.selection.toggleVertexLabels(checked); });
-        this.ui.onFaceLabelChange(checked => this.cube.toggleFaceLabels(checked));
-        this.ui.onToggleNetClick(() => { this.netManager.toggle(); this.netManager.update(this.cutter.getCutSegments(), this.cube, this.resolver); });
-        this.ui.onEdgeLabelModeChange(mode => { this.cube.setEdgeLabelMode(mode); this.selection.setEdgeLabelMode(mode); });
-        this.ui.onCutSurfaceChange(checked => this.cutter.toggleSurface(checked));
-        this.ui.onPyramidChange(checked => this.cutter.togglePyramid(checked));
-        this.ui.onTransparencyChange(checked => { this.cube.toggleTransparency(checked); this.cutter.setTransparency(checked); });
     }
 
     // --- Core Logic Methods ---
@@ -241,6 +266,10 @@ class App {
     }
 
     resetScene() {
+        this.cancelLearningAnimation();
+        this.clearLearningLines();
+        this.clearLearningPlane();
+        this.clearLearningHints();
         this.selection.reset();
         this.cutter.resetInversion();
         this.cutter.reset();
@@ -252,6 +281,140 @@ class App {
         this.isCameraAnimating = true;
         this.cameraTargetPosition = new THREE.Vector3(10, 5, 3);
         this.controls.target.set(0, 0, 0);
+    }
+
+    clearLearningLines() {
+        this.learningLines.forEach(line => {
+            this.scene.remove(line);
+            line.geometry.dispose();
+            if (line.material instanceof THREE.Material) {
+                line.material.dispose();
+            } else if (Array.isArray(line.material)) {
+                line.material.forEach(mat => mat.dispose());
+            }
+        });
+        this.learningLines = [];
+    }
+
+    cancelLearningAnimation() {
+        if (this.learningAnimationToken) {
+            this.learningAnimationToken.cancelled = true;
+            this.learningAnimationToken = null;
+        }
+        this.learningStepRunning = false;
+    }
+
+    clearLearningPlane() {
+        if (!this.learningPlane) return;
+        this.scene.remove(this.learningPlane);
+        this.learningPlane.geometry.dispose();
+        if (this.learningPlane.material instanceof THREE.Material) {
+            this.learningPlane.material.dispose();
+        } else if (Array.isArray(this.learningPlane.material)) {
+            this.learningPlane.material.forEach(mat => mat.dispose());
+        }
+        this.learningPlane = null;
+    }
+
+    clearLearningHints() {
+        this.learningHintLines.forEach(line => {
+            this.scene.remove(line);
+            line.geometry.dispose();
+            if (line.material instanceof THREE.Material) {
+                line.material.dispose();
+            } else if (Array.isArray(line.material)) {
+                line.material.forEach(mat => mat.dispose());
+            }
+        });
+        this.learningHintLines = [];
+    }
+
+    addLearningHintSegment(segment: { startId: string; endId: string; kind?: 'edge' | 'diagonal' }) {
+        const start = this.resolver.resolveSnapPoint(segment.startId);
+        const end = this.resolver.resolveSnapPoint(segment.endId);
+        if (!start || !end) return;
+        const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+        const color = segment.kind === 'edge' ? 0x1aa27a : 0x2f7fe5;
+        const material = new THREE.LineBasicMaterial({ color });
+        const line = new THREE.Line(geometry, material);
+        line.userData = { type: 'learning-hint', kind: segment.kind || 'diagonal' };
+        this.scene.add(line);
+        this.learningHintLines.push(line);
+    }
+
+    addLearningMarker(snapId: string) {
+        if (!snapId) return;
+        if (this.selection.getSelectedSnapIds().includes(snapId)) return;
+        this.selection.addPointFromSnapId(snapId);
+    }
+
+    formatSnapInstruction(snapId: string) {
+        const parsed = parseSnapPointId(snapId);
+        if (!parsed) return '図に印をつけよう。';
+        if (parsed.type === 'vertex') {
+            const index = Number(parsed.vertexIndex);
+            const label = this.cube.getDisplayLabelByIndex(index) || parsed.vertexIndex;
+            return `頂点${label}に印をつけよう。`;
+        }
+        if (parsed.type === 'edge') {
+            const edgeIndex = parsed.edgeIndex || '';
+            const i1 = Number(edgeIndex[0]);
+            const i2 = Number(edgeIndex[1]);
+            const label1 = this.cube.getDisplayLabelByIndex(i1) || edgeIndex[0];
+            const label2 = this.cube.getDisplayLabelByIndex(i2) || edgeIndex[1];
+            const ratio = parsed.ratio;
+            if (ratio && ratio.numerator * 2 === ratio.denominator) {
+                return `辺${label1}${label2}の中点に印をつけよう。`;
+            }
+            if (ratio) {
+                const left = ratio.numerator;
+                const right = ratio.denominator - ratio.numerator;
+                return `辺${label1}${label2}を${left}:${right}に分ける点に印をつけよう。`;
+            }
+            return `辺${label1}${label2}上の点に印をつけよう。`;
+        }
+        return '図に印をつけよう。';
+    }
+
+    setLearningPlane(plane: LearningProblem['highlightPlane']) {
+        this.clearLearningPlane();
+        if (!plane) return;
+        const { lx, ly, lz } = this.cube.edgeLengths;
+        let geometry = null;
+        if (plane === 'front' || plane === 'back') {
+            geometry = new THREE.PlaneGeometry(lx, ly);
+        } else if (plane === 'top' || plane === 'bottom') {
+            geometry = new THREE.PlaneGeometry(lx, lz);
+        } else {
+            geometry = new THREE.PlaneGeometry(lz, ly);
+        }
+        const material = new THREE.MeshBasicMaterial({
+            color: 0xffd966,
+            transparent: true,
+            opacity: 0.25,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        if (plane === 'front') {
+            mesh.position.set(0, 0, lz / 2);
+        } else if (plane === 'back') {
+            mesh.position.set(0, 0, -lz / 2);
+        } else if (plane === 'top') {
+            mesh.rotation.x = Math.PI / 2;
+            mesh.position.set(0, ly / 2, 0);
+        } else if (plane === 'bottom') {
+            mesh.rotation.x = Math.PI / 2;
+            mesh.position.set(0, -ly / 2, 0);
+        } else if (plane === 'right') {
+            mesh.rotation.y = Math.PI / 2;
+            mesh.position.set(lx / 2, 0, 0);
+        } else if (plane === 'left') {
+            mesh.rotation.y = Math.PI / 2;
+            mesh.position.set(-lx / 2, 0, 0);
+        }
+        this.scene.add(mesh);
+        this.learningPlane = mesh;
     }
 
     getUserPresetState(meta = {}) {
@@ -329,7 +492,7 @@ class App {
     // --- Event Handlers ---
     handleClick(e) {
         if (this.isCutExecuted) return;
-        if (this.ui.modeSelector.value !== 'free') return;
+        if (this.currentMode !== 'free') return;
         if (!this.snappedPointInfo) return;
         if (this.selection.isObjectSelected(this.snappedPointInfo.object)) return;
 
@@ -353,7 +516,7 @@ class App {
     }
 
     handleMouseMove(e) {
-        if (this.isCutExecuted || this.ui.modeSelector.value !== 'free') {
+        if (this.isCutExecuted || this.currentMode !== 'free') {
             this.highlightMarker.visible = false;
             this.snappedPointInfo = null;
             document.body.style.cursor = 'auto';
@@ -455,23 +618,21 @@ class App {
     }
     
     handleModeChange(mode) {
+        this.currentMode = mode;
+        if (typeof globalThis.__setReactMode === 'function') {
+            globalThis.__setReactMode(mode);
+        }
         if (mode !== 'settings') {
             this.resetScene();
         }
-        this.ui.showPresetControls(false);
-        this.ui.showSettingsControls(false);
         this.ui.showSettingsPanels(false);
+        this.ui.showLearningPanels(false);
 
-        if (mode === 'preset') {
-            this.ui.showPresetControls(true);
-            this.ui.presetCategoryFilter.value = 'triangle';
-            this.ui.filterPresetButtons('triangle');
-            this.ui.presetCategoryFilter.dispatchEvent(new Event('change', { bubbles: true }));
-        } else if (mode === 'settings') {
-            this.ui.showSettingsControls(true);
+        if (mode === 'settings') {
             this.ui.showSettingsPanels(true);
-            this.ui.settingsCategorySelector.value = 'display';
             this.ui.showSettingsPanel('display');
+        } else if (mode === 'learning') {
+            this.ui.showLearningPanels(true);
         }
     }
 
@@ -500,10 +661,214 @@ class App {
         this.selection.toggleVertexLabels(this.ui.isVertexLabelsChecked());
     }
 
-    handleResetClick() {
+    previewLearningProblem(problem) {
+        const snapIds = Array.isArray(problem)
+            ? problem
+            : (problem && Array.isArray(problem.snapIds) ? problem.snapIds : []);
+        if (!Array.isArray(snapIds) || snapIds.length < 3) return;
         this.resetScene();
+    }
+
+    startLearningSolution(problem) {
+        const snapIds = Array.isArray(problem)
+            ? problem
+            : (problem && Array.isArray(problem.snapIds) ? problem.snapIds : []);
+        if (!Array.isArray(snapIds) || snapIds.length < 3) return { totalSteps: 0 };
+        this.cancelLearningAnimation();
+        this.resetScene();
+        const highlightPlane = problem && !Array.isArray(problem) ? problem.highlightPlane : null;
+        if (highlightPlane) {
+            this.setLearningPlane(highlightPlane);
+        }
+        const success = this.cutter.cut(this.cube, snapIds, this.resolver, {
+            previewOnly: true,
+            suppressOutline: true,
+            suppressMarkers: true
+        });
+        if (!success) {
+            this.ui.showMessage('解答解説の準備に失敗しました。', 'warning');
+            return { totalSteps: 0 };
+        }
+        const segments = this.cutter.getCutSegments();
+        if (!segments.length) {
+            this.ui.showMessage('切断線を生成できませんでした。', 'warning');
+            return { totalSteps: 0 };
+        }
+        this.learningCutSegments = segments.map(segment => ({
+            start: segment.start.clone(),
+            end: segment.end.clone()
+        }));
+
+        const baseIntro = [{
+            instruction: '基本方針はこうだよね。面の上で線を引いて考えるのがコツだよ。',
+            reason: '空間で考えると難しいから、まず1つの面で考えるんだ。',
+            action: { type: 'message' as const }
+        }];
+
+        let steps: Array<{
+            instruction: string;
+            reason?: string;
+            action?: {
+                type: 'mark' | 'hintSegment' | 'drawSegment' | 'cut' | 'message';
+                snapId?: string;
+                startId?: string;
+                endId?: string;
+                kind?: 'edge' | 'diagonal';
+                index?: number;
+            };
+        }> = [];
+
+        if (!Array.isArray(problem) && Array.isArray(problem?.learningSteps)) {
+            steps = [...problem.learningSteps];
+        } else {
+            const givenSnapIds = !Array.isArray(problem) && Array.isArray(problem?.givenSnapIds)
+                ? problem.givenSnapIds
+                : snapIds;
+            const markSteps = givenSnapIds.map(snapId => ({
+                instruction: `まずは問題文から分かる条件を図に書き込もう。${this.formatSnapInstruction(snapId)}`,
+                reason: '問題文に書いてある条件は、最初に必ず書き込むよ。',
+                action: { type: 'mark' as const, snapId }
+            }));
+            const hintSteps = !Array.isArray(problem) && Array.isArray(problem?.highlightSegments)
+                ? problem.highlightSegments.map(segment => ({
+                    instruction: segment.kind === 'diagonal'
+                        ? '対角線を引こう。'
+                        : '辺をなぞって確かめよう。',
+                    reason: '問題文にある線は切断面に必ず含まれるよ。',
+                    action: {
+                        type: 'hintSegment' as const,
+                        startId: segment.startId,
+                        endId: segment.endId,
+                        kind: segment.kind
+                    }
+                }))
+                : [];
+            steps = [...baseIntro, ...markSteps, ...hintSteps];
+        }
+
+        const segmentInstructions = !Array.isArray(problem) && Array.isArray(problem?.segmentInstructions)
+            ? problem.segmentInstructions
+            : [
+                '同じ面にある点をまっすぐ結んでみよう。',
+                'となりの面でも線をつないでいこう。',
+                '次の面でも同じように線を引こう。',
+                '線が別の面へ移動したら、その面でも結ぼう。',
+                '最後の面まで線をつなげよう。',
+                'もう一度、同じ面の点を結んでいこう。'
+            ];
+        const segmentReasons = !Array.isArray(problem) && Array.isArray(problem?.segmentReasons)
+            ? problem.segmentReasons
+            : [
+                '同じ面にある点は直線で結んでいいんだ。',
+                '切断線は面と面の境目を通って移動するよ。',
+                '面が変わっても線の向きはつながっているよ。',
+                '同じルールで次の面に線を引けばOKだよ。',
+                '線をつないでいくと形が閉じるよ。',
+                '最後まで線をつないで切断面を完成させよう。'
+            ];
+        const drawSteps = this.learningCutSegments.map((_, index) => ({
+            instruction: segmentInstructions[Math.min(index, segmentInstructions.length - 1)] || '同じ面の点を結んでいこう。',
+            reason: segmentReasons[Math.min(index, segmentReasons.length - 1)] || '同じ面にある点は直線で結んでいいんだ。',
+            action: { type: 'drawSegment' as const, index }
+        }));
+
+        steps = [...steps, ...drawSteps, { instruction: '最後に切断を実行するよ。', action: { type: 'cut' as const } }];
+        this.learningSteps = steps;
+        this.learningStepIndex = 0;
+        this.learningStepRunning = false;
+        return { totalSteps: steps.length };
+    }
+
+    async advanceLearningStep() {
+        if (this.learningStepRunning) return { done: false };
+        const step = this.learningSteps[this.learningStepIndex];
+        if (!step) return { done: true };
+        this.learningStepRunning = true;
+        if (!step) return { done: true };
+        this.ui.setExplanation(step.instruction);
+        const action = step.action;
+        if (!action || action.type === 'message') {
+            // 説明のみ
+        } else if (action.type === 'mark' && action.snapId) {
+            this.addLearningMarker(action.snapId);
+        } else if (action.type === 'hintSegment' && action.startId && action.endId) {
+            this.addLearningHintSegment({
+                startId: action.startId,
+                endId: action.endId,
+                kind: action.kind
+            });
+        } else if (action.type === 'drawSegment') {
+            const token = { cancelled: false };
+            this.learningAnimationToken = token;
+            const segment = typeof action.index === 'number' ? this.learningCutSegments[action.index] : null;
+            if (segment) {
+                await this.animateLearningSegment(segment, token);
+            }
+            if (token.cancelled) {
+                this.learningStepRunning = false;
+                return { done: false, instruction: step.instruction, reason: step.reason };
+            }
+        } else if (action.type === 'cut') {
+            this.clearLearningLines();
+            this.clearLearningPlane();
+            this.clearLearningHints();
+            this.executeCut();
+        }
+        this.learningStepIndex += 1;
+        this.learningStepRunning = false;
+        const done = this.learningStepIndex >= this.learningSteps.length;
+        return {
+            done,
+            stepIndex: this.learningStepIndex,
+            totalSteps: this.learningSteps.length,
+            instruction: step.instruction,
+            reason: step.reason
+        };
+    }
+
+    animateLearningSegment(segment, token) {
+        return new Promise((resolve) => {
+            const start = segment.start.clone();
+            const end = segment.end.clone();
+            const positions = new Float32Array([
+                start.x, start.y, start.z,
+                start.x, start.y, start.z
+            ]);
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const material = new THREE.LineBasicMaterial({ color: 0xff0000 });
+            const line = new THREE.Line(geometry, material);
+            this.scene.add(line);
+            this.learningLines.push(line);
+
+            const duration = 5000;
+            const startTime = performance.now();
+            const step = (now) => {
+                if (token.cancelled) {
+                    resolve(null);
+                    return;
+                }
+                const t = Math.min((now - startTime) / duration, 1);
+                const current = new THREE.Vector3().lerpVectors(start, end, t);
+                positions[3] = current.x;
+                positions[4] = current.y;
+                positions[5] = current.z;
+                geometry.attributes.position.needsUpdate = true;
+                if (t < 1) {
+                    requestAnimationFrame(step);
+                } else {
+                    resolve(null);
+                }
+            };
+            requestAnimationFrame(step);
+        });
+    }
+
+    handleResetClick() {
+        this.handleModeChange('free');
         this.ui.resetToFreeSelectMode();
     }
+
 
     handleConfigureClick() {
         const lx = parseFloat(prompt("辺ABの長さ(cm)", "10"));
@@ -633,6 +998,11 @@ class App {
         this.cutter.togglePyramid(this.ui.isPyramidChecked());
         this.netManager.update(this.cutter.getCutSegments(), this.cube, this.resolver);
         this.selection.updateSplitLabels(this.cutter.getIntersections());
+    }
+
+    handleToggleNetClick() {
+        this.netManager.toggle();
+        this.netManager.update(this.cutter.getCutSegments(), this.cube, this.resolver);
     }
 
     // --- Animation Loop ---

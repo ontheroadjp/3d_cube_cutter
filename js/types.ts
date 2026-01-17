@@ -83,3 +83,31 @@ export type Preset = {
     snapId?: string;
   }>;
 };
+
+export type LearningProblem = {
+  id: string;
+  title: string;
+  prompt: string;
+  tags?: string[];
+  difficulty?: 'easy' | 'medium' | 'hard';
+  givenSnapIds?: SnapPointID[];
+  snapIds?: SnapPointID[];
+  highlightSegments?: Array<{ startId: SnapPointID; endId: SnapPointID; kind?: 'edge' | 'diagonal' }>;
+  explanationSteps?: string[];
+  learningSteps?: Array<{
+    instruction: string;
+    reason?: string;
+    action?: {
+      type: 'mark' | 'hintSegment' | 'drawSegment' | 'cut' | 'message';
+      snapId?: SnapPointID;
+      startId?: SnapPointID;
+      endId?: SnapPointID;
+      kind?: 'edge' | 'diagonal';
+      index?: number;
+    };
+  }>;
+  segmentInstructions?: string[];
+  segmentReasons?: string[];
+  notes?: string;
+  highlightPlane?: 'front' | 'back' | 'top' | 'bottom' | 'right' | 'left';
+};

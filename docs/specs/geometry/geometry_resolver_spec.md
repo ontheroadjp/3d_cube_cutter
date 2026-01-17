@@ -1,6 +1,7 @@
 # geometry_resolver_spec.md
 
 Status: Active
+Summary: 構造モデルから座標情報を一元生成するGeometryResolverの仕様を定義する。
 
 # GeometryResolver モジュール仕様書
 

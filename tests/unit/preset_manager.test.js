@@ -28,4 +28,30 @@ describe('PresetManager', () => {
       expect(selectionManager.addPoint.mock.calls[index][0].snapId).toBe(id);
     });
   });
+
+  it('should expose presets with snapIds for selection-based cuts', () => {
+    const selectionManager = { addPoint: vi.fn() };
+    const cube = {
+      getVertexObjectById: () => null,
+      getVertexLabelByIndex: () => null,
+      getVertexObjectByName: () => null,
+      getEdgeObjectById: () => null,
+      getEdgeNameByIndex: () => null,
+      getEdgeObjectByName: () => null,
+    };
+    const resolver = {
+      resolveSnapPointRef: () => new THREE.Vector3(1, 2, 3),
+    };
+
+    const manager = new PresetManager(selectionManager, cube, {}, resolver);
+    const presets = manager.getPresets();
+
+    expect(Array.isArray(presets)).toBe(true);
+    expect(presets.length).toBeGreaterThan(0);
+    presets.forEach(preset => {
+      expect(['triangle', 'quad', 'poly']).toContain(preset.category);
+      expect(Array.isArray(preset.snapIds)).toBe(true);
+      expect(preset.snapIds.length).toBeGreaterThanOrEqual(3);
+    });
+  });
 });

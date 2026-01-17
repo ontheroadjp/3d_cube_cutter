@@ -1,6 +1,9 @@
 # Cutter モジュール仕様書
 
 Status: Active
+Summary: Cutter を構成する各モジュールの役割と責務を整理する。
+
+Cutter を構成する各モジュールの役割と責務を整理する。
 
 ## ファイル名
 docs/specs/cutter/cutter_module_spec.md

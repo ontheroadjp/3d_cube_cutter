@@ -1,6 +1,7 @@
 # explanation_templates.md
 
 Status: Active
+Summary: 本テンプレートの上位方針は docs/architecture/educationengineintegrateddesign.md に準拠する。
 
 # 3D 立体切断シミュレーター: 自動解説テンプレート
 

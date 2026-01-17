@@ -1,6 +1,7 @@
 # SnapPointID プリセット適用例
 
 Status: Active
+Summary: SnapPointIDプリセットの適用手順と実装例を示す。
 
 ## 1. 概要
 

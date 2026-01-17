@@ -1,6 +1,7 @@
 # verification_plan.md
 
 Status: Active
+Summary: 構造主体移行後の正確性・教育機能・数値安定性の検証計画を定義する。
 
 # 構造主体アーキテクチャ検証計画
 

@@ -1,6 +1,7 @@
 # architecture_migration_plan.md
 
 Status: Superseded
+Summary: 置き換え先: docs/migration/structurefirstmigrationplan.md。
 
 置き換え先: `docs/migration/structure_first_migration_plan.md`
 

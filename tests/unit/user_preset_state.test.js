@@ -69,4 +69,51 @@ describe('buildUserPresetState', () => {
       faceIds: ['F:0154']
     });
   });
+
+  it('should include display state and meta in snapshot', () => {
+    const cube = {
+      getSize: () => ({ lx: 10, ly: 11, lz: 12 }),
+      getVertexLabelMap: () => ({ 'V:0': 'A' })
+    };
+    const selection = {
+      getSelectedSnapIds: () => ['V:0', 'V:1', 'V:2']
+    };
+    const cutter = {
+      isCutInverted: () => true,
+      getCutResult: () => null
+    };
+    const ui = {
+      getDisplayState: () => ({
+        showVertexLabels: false,
+        showFaceLabels: true,
+        edgeLabelMode: /** @type {'hidden'} */ ('hidden'),
+        showCutSurface: false,
+        showPyramid: true,
+        cubeTransparent: false
+      })
+    };
+
+    const state = buildUserPresetState({
+      cube,
+      selection,
+      cutter,
+      ui,
+      meta: { note: 'test' },
+      now: () => '2024-01-01T00:00:00.000Z',
+      idFactory: () => 'test-id'
+    });
+
+    expect(state.display).toEqual({
+      showVertexLabels: false,
+      showFaceLabels: true,
+      edgeLabelMode: 'hidden',
+      showCutSurface: false,
+      showPyramid: true,
+      cubeTransparent: false
+    });
+    expect(state.name).toBe('User Preset');
+    expect(state.description).toBeUndefined();
+    expect(state.category).toBeUndefined();
+    expect(state.cut.inverted).toBe(true);
+  });
 });

@@ -1,6 +1,7 @@
 # net_mapping_spec.md
 
 Status: Active
+Summary: 構造情報から展開図を安定描画するNetManagerの仕様を定義する。
 
 # NetManager 構造主体マッピング仕様
 

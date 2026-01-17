@@ -1,6 +1,7 @@
 # 構造主体アーキテクチャ移行 作業手順書
 
 Status: Superseded
+Summary: 置き換え先: docs/migration/implementationchecklist.md。
 
 置き換え先: `docs/migration/implementation_checklist.md`
 

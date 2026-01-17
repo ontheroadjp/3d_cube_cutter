@@ -1,6 +1,7 @@
 # mobile_ui_policy.md
 
 Status: Active
+Summary: モバイルでの操作性確保のためUI/機能の簡略化方針を定義する。
 
 # モバイルUI簡略化方針
 

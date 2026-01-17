@@ -1,6 +1,9 @@
 # IntersectionCalculator モジュール仕様書
 
 Status: Active
+Summary: 切断平面と辺の交点計算を安定化する仕様を定義する。
+
+切断平面と辺の交点計算を安定化する仕様を定義する。
 
 ## ファイル名
 docs/specs/cutter/intersection_calculator_spec.md

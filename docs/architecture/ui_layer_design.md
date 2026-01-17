@@ -1,6 +1,7 @@
 # ui_layer_design.md
 
 Status: Draft
+Summary: Three.js の描画ロジックと UI 層を分離し、学習機能の拡張に耐える構造にする。
 
 # UI層（React想定）設計方針
 

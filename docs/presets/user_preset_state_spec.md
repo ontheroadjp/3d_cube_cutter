@@ -1,6 +1,7 @@
 # user_preset_state_spec.md
 
 Status: Active
+Summary: ユーザープリセットとして状態を保存・復元する仕様を定義する。
 
 # ユーザープリセット（状態保存）仕様
 

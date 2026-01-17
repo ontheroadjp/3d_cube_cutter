@@ -1,6 +1,7 @@
 # index_map_spec.md
 
 Status: Active
+Summary: 内部IDと座標の対応関係を定義する。
 
 # IndexMap 実装仕様
 
