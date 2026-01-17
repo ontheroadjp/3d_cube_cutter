@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateExplanation } from '../../js/education/explanationGenerator.js';
+import { generateExplanation } from '../../dist/js/education/explanationGenerator.js';
 
   const createStructure = () => ({
     vertexMap: new Map([

@@ -1,5 +1,7 @@
 # cut_result_schema.md
 
+Status: Active
+
 # CutResult / IntersectionPoint データ仕様
 
 ## 1. 目的

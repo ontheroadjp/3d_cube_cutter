@@ -1,5 +1,7 @@
 # index_map_spec.md
 
+Status: Active
+
 # IndexMap 実装仕様
 
 ## 1. 目的

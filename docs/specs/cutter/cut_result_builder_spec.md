@@ -1,5 +1,7 @@
 # CutResultBuilder モジュール仕様書
 
+Status: Active
+
 ## ファイル名
 docs/specs/cutter/cut_result_builder_spec.md
 

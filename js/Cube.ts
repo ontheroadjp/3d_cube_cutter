@@ -1,10 +1,44 @@
 import * as THREE from 'three';
 import { createLabel } from './utils.js';
 import { getDefaultIndexMap } from './geometry/indexMap.js';
-import { buildCubeStructure, applyVertexLabelMap } from './structure/structureModel.js';
+import { applyVertexLabelMap, buildCubeStructure } from './structure/structureModel.js';
+import type { CubeSize } from './types.js';
+import type { Edge, Face, Vertex } from './structure/structureModel.js';
 
 export class Cube {
-  constructor(scene, size=10){
+  scene: THREE.Scene;
+  size: number;
+  edgeLengths: CubeSize;
+  indexMap: Record<string, { x: number; y: number; z: number }>;
+  signToIndex: Record<string, number>;
+  indexToLabel: Record<number, string>;
+  displayLabelMap: Record<string, string> | null;
+  structure: {
+    indexMap: Record<string, { x: number; y: number; z: number }> | null;
+    vertices: Vertex[];
+    edges: Edge[];
+    faces: Face[];
+    vertexMap: Map<string, Vertex>;
+    edgeMap: Map<string, Edge>;
+    faceMap: Map<string, Face>;
+    labelMap: Record<string, string> | null;
+  } | null;
+  vertices: THREE.Vector3[];
+  vertexLabels: string[];
+  edges: THREE.Line3[];
+  faceLabels: THREE.Sprite[];
+  labelToPhysicalIndex: Record<string, number>;
+  cubeMesh: THREE.Mesh | null;
+  edgeLines: THREE.LineSegments | null;
+  vertexSprites: THREE.Sprite[];
+  edgeLabels: THREE.Sprite[];
+  vertexMeshes: THREE.Mesh[];
+  edgeMeshes: THREE.Mesh[];
+  edgeIndexPairs: Array<[number, number] | null>;
+  physicalIndexToIndex: Record<number, number>;
+  edgeIdToMeshIndex: Record<string, number>;
+
+  constructor(scene: THREE.Scene, size=10){
     this.scene = scene;
     this.size = size;
     this.edgeLengths = { lx: size, ly: size, lz: size };
@@ -30,7 +64,7 @@ export class Cube {
     this.createCube([size,size,size]);
   }
 
-  createCube(edgeLengths){
+  createCube(edgeLengths: number[] | number){
     // 既存削除
     if(this.cubeMesh) this.scene.remove(this.cubeMesh);
     if(this.edgeLines) this.scene.remove(this.edgeLines);
@@ -182,15 +216,15 @@ export class Cube {
     });
   }
 
-  toggleVertexLabels(visible){
+  toggleVertexLabels(visible: boolean){
     this.vertexSprites.forEach(s => s.visible = visible);
   }
 
-  toggleFaceLabels(visible) {
+  toggleFaceLabels(visible: boolean) {
     this.faceLabels.forEach(l => l.visible = visible);
   }
 
-  setEdgeLabelMode(mode){
+  setEdgeLabelMode(mode: 'visible' | 'popup' | 'hidden'){
     // mode: 'visible', 'popup', 'hidden'
     // Cubeが持つ静的な辺ラベルの表示制御
     // popupモードの時は静的ラベルは非表示（マウスオーバーで別途表示するため）

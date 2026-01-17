@@ -2,14 +2,15 @@
   "name": "3d_cube_cutter",
   "version": "1.0.0",
   "description": "A 3D simulation tool designed to help students preparing for middle school entrance exams understand the concept of \"Solid Cutting\" (cutting cubes and cuboids) in arithmetic geometry.",
-  "main": "main.js",
+  "main": "dist/main.js",
   "type": "module",
   "directories": {
     "doc": "doc",
     "lib": "lib"
   },
   "scripts": {
-    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "npm run build && vitest run",
     "typecheck": "tsc --noEmit"
   },
   "repository": {
@@ -26,6 +27,11 @@
   "devDependencies": {
     "three": "^0.182.0",
     "three-bvh-csg": "^0.0.17",
+    "typescript": "^5.9.3",
     "vitest": "^1.6.0"
+  },
+  "dependencies": {
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
   }
 }

@@ -1,5 +1,7 @@
 # preset_unification_policy.md
 
+Status: Active
+
 # プリセット統合方針
 
 ## 1. 目的

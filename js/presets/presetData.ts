@@ -1,4 +1,6 @@
-export const PRESETS = [
+import type { Preset } from '../types.js';
+
+export const PRESETS: Preset[] = [
     {
         name: "正三角形 (角切り)",
         category: "triangle",

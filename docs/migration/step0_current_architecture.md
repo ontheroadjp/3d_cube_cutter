@@ -1,5 +1,7 @@
 # step0_current_architecture.md
 
+Status: Legacy
+
 # ステップ0: 現行コードの責務整理
 
 ## 1. 目的
@@ -63,4 +65,3 @@
 - SnapPointID による一貫管理
 - GeometryResolver に座標計算を集約
 - indexMap/labelMap を分離
-

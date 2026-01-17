@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { UIManager } from '../../js/UIManager.js';
+import { UIManager } from '../../dist/js/UIManager.js';
 
 const createDocumentStub = () => {
   const elements = new Map();
@@ -15,9 +15,9 @@ const createDocumentStub = () => {
     'explanation-text'
   ].forEach(id => elements.set(id, createEl(id)));
 
-  global.document = {
+  global.document = /** @type {any} */ ({
     getElementById: (id) => elements.get(id) || null
-  };
+  });
   return elements;
 };
 

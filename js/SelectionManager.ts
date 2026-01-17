@@ -1,9 +1,23 @@
 import * as THREE from 'three';
 import { createLabel, createMarker } from './utils.js';
 import { parseSnapPointId, normalizeSnapPointId } from './geometry/snapPointId.js';
+import type { SnapPointID } from './types.js';
 
 export class SelectionManager {
-  constructor(scene, cube, ui, resolver = null){
+  scene: THREE.Scene;
+  cube: any;
+  ui: any;
+  resolver: any;
+  selected: Array<{ snapId: SnapPointID; point: THREE.Vector3; object?: THREE.Object3D; isMidpoint?: boolean }>;
+  markers: THREE.Object3D[];
+  splitEdgeLabels: THREE.Object3D[];
+  hiddenEdgeLabels: number[];
+  previewLabels: THREE.Object3D[];
+  hiddenOriginalLabel: number | null;
+  currentEdgeLabelMode: string;
+  selectedObjects: Set<string>;
+
+  constructor(scene: THREE.Scene, cube: any, ui: any, resolver: any = null){
     this.scene = scene;
     this.cube = cube;
     this.ui = ui;
@@ -25,7 +39,7 @@ export class SelectionManager {
   }
 
   // 外部(Cutter)から計算された交点を受け取り、その辺の長さを分割表示する
-  updateSplitLabels(intersections) {
+  updateSplitLabels(intersections: any[]) {
       if (!intersections || intersections.length === 0) return;
       if (!this.resolver || !this.cube.getStructure) return;
       const structure = this.cube.getStructure();
@@ -53,7 +67,7 @@ export class SelectionManager {
       }
       
       // TODO: intersectionRefsが全経路で供給されるようになったら、この投影フォールバックを削除する
-      const projectWithResolver = (p) => {
+      const projectWithResolver = (p: THREE.Vector3) => {
           let best=null, min=Infinity, bestEdgeId = null;
           structure.edges.forEach(edge => {
               const resolved = this.resolver.resolveEdge(edge.id);
@@ -88,7 +102,7 @@ export class SelectionManager {
       });
   }
 
-  addPoint(selectionInfo) {
+  addPoint(selectionInfo: { point?: THREE.Vector3; object?: THREE.Object3D; isMidpoint?: boolean; snapId?: SnapPointID }) {
     const { point, object, isMidpoint, snapId } = selectionInfo; // isMidpoint情報を追加で受け取る
     
     if (!snapId) {
@@ -144,13 +158,13 @@ export class SelectionManager {
     this.ui.updateSelectionCount(this.selected.length);
   }
 
-  addPointFromSnapId(snapId, selectionInfo = {}) {
+  addPointFromSnapId(snapId: SnapPointID, selectionInfo: Record<string, unknown> = {}) {
     if (!this.resolver) return;
     this.addPoint({ ...selectionInfo, snapId });
   }
 
   getSelectedSnapIds() {
-    return this.selected.map(s => s.snapId).filter(Boolean);
+      return this.selected.map(s => s.snapId).filter(Boolean);
   }
 
   _addSplitLabel(edgeRef, proj) {

@@ -1,27 +1,35 @@
 import { parseSnapPointId, normalizeSnapPointId } from '../geometry/snapPointId.js';
 
-function getVertexLabel(structure, vertexId) {
+import type { SnapPointID } from '../types.js';
+
+type StructureSummary = {
+  vertexMap?: Map<string, { label?: string }>;
+  edgeMap?: Map<string, { vertices?: string[] }>;
+  faceMap?: Map<string, { vertices?: string[] }>;
+};
+
+function getVertexLabel(structure: StructureSummary | null, vertexId: string) {
   if (!structure || !structure.vertexMap) return vertexId;
   const vertex = structure.vertexMap.get(vertexId);
   if (vertex && vertex.label) return vertex.label;
   return vertexId;
 }
 
-function getEdgeLabels(structure, edgeId) {
+function getEdgeLabels(structure: StructureSummary | null, edgeId: string) {
   if (!structure || !structure.edgeMap) return [edgeId, edgeId];
   const edge = structure.edgeMap.get(edgeId);
   if (!edge || !edge.vertices) return [edgeId, edgeId];
   return edge.vertices.map(vId => getVertexLabel(structure, vId));
 }
 
-function getFaceLabels(structure, faceId) {
+function getFaceLabels(structure: StructureSummary | null, faceId: string) {
   if (!structure || !structure.faceMap) return [faceId];
   const face = structure.faceMap.get(faceId);
   if (!face || !face.vertices) return [faceId];
   return face.vertices.map(vId => getVertexLabel(structure, vId));
 }
 
-function describeSnapPoint(snapId, structure) {
+function describeSnapPoint(snapId: SnapPointID, structure: StructureSummary | null) {
   const parsed = normalizeSnapPointId(parseSnapPointId(snapId));
   if (!parsed) return null;
   if (parsed.type === 'vertex') {
@@ -50,10 +58,18 @@ function describeSnapPoint(snapId, structure) {
   return null;
 }
 
-export function generateExplanation({ snapIds, outlineRefs, structure }) {
+export function generateExplanation({
+  snapIds,
+  outlineRefs,
+  structure
+}: {
+  snapIds: SnapPointID[];
+  outlineRefs?: Array<{ id?: SnapPointID }>;
+  structure?: StructureSummary | null;
+}) {
   if (!snapIds || snapIds.length === 0) return '';
-  const orderedIds = [];
-  const seen = new Set();
+  const orderedIds: SnapPointID[] = [];
+  const seen = new Set<SnapPointID>();
   snapIds.forEach(id => {
     if (!id || seen.has(id)) return;
     seen.add(id);
@@ -74,7 +90,11 @@ export function generateExplanation({ snapIds, outlineRefs, structure }) {
   return lines.join('\n');
 }
 
-function classifyShape(outlineRefs, snapIds, structure) {
+function classifyShape(
+  outlineRefs: Array<{ id?: SnapPointID }> | undefined,
+  snapIds: SnapPointID[],
+  structure: StructureSummary | null | undefined
+) {
   const outlineCount = Array.isArray(outlineRefs) ? outlineRefs.length : 0;
   if (outlineCount >= 3) {
     if (outlineCount === 3) return '三角形';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildUserPresetState } from '../../js/presets/userPresetState.js';
+import { buildUserPresetState } from '../../dist/js/presets/userPresetState.js';
 
 describe('buildUserPresetState', () => {
   it('should include cut result meta without positions', () => {
@@ -13,17 +13,30 @@ describe('buildUserPresetState', () => {
     const cutter = {
       isCutInverted: () => true,
       getCutResult: () => ({
-        outline: { points: [{ id: 'V:0' }, { id: 'E:01@1/2' }, { id: 'E:12@1/4' }] },
+        outline: { points: [
+          { id: 'V:0', type: /** @type {'snap'} */ ('snap'), position: { x: 0 } },
+          { id: 'E:01@1/2', type: /** @type {'intersection'} */ ('intersection'), position: { x: 0 } },
+          { id: 'E:12@1/4', type: /** @type {'intersection'} */ ('intersection'), position: { x: 0 } }
+        ] },
         intersections: [
-          { id: 'V:0', type: 'snap', position: { x: 0 } },
-          { id: 'E:01@1/2', type: 'intersection', edgeId: 'E:01', ratio: { numerator: 1, denominator: 2 }, faceIds: ['F:0154'], position: { x: 0 } }
+          { id: 'V:0', type: /** @type {'snap'} */ ('snap'), position: { x: 0 } },
+          { id: 'E:01@1/2', type: /** @type {'intersection'} */ ('intersection'), edgeId: 'E:01', ratio: { numerator: 1, denominator: 2 }, faceIds: ['F:0154'], position: { x: 0 } }
         ],
         cutSegments: [
-          { startId: 'V:0', endId: 'E:01@1/2', faceIds: ['F:0154'] }
+          { startId: 'V:0', endId: 'E:01@1/2', start: { x: 0 }, end: { x: 1 }, faceIds: ['F:0154'] }
         ]
       })
     };
-    const ui = { getDisplayState: () => ({ showVertexLabels: true }) };
+    const ui = {
+      getDisplayState: () => ({
+        showVertexLabels: true,
+        showFaceLabels: true,
+        edgeLabelMode: /** @type {'visible'} */ ('visible'),
+        showCutSurface: true,
+        showPyramid: false,
+        cubeTransparent: true
+      })
+    };
 
     const state = buildUserPresetState({
       cube,

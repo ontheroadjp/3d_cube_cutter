@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { OrbitControls } from './lib/three/examples/jsm/controls/OrbitControls.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Cube } from './js/Cube.js';
 import { SelectionManager } from './js/SelectionManager.js';
 import { UIManager } from './js/UIManager.js';
@@ -10,10 +10,44 @@ import { GeometryResolver } from './js/geometry/GeometryResolver.js';
 import { buildUserPresetState } from './js/presets/userPresetState.js';
 import { NoopStorageAdapter, IndexedDbStorageAdapter } from './js/storage/storageAdapter.js';
 import { generateExplanation } from './js/education/explanationGenerator.js';
+import { initReactApp } from './js/ui/reactApp.js';
+import type { DisplayState, UserPresetState } from './js/types.js';
 
 const DEBUG = false;
 
 class App {
+    isCutExecuted: boolean;
+    snappedPointInfo: {
+        point: THREE.Vector3;
+        object: THREE.Object3D;
+        snapId?: string;
+        isMidpoint?: boolean;
+    } | null;
+    cameraTargetPosition: THREE.Vector3 | null;
+    isCameraAnimating: boolean;
+    currentLabelMap: Record<string, string> | null;
+    userPresets: UserPresetState[];
+    editingUserPresetId: string | null;
+    userPresetStorage: NoopStorageAdapter | IndexedDbStorageAdapter;
+    useReactPresets: boolean;
+    useReactUserPresets: boolean;
+
+    scene: THREE.Scene;
+    camera: THREE.OrthographicCamera;
+    renderer: THREE.WebGLRenderer;
+    controls: OrbitControls;
+    raycaster: THREE.Raycaster;
+    midPointHighlightMaterial: THREE.MeshBasicMaterial;
+    highlightMarker: THREE.Mesh;
+
+    ui: UIManager;
+    cube: Cube;
+    resolver: GeometryResolver;
+    cutter: Cutter;
+    netManager: NetManager;
+    selection: SelectionManager;
+    presetManager: PresetManager;
+
     constructor() {
         // --- State Properties ---
         this.isCutExecuted = false;
@@ -24,6 +58,8 @@ class App {
         this.userPresets = [];
         this.editingUserPresetId = null;
         this.userPresetStorage = this.createUserPresetStorage();
+        this.useReactPresets = false;
+        this.useReactUserPresets = false;
 
         // --- Core Three.js Components ---
         this.scene = new THREE.Scene();
@@ -39,6 +75,7 @@ class App {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(this.renderer.domElement);
 
+        /** @type {any} */
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
         this.controls.target.set(0, 0, 0);
@@ -71,8 +108,30 @@ class App {
     }
 
     init() {
-        this.ui.populatePresets(this.presetManager.getPresets());
-        this.ui.setUserPresetStorageEnabled(this.userPresetStorage.isEnabled());
+        this.useReactPresets = !!document.getElementById('react-preset-root');
+        this.useReactUserPresets = !!document.getElementById('react-user-presets-root');
+        globalThis.__engine = {
+            getDisplayState: () => this.ui.getDisplayState(),
+            setDisplayState: (display) => this.applyDisplayState(display),
+            getPresets: () => this.presetManager.getPresets(),
+            applyPreset: (name) => this.handlePresetChange(name),
+            listUserPresets: () => this.userPresets.slice(),
+            isUserPresetStorageEnabled: () => this.userPresetStorage.isEnabled(),
+            saveUserPreset: (form) => this.handleSaveUserPreset(form),
+            cancelUserPresetEdit: () => this.handleCancelUserPresetEdit(),
+            applyUserPreset: (id) => this.handleUserPresetApply(id),
+            editUserPreset: (id) => this.handleUserPresetEdit(id),
+            deleteUserPreset: (id) => this.handleUserPresetDelete(id),
+            configureVertexLabels: () => this.handleConfigureVertexLabelsClick(),
+            configureCube: () => this.handleConfigureClick(),
+        };
+        initReactApp();
+        if (!this.useReactPresets) {
+            this.ui.populatePresets(this.presetManager.getPresets());
+        }
+        if (!this.useReactUserPresets) {
+            this.ui.setUserPresetStorageEnabled(this.userPresetStorage.isEnabled());
+        }
         this.loadUserPresets();
         this.bindEventListeners();
         this.setInitialState();
@@ -104,11 +163,21 @@ class App {
                 const tb = b.updatedAt ? Date.parse(b.updatedAt) : 0;
                 return tb - ta;
             });
-            this.ui.setUserPresetList(this.userPresets);
+            if (!this.useReactUserPresets) {
+                this.ui.setUserPresetList(this.userPresets);
+            }
+            if (typeof globalThis.__refreshUserPresets === 'function') {
+                globalThis.__refreshUserPresets();
+            }
         } catch (e) {
             console.warn('Failed to load user presets.', e);
             this.userPresets = [];
-            this.ui.setUserPresetList(this.userPresets);
+            if (!this.useReactUserPresets) {
+                this.ui.setUserPresetList(this.userPresets);
+            }
+            if (typeof globalThis.__refreshUserPresets === 'function') {
+                globalThis.__refreshUserPresets();
+            }
         }
     }
     
@@ -128,11 +197,13 @@ class App {
         this.ui.onConfigureClick(this.handleConfigureClick.bind(this));
         this.ui.onFlipCutClick(this.handleFlipCutClick.bind(this));
         this.ui.onConfigureVertexLabelsClick(this.handleConfigureVertexLabelsClick.bind(this));
-        this.ui.onSaveUserPresetClick(this.handleSaveUserPreset.bind(this));
-        this.ui.onCancelUserPresetEdit(this.handleCancelUserPresetEdit.bind(this));
-        this.ui.onUserPresetApply(this.handleUserPresetApply.bind(this));
-        this.ui.onUserPresetDelete(this.handleUserPresetDelete.bind(this));
-        this.ui.onUserPresetEdit(this.handleUserPresetEdit.bind(this));
+        if (!this.useReactUserPresets) {
+            this.ui.onSaveUserPresetClick(this.handleSaveUserPreset.bind(this));
+            this.ui.onCancelUserPresetEdit(this.handleCancelUserPresetEdit.bind(this));
+            this.ui.onUserPresetApply(this.handleUserPresetApply.bind(this));
+            this.ui.onUserPresetDelete(this.handleUserPresetDelete.bind(this));
+            this.ui.onUserPresetEdit(this.handleUserPresetEdit.bind(this));
+        }
         
         // Display Toggles
         this.ui.onVertexLabelChange(checked => { this.cube.toggleVertexLabels(checked); this.selection.toggleVertexLabels(checked); });
@@ -207,6 +278,9 @@ class App {
         this.cutter.togglePyramid(next.showPyramid);
         this.cube.toggleTransparency(next.cubeTransparent);
         this.cutter.setTransparency(next.cubeTransparent);
+        if (typeof globalThis.__setDisplayState === 'function') {
+            globalThis.__setDisplayState(next);
+        }
     }
 
     applyUserPresetState(state) {
@@ -225,6 +299,9 @@ class App {
         this.resolver.setLabelMap(this.currentLabelMap);
 
         this.applyDisplayState(state.display || {});
+        if (typeof globalThis.__setDisplayState === 'function') {
+            globalThis.__setDisplayState(this.ui.getDisplayState());
+        }
 
         const snapIds = state.cut && Array.isArray(state.cut.snapPoints) ? state.cut.snapPoints : [];
         this.selection.reset();
@@ -389,6 +466,7 @@ class App {
             this.ui.showPresetControls(true);
             this.ui.presetCategoryFilter.value = 'triangle';
             this.ui.filterPresetButtons('triangle');
+            this.ui.presetCategoryFilter.dispatchEvent(new Event('change', { bubbles: true }));
         } else if (mode === 'settings') {
             this.ui.showSettingsControls(true);
             this.ui.showSettingsPanels(true);
@@ -468,6 +546,7 @@ class App {
             this.ui.showMessage("頂点ラベルは重複できません。", "warning");
             return;
         }
+        /** @type {Record<string, string>} */
         const labelMap = {};
         labels.forEach((label, index) => {
             labelMap[`V:${index}`] = label;
@@ -484,12 +563,12 @@ class App {
         this.ui.setUserPresetEditMode(false);
     }
 
-    async handleSaveUserPreset() {
+    async handleSaveUserPreset(formOverride = null) {
         if (!this.userPresetStorage.isEnabled()) {
             this.ui.showMessage('保存機能は利用できません。', 'warning');
             return;
         }
-        const form = this.ui.getUserPresetForm();
+        const form = formOverride || this.ui.getUserPresetForm();
         if (!form.name) {
             this.ui.showMessage('プリセット名を入力してください。', 'warning');
             return;

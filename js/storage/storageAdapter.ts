@@ -1,13 +1,19 @@
+import type { UserPresetState } from '../types.js';
+
 export class NoopStorageAdapter {
   isEnabled() { return false; }
-  async list() { return []; }
-  async get(_id) { return null; }
-  async save(_item) {}
-  async remove(_id) {}
+  async list(): Promise<UserPresetState[]> { return []; }
+  async get(_id: string): Promise<UserPresetState | null> { return null; }
+  async save(_item: UserPresetState) {}
+  async remove(_id: string) {}
 }
 
 export class IndexedDbStorageAdapter {
-  constructor({ dbName = '3d_cube_cutter', storeName = 'user_presets' } = {}) {
+  dbName: string;
+  storeName: string;
+  _dbPromise: Promise<IDBDatabase | null> | null;
+
+  constructor({ dbName = '3d_cube_cutter', storeName = 'user_presets' }: { dbName?: string; storeName?: string } = {}) {
     this.dbName = dbName;
     this.storeName = storeName;
     this._dbPromise = null;
@@ -36,7 +42,7 @@ export class IndexedDbStorageAdapter {
     return this._dbPromise;
   }
 
-  async _withStore(mode, callback) {
+  async _withStore<T>(mode: IDBTransactionMode, callback: (store: IDBObjectStore) => Promise<T>): Promise<T | null> {
     const db = await this._openDb();
     if (!db) return null;
     return new Promise((resolve, reject) => {
@@ -49,32 +55,34 @@ export class IndexedDbStorageAdapter {
     });
   }
 
-  async list() {
+  async list(): Promise<UserPresetState[]> {
     if (!this.isEnabled()) return [];
-    return this._withStore('readonly', (store) => {
-      return new Promise((resolve, reject) => {
+    const result = await this._withStore('readonly', (store) => {
+      return new Promise<UserPresetState[]>((resolve, reject) => {
         const req = store.getAll();
-        req.onsuccess = () => resolve(req.result || []);
+        req.onsuccess = () => resolve((req.result || []) as UserPresetState[]);
         req.onerror = () => reject(req.error);
       });
     });
+    return result || [];
   }
 
-  async get(id) {
+  async get(id: string): Promise<UserPresetState | null> {
     if (!this.isEnabled()) return null;
-    return this._withStore('readonly', (store) => {
-      return new Promise((resolve, reject) => {
+    const result = await this._withStore('readonly', (store) => {
+      return new Promise<UserPresetState | null>((resolve, reject) => {
         const req = store.get(id);
-        req.onsuccess = () => resolve(req.result || null);
+        req.onsuccess = () => resolve((req.result || null) as UserPresetState | null);
         req.onerror = () => reject(req.error);
       });
     });
+    return result || null;
   }
 
-  async save(item) {
+  async save(item: UserPresetState) {
     if (!this.isEnabled() || !item) return;
     return this._withStore('readwrite', (store) => {
-      return new Promise((resolve, reject) => {
+      return new Promise<void>((resolve, reject) => {
         const req = store.put(item);
         req.onsuccess = () => resolve();
         req.onerror = () => reject(req.error);
@@ -82,10 +90,10 @@ export class IndexedDbStorageAdapter {
     });
   }
 
-  async remove(id) {
+  async remove(id: string) {
     if (!this.isEnabled()) return;
     return this._withStore('readwrite', (store) => {
-      return new Promise((resolve, reject) => {
+      return new Promise<void>((resolve, reject) => {
         const req = store.delete(id);
         req.onsuccess = () => resolve();
         req.onerror = () => reject(req.error);

@@ -1,5 +1,7 @@
 # Cutter モジュール仕様書
 
+Status: Active
+
 ## ファイル名
 docs/specs/cutter/cutter_module_spec.md
 

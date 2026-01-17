@@ -1,10 +1,28 @@
 import * as THREE from 'three';
 import { parseSnapPointId, normalizeSnapPointId } from '../geometry/snapPointId.js';
+import type { SnapPointID } from '../types.js';
 
 // 展開図 (Development / Net) を管理するクラス
 // 立方体の展開図（十字型）を表示し、そこに切断線を描画する
 
 export class NetManager {
+    resolver: any;
+    container: HTMLDivElement;
+    canvas: HTMLCanvasElement;
+    ctx: CanvasRenderingContext2D | null;
+    layout: {
+        scale: number;
+        offsetX: number;
+        offsetY: number;
+        faces: Array<{
+            name: string;
+            faceId: string;
+            grid: { x: number; y: number };
+            connectTo?: string;
+            uvVertices: string[];
+        }>;
+    };
+
     constructor() {
         this.resolver = null;
         // コンテナの作成（初回のみ）
@@ -99,7 +117,7 @@ export class NetManager {
         else this.hide();
     }
 
-    setResolver(resolver) {
+    setResolver(resolver: any) {
         this.resolver = resolver;
     }
 
@@ -114,6 +132,11 @@ export class NetManager {
     // 切断線を描画
     // cutSegments: Array of {startId, endId, start, end} (World座標系)
     // cube: Cube instance (to get vertices and transform to local/face coords)
+    /**
+     * @param {Array<{ startId: SnapPointID, endId: SnapPointID, start: THREE.Vector3, end: THREE.Vector3, faceIds?: string[], faceId?: string }>} cutSegments
+     * @param {object} cube
+     * @param {object | null} resolver
+     */
     update(cutSegments, cube, resolver = null) {
         if (this.container.style.display === 'none') return;
         this.updatePosition();
@@ -164,6 +187,7 @@ export class NetManager {
         if (!structure) return;
         const faceIndex = new Map(faceData.map(face => [face.faceId, face]));
 
+        /** @param {SnapPointID} snapId */
         const getFacesForSnapId = (snapId) => {
             const parsed = normalizeSnapPointId(parseSnapPointId(snapId));
             if (!parsed) return [];
@@ -181,6 +205,9 @@ export class NetManager {
             return [];
         };
 
+        /**
+         * @param {{ startId: SnapPointID, endId: SnapPointID, start: THREE.Vector3, end: THREE.Vector3, faceIds?: string[], faceId?: string }} segment
+         */
         const resolveFaceForSegment = (segment) => {
             if (!segment || !segment.startId || !segment.endId) return null;
             if (segment.faceId) return segment.faceId;
@@ -238,6 +265,12 @@ export class NetManager {
         ctx.stroke();
     }
     
+    /**
+     * @param {THREE.Vector3} p
+     * @param {{ faceId: string, name: string, uvVertices?: string[] }} face
+     * @param {THREE.Vector3[]} vertices
+     * @param {object | null} resolver
+     */
     map3Dto2D(p, face, vertices, resolver = null) {
         if (resolver && face.uvVertices && face.uvVertices.length === 4) {
             const corners = face.uvVertices.map(id => resolver.resolveVertex(id));

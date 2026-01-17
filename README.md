@@ -17,10 +17,12 @@ This application allows users to interactively define cut points on a cuboid and
 
 ## How to Use
 
-1.  Open `index.html` in a modern web browser.
-2.  **Select Points:** Click on any edge of the cube to place a cut point (Points I, J, K).
-3.  **Cut:** Once 3 points are selected, the cut is performed automatically.
-4.  **Controls:**
+1.  Install dependencies: `npm install`
+2.  Build the TypeScript output: `npm run build`
+3.  Open `index.html` in a modern web browser.
+4.  **Select Points:** Click on any edge of the cube to place a cut point (Points I, J, K).
+5.  **Cut:** Once 3 points are selected, the cut is performed automatically.
+6.  **Controls:**
     *   **Rotate:** Left-click drag
     *   **Zoom:** Mouse wheel / Pinch
     *   **Pan:** Right-click drag

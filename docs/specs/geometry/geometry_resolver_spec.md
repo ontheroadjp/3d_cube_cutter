@@ -1,5 +1,7 @@
 # geometry_resolver_spec.md
 
+Status: Active
+
 # GeometryResolver モジュール仕様書
 
 ## 1. 目的

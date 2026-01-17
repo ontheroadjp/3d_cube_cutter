@@ -1,5 +1,7 @@
 # implementation_notes.md
 
+Status: Draft
+
 # 実装ノート (現行 + 構造主体移行向け)
 
 ## 1. 目的

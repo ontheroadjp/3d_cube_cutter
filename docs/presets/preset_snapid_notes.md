@@ -1,5 +1,7 @@
 # docs/presets/preset_snapid_notes.md
 
+Status: Active
+
 # PresetManager / presetData.js 実装上の注意点 (SnapPointID版)
 
 ## 1. 目的

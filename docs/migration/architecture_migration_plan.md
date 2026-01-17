@@ -1,5 +1,9 @@
 # architecture_migration_plan.md
 
+Status: Superseded
+
+置き換え先: `docs/migration/structure_first_migration_plan.md`
+
 # 3D 立体切断シミュレーター: 構造主体アーキテクチャへの移行計画
 
 ## 1. 概要

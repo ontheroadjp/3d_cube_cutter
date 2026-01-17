@@ -1,5 +1,19 @@
+import type { Ratio } from '../types.js';
+
+type EdgeSnapPoint = {
+  edgeId: string;
+  ratio: Ratio;
+  snapId: string;
+};
+
 export class Vertex {
-  constructor(index, label = null) {
+  id: string;
+  index: number;
+  label: string | null;
+  edges: string[];
+  faces: string[];
+
+  constructor(index: number, label: string | null = null) {
     this.id = `V:${index}`;
     this.index = index;
     this.label = label;
@@ -9,7 +23,12 @@ export class Vertex {
 }
 
 export class Edge {
-  constructor(a, b) {
+  id: string;
+  vertices: string[];
+  faces: string[];
+  snapPoints: EdgeSnapPoint[];
+
+  constructor(a: number, b: number) {
     const i1 = Math.min(a, b);
     const i2 = Math.max(a, b);
     this.id = `E:${i1}${i2}`;
@@ -20,7 +39,12 @@ export class Edge {
 }
 
 export class Face {
-  constructor(indices) {
+  id: string;
+  vertices: string[];
+  edges: string[];
+  adjacentFaces: string[];
+
+  constructor(indices: number[]) {
     this.id = `F:${indices.join('')}`;
     this.vertices = indices.map(i => `V:${i}`);
     this.edges = [];
@@ -43,13 +67,22 @@ const DEFAULT_FACES = [
   [0, 4, 7, 3]
 ];
 
-function resolveVertexLabel(index, labelMap, fallbackLabelMap) {
+/**
+ * @param {number} index
+ * @param {Record<string, string> | null} labelMap
+ * @param {Record<number, string> | null} fallbackLabelMap
+ */
+function resolveVertexLabel(
+  index: number,
+  labelMap: Record<string, string> | null,
+  fallbackLabelMap: Record<number, string> | null
+) {
   if (labelMap && labelMap[`V:${index}`]) return labelMap[`V:${index}`];
   if (fallbackLabelMap && fallbackLabelMap[index]) return fallbackLabelMap[index];
   return null;
 }
 
-function createDefaultEdgeSnapPoints(edgeId) {
+function createDefaultEdgeSnapPoints(edgeId: string): EdgeSnapPoint[] {
   return [
     {
       edgeId,
@@ -59,7 +92,15 @@ function createDefaultEdgeSnapPoints(edgeId) {
   ];
 }
 
-export function buildCubeStructure({ indexMap, labelMap = null, fallbackLabelMap = null } = {}) {
+export function buildCubeStructure({
+  indexMap,
+  labelMap = null,
+  fallbackLabelMap = null
+}: {
+  indexMap?: Record<string, { x: number; y: number; z: number }>;
+  labelMap?: Record<string, string> | null;
+  fallbackLabelMap?: Record<number, string> | null;
+} = {}) {
   const indices = indexMap
     ? Object.keys(indexMap).map(Number).sort((a, b) => a - b)
     : Array.from({ length: 8 }, (_, i) => i);
@@ -122,7 +163,11 @@ export function buildCubeStructure({ indexMap, labelMap = null, fallbackLabelMap
   };
 }
 
-export function applyVertexLabelMap(structure, labelMap, fallbackLabelMap = null) {
+export function applyVertexLabelMap(
+  structure: { vertices: Vertex[]; labelMap?: Record<string, string> | null },
+  labelMap: Record<string, string> | null,
+  fallbackLabelMap: Record<number, string> | null = null
+) {
   if (!structure || !structure.vertices) return;
   structure.labelMap = labelMap || null;
   structure.vertices.forEach(vertex => {

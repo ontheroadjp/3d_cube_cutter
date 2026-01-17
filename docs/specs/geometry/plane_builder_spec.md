@@ -1,5 +1,7 @@
 # PlaneBuilder モジュール仕様書
 
+Status: Active
+
 ## ファイル名
 docs/specs/geometry/plane_builder_spec.md
 

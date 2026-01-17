@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { GeometryResolver } from '../../js/geometry/GeometryResolver.js';
-import { getDefaultIndexMap } from '../../js/geometry/indexMap.js';
+import { GeometryResolver } from '../../dist/js/geometry/GeometryResolver.js';
+import { getDefaultIndexMap } from '../../dist/js/geometry/indexMap.js';
 
 describe('GeometryResolver', () => {
   it('should resolve vertex positions from indexMap', () => {
@@ -62,5 +62,24 @@ describe('GeometryResolver', () => {
     const after = resolver.resolveVertex('V:1');
     expect(before.x).toBeCloseTo(5);
     expect(after.x).toBeCloseTo(10);
+  });
+
+  it('should preserve ratios after size change', () => {
+    const resolver = new GeometryResolver({
+      size: { lx: 10, ly: 10, lz: 10 },
+      indexMap: getDefaultIndexMap()
+    });
+    const edge = resolver.resolveEdge('E:01');
+    const point = resolver.resolveSnapPoint('E:01@3/10');
+    const dist = point.distanceTo(edge.start);
+    const ratio = dist / edge.length;
+    expect(ratio).toBeCloseTo(0.3, 6);
+
+    resolver.setSize({ lx: 20, ly: 10, lz: 10 });
+    const edge2 = resolver.resolveEdge('E:01');
+    const point2 = resolver.resolveSnapPoint('E:01@3/10');
+    const dist2 = point2.distanceTo(edge2.start);
+    const ratio2 = dist2 / edge2.length;
+    expect(ratio2).toBeCloseTo(0.3, 6);
   });
 });

@@ -1,5 +1,7 @@
 # structure_model_spec.md
 
+Status: Active
+
 # 3D 立体切断シミュレーター: 構造モデル仕様書
 
 ## 1. 目的

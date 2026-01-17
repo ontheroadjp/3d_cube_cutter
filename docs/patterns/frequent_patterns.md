@@ -1,8 +1,11 @@
 # frequent_patterns.md
 
+Status: Active
+
 # 3D 立体切断シミュレーター: 典型的切断パターン一覧
 
 ## 1. 概要
+本ファイルの上位方針は `docs/architecture/education_engine_integrated_design.md` に準拠する。
 本ファイルでは、中学受験算数で頻出する立体切断パターンを分類し、SnapPointID を用いて定義します。
 教育用ハイライトや自動解説生成、展開図描画に直接利用可能です。
 

@@ -1,5 +1,7 @@
 # storage_adapter_spec.md
 
+Status: Active
+
 # StorageAdapter 仕様書
 
 ## 1. 目的

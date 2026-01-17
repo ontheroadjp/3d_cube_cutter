@@ -1,5 +1,7 @@
 # SnapPointID プリセット適用例
 
+Status: Active
+
 ## 1. 概要
 
 本ドキュメントでは、Cutter モジュールの新しい構造主体アーキテクチャに基づき、

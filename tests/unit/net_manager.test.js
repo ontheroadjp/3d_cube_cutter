@@ -1,8 +1,8 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import { NetManager } from '../../js/net/NetManager.js';
-import { GeometryResolver } from '../../js/geometry/GeometryResolver.js';
-import { getDefaultIndexMap } from '../../js/geometry/indexMap.js';
-import { buildCubeStructure } from '../../js/structure/structureModel.js';
+import { NetManager } from '../../dist/js/net/NetManager.js';
+import { GeometryResolver } from '../../dist/js/geometry/GeometryResolver.js';
+import { getDefaultIndexMap } from '../../dist/js/geometry/indexMap.js';
+import { buildCubeStructure } from '../../dist/js/structure/structureModel.js';
 
 const createDocumentStubs = () => {
   const elements = new Map();
@@ -24,11 +24,11 @@ const createDocumentStubs = () => {
     };
     return el;
   };
-  global.document = {
+  global.document = /** @type {any} */ ({
     body: { appendChild: vi.fn() },
     createElement,
     getElementById: (id) => elements.get(id) || null,
-  };
+  });
   elements.set('ui-container', {
     getBoundingClientRect: () => ({ height: 0 })
   });
@@ -74,5 +74,27 @@ describe('NetManager', () => {
     const ctx = netManager.ctx;
     expect(ctx.moveTo).toHaveBeenCalled();
     expect(ctx.lineTo).toHaveBeenCalled();
+  });
+
+  it('should draw segments inside the front face grid cell', () => {
+    const segment = {
+      startId: 'E:01@1/2',
+      endId: 'E:04@1/2',
+      start: resolver.resolveSnapPoint('E:01@1/2'),
+      end: resolver.resolveSnapPoint('E:04@1/2'),
+      faceIds: ['F:0154']
+    };
+
+    netManager.update([segment], cube, resolver);
+
+    const ctx = netManager.ctx;
+    const [x1, y1] = ctx.moveTo.mock.calls[0];
+    const [x2, y2] = ctx.lineTo.mock.calls[0];
+    const min = 20 + 50;
+    const max = 20 + 100;
+    [x1, y1, x2, y2].forEach(value => {
+      expect(value).toBeGreaterThanOrEqual(min);
+      expect(value).toBeLessThanOrEqual(max);
+    });
   });
 });

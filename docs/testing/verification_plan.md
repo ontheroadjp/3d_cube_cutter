@@ -1,5 +1,7 @@
 # verification_plan.md
 
+Status: Active
+
 # 構造主体アーキテクチャ検証計画
 
 ## 1. 目的

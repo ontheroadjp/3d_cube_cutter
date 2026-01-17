@@ -1,5 +1,7 @@
 # IntersectionCalculator モジュール仕様書
 
+Status: Active
+
 ## ファイル名
 docs/specs/cutter/intersection_calculator_spec.md
 

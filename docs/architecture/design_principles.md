@@ -1,5 +1,7 @@
 # design_principles.md
 
+Status: Active
+
 # 3D 立体切断シミュレーター: 設計原則 (Design Principles)
 
 ## 1. 概要

@@ -2,9 +2,33 @@ import * as THREE from 'three';
 import { SUBTRACTION, INTERSECTION, Brush, Evaluator } from 'three-bvh-csg';
 import { createMarker } from './utils.js';
 import { canonicalizeSnapPointId, normalizeSnapPointId, parseSnapPointId, stringifySnapPointId } from './geometry/snapPointId.js';
+import type { CutResult, CutResultMeta, CutSegmentMeta, IntersectionPoint, Ratio, SnapPointID } from './types.js';
+
+type IntersectionPointWithPosition = IntersectionPoint & { position: THREE.Vector3 };
 
 export class Cutter {
-  constructor(scene) {
+  scene: THREE.Scene;
+  resultMesh: THREE.Mesh | null;
+  removedMesh: THREE.Mesh | null;
+  cornerMarker: THREE.Mesh | null;
+  originalCube: any;
+  evaluator: Evaluator;
+  isTransparent: boolean;
+  vertexMarkers: THREE.Object3D[];
+  cutInverted: boolean;
+  lastSnapIds: SnapPointID[] | null;
+  lastResolver: any;
+  lastCube: any;
+  intersections: THREE.Vector3[];
+  intersectionRefs: IntersectionPoint[];
+  outlineRefs: IntersectionPoint[];
+  cutSegments: Array<{ startId: SnapPointID; endId: SnapPointID; start: THREE.Vector3; end: THREE.Vector3; faceIds?: string[] }>;
+  edgeHighlights: THREE.Object3D[];
+  cutPlane: THREE.Plane | null;
+  outline: THREE.Line | null;
+  debug: boolean;
+
+  constructor(scene: THREE.Scene) {
     this.scene = scene;
     this.resultMesh = null; // 切断後の直方体
     this.removedMesh = null; // 切り取られた部分（三角錐など）
@@ -27,10 +51,11 @@ export class Cutter {
     this.cutSegments = []; // 展開図用の切断線セグメント
     this.edgeHighlights = []; // 教育用の重要辺ハイライト
     this.cutPlane = null; // 切断面の平面情報
+    this.outline = null;
     this.debug = false;
   }
 
-  setDebug(debug) {
+  setDebug(debug: boolean) {
     this.debug = !!debug;
   }
 
@@ -38,9 +63,9 @@ export class Cutter {
     return this.cutPlane ? this.cutPlane.normal : null;
   }
 
-  setTransparency(transparent) {
+  setTransparency(transparent: boolean) {
       this.isTransparent = transparent;
-      const updateMat = (mesh) => {
+      const updateMat = (mesh: THREE.Mesh | null) => {
           if (!mesh) return;
           const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
           materials.forEach(mat => {
@@ -60,7 +85,7 @@ export class Cutter {
       return this.cutInverted;
   }
 
-  setCutInverted(inverted, rerun = true) {
+  setCutInverted(inverted: boolean, rerun = true) {
       const next = !!inverted;
       if (this.cutInverted === next) return;
       this.cutInverted = next;
@@ -77,7 +102,7 @@ export class Cutter {
       }
   }
 
-  cut(cube, snapIds, resolver = null) {
+  cut(cube: any, snapIds: SnapPointID[], resolver: any = null) {
     this.reset();
     this.originalCube = cube;
     this.lastCube = cube;
@@ -90,7 +115,7 @@ export class Cutter {
 
     const resolvedPoints = snapIds
         .map(id => resolver.resolveSnapPoint(id))
-        .filter(p => p);
+        .filter((p: THREE.Vector3 | null) => p);
     if (resolvedPoints.length < 3) return false;
     const points = resolvedPoints;
     this.lastSnapIds = snapIds.slice();
@@ -139,10 +164,10 @@ export class Cutter {
     if (!resolver) return false;
     const structure = cube.getStructure ? cube.getStructure() : null;
     if (!structure || !structure.vertices || !structure.edges) return false;
-    const vertices = structure.vertices.map(v => resolver.resolveVertex(v.id)).filter(Boolean);
+    const vertices = structure.vertices.map((v: { id: string }) => resolver.resolveVertex(v.id)).filter(Boolean);
     if (vertices.length !== structure.vertices.length) return false;
     
-    vertices.forEach(v => {
+    vertices.forEach((v: THREE.Vector3) => {
         const dist = plane.distanceToPoint(v);
         if (dist > 1e-5) {
             positiveCount++;
@@ -192,7 +217,8 @@ export class Cutter {
     const geom = new THREE.BoxGeometry(size, size, size);
     
     // Boxの中心を、平面から法線方向に size/2 だけずらした位置に置く
-    const cutBrush = new Brush(geom);
+    /** @type {any} */
+    const cutBrush = new (Brush as any)(geom) as any;
     
     // 位置: 平面上の一点 p0 から法線方向に size/2
     const centerOffset = normal.clone().multiplyScalar(size / 2);
@@ -207,7 +233,8 @@ export class Cutter {
     cutBrush.updateMatrixWorld();
 
     // 元のCubeのBrush作成
-    const cubeBrush = new Brush(cube.cubeMesh.geometry.clone());
+    /** @type {any} */
+    const cubeBrush = new (Brush as any)(cube.cubeMesh.geometry.clone()) as any;
     cubeBrush.position.copy(cube.cubeMesh.position);
     cubeBrush.rotation.copy(cube.cubeMesh.rotation);
     cubeBrush.scale.copy(cube.cubeMesh.scale);
@@ -239,18 +266,20 @@ export class Cutter {
     // 4. 演算実行
     
     // A - B (直方体 - 半空間) = 切り取られた後の直方体
-    this.resultMesh = this.evaluator.evaluate(cubeBrush, cutBrush, SUBTRACTION);
+    this.resultMesh = /** @type {any} */ (this.evaluator.evaluate(cubeBrush, cutBrush, SUBTRACTION));
     this.resultMesh.material = [cubeMat, cutMat];
     this.scene.add(this.resultMesh);
 
     // A & B (直方体 & 半空間) = 切り取られた部分
-    this.removedMesh = this.evaluator.evaluate(cubeBrush, cutBrush, INTERSECTION);
+    this.removedMesh = /** @type {any} */ (this.evaluator.evaluate(cubeBrush, cutBrush, INTERSECTION));
     this.removedMesh.material = [cubeMat, cutMat];
     this.scene.add(this.removedMesh);
 
     // 5. 輪郭線の描画
     // ユーザーが選択した点 (points) を最優先で交点リストに含める
+    /** @type {THREE.Vector3[]} */
     const intersections = points.slice(); // points のコピーで初期化
+    /** @type {IntersectionPoint[]} */
     const intersectionRefs = [];
     if (this.lastSnapIds && this.lastSnapIds.length && this.lastResolver) {
         this.lastSnapIds.forEach(snapId => {
@@ -332,11 +361,12 @@ export class Cutter {
                     if (snapId) {
                         const id = canonicalizeSnapPointId(snapId) || snapId;
                         if (!intersectionRefs.some(ref => ref.id === id)) {
+                            const parsedEdge = parsed && parsed.type === 'edge' ? parsed : null;
                             intersectionRefs.push({
                                 id,
                                 type: 'intersection',
                                 edgeId,
-                                ratio: parsed.ratio,
+                                ratio: parsedEdge ? parsedEdge.ratio : undefined,
                                 position: target.clone()
                             });
                         }
@@ -444,23 +474,25 @@ export class Cutter {
         let outlinePoints = intersections.slice();
         this.cutSegments = [];
         this.outlineRefs = [];
-        const uniqueRefs = new Map();
+        const uniqueRefs = new Map<SnapPointID, IntersectionPointWithPosition>();
         intersectionRefs.forEach(ref => {
             if (!ref || !ref.id || !ref.position) return;
-            if (!uniqueRefs.has(ref.id)) uniqueRefs.set(ref.id, ref);
+            if (!(ref.position instanceof THREE.Vector3)) return;
+            if (!uniqueRefs.has(ref.id)) uniqueRefs.set(ref.id, ref as IntersectionPointWithPosition);
         });
         const refs = Array.from(uniqueRefs.values());
         const refById = new Map(refs.map(ref => [ref.id, ref]));
 
         const buildSegmentsFromFaces = () => {
-            const faceBuckets = new Map();
+            const faceBuckets = new Map<string, IntersectionPointWithPosition[]>();
             refs.forEach(ref => {
                 if (!ref.faceIds || !ref.faceIds.length) return;
                 ref.faceIds.forEach(faceId => {
                     if (!faceBuckets.has(faceId)) faceBuckets.set(faceId, []);
-                    faceBuckets.get(faceId).push(ref);
+                    faceBuckets.get(faceId)?.push(ref);
                 });
             });
+            /** @type {Array<{ startId: SnapPointID, endId: SnapPointID, start: THREE.Vector3, end: THREE.Vector3, faceIds: string[] }>} */
             const segments = [];
             faceBuckets.forEach((faceRefs, faceId) => {
                 const unique = Array.from(new Map(faceRefs.map(r => [r.id, r])).values());
@@ -471,7 +503,10 @@ export class Cutter {
                     let maxDist = -Infinity;
                     for (let i = 0; i < unique.length; i++) {
                         for (let j = i + 1; j < unique.length; j++) {
-                            const dist = unique[i].position.distanceTo(unique[j].position);
+                            const posA = unique[i].position;
+                            const posB = unique[j].position;
+                            if (!(posA instanceof THREE.Vector3) || !(posB instanceof THREE.Vector3)) continue;
+                            const dist = posA.distanceTo(posB);
                             if (dist > maxDist) {
                                 maxDist = dist;
                                 start = unique[i];
@@ -480,6 +515,7 @@ export class Cutter {
                         }
                     }
                 }
+                if (!(start.position instanceof THREE.Vector3) || !(end.position instanceof THREE.Vector3)) return;
                 segments.push({
                     startId: start.id,
                     endId: end.id,
@@ -491,6 +527,9 @@ export class Cutter {
             return segments;
         };
 
+        /**
+         * @param {Array<{ startId: SnapPointID, endId: SnapPointID }>} segments
+         */
         const buildOrderedIdsFromSegments = (segments) => {
             if (!segments.length) return null;
             const adjacency = new Map();
@@ -593,7 +632,10 @@ export class Cutter {
             .forEach(ref => {
                 if (selectionIds.has(ref.id)) return;
                 if (created.has(ref.id)) return;
-                const point = ref.position ? ref.position.clone() : (resolver ? resolver.resolveSnapPoint(ref.id) : null);
+                const position = ref.position as THREE.Vector3 | undefined;
+                const point = position instanceof THREE.Vector3
+                    ? position.clone()
+                    : (resolver ? resolver.resolveSnapPoint(ref.id) : null);
                 if (!point) return;
                 if (this.debug) {
                     console.log(`  Creating yellow marker for intersection point (${point.x.toFixed(2)}, ${point.y.toFixed(2)}, ${point.z.toFixed(2)})`);
@@ -623,24 +665,33 @@ export class Cutter {
     }
   }
 
+  /** @returns {THREE.Vector3[]} */
   getIntersections() {
       return this.intersections;
   }
 
+  /** @returns {IntersectionPoint[]} */
   getIntersectionRefs() {
       return this.intersectionRefs;
   }
 
+  /** @returns {IntersectionPoint[]} */
   getOutlineRefs() {
       return this.outlineRefs;
   }
 
+  /** @returns {Array<{ startId: SnapPointID, endId: SnapPointID, start: THREE.Vector3, end: THREE.Vector3, faceIds?: string[] }>} */
   getCutSegments() {
       return this.cutSegments;
   }
 
+  /**
+   * @param {CutResultMeta} meta
+   * @param {object} resolver
+   */
   applyCutResultMeta(meta, resolver) {
       if (!meta || !resolver) return false;
+      /** @type {IntersectionPoint[]} */
       const intersectionRefs = Array.isArray(meta.intersections)
           ? meta.intersections.map(ref => {
               if (!ref || !ref.id) return null;
@@ -655,7 +706,7 @@ export class Cutter {
               if (!position) return null;
               return {
                   id: ref.id,
-                  type: ref.type || 'intersection',
+                  type: /** @type {'snap' | 'intersection'} */ (ref.type || 'intersection'),
                   edgeId: ref.edgeId,
                   ratio: ref.ratio ? { ...ref.ratio } : undefined,
                   faceIds: Array.isArray(ref.faceIds) ? [...ref.faceIds] : undefined,
@@ -664,15 +715,17 @@ export class Cutter {
           }).filter(Boolean)
           : [];
       const byId = new Map(intersectionRefs.map(ref => [ref.id, ref]));
+      /** @type {IntersectionPoint[]} */
       const outlineRefs = Array.isArray(meta.outline)
           ? meta.outline.map(id => {
               if (!id) return null;
               if (byId.has(id)) return byId.get(id);
               const position = resolver.resolveSnapPoint(id);
               if (!position) return null;
-              return { id, type: 'intersection', position };
+              return /** @type {IntersectionPoint} */ ({ id, type: 'intersection', position });
           }).filter(Boolean)
           : [];
+      /** @type {Array<{ startId: SnapPointID, endId: SnapPointID, start: THREE.Vector3, end: THREE.Vector3, faceIds?: string[] }>} */
       const cutSegments = Array.isArray(meta.cutSegments)
           ? meta.cutSegments.map(seg => {
               if (!seg || !seg.startId || !seg.endId) return null;
@@ -704,6 +757,7 @@ export class Cutter {
       return true;
   }
 
+  /** @returns {CutResult} */
   getCutResult() {
       return {
           outline: { points: this.outlineRefs.slice() },

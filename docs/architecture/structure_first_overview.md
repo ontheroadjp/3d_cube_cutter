@@ -1,5 +1,7 @@
 # structure_first_overview.md
 
+Status: Active
+
 # 3D 立体切断シミュレーター: 構造主体モデルの概要
 
 ## 1. 概要

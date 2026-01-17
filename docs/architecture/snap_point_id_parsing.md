@@ -1,5 +1,7 @@
 # snap_point_id_parsing.md
 
+Status: Active
+
 # SnapPointID パース / 正規化仕様
 
 ## 1. 目的

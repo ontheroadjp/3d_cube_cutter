@@ -1,5 +1,7 @@
 # mobile_ui_policy.md
 
+Status: Active
+
 # モバイルUI簡略化方針
 
 ## 1. 目的

@@ -1,4 +1,5 @@
-import { normalizeSnapPointId } from '../geometry/snapPointId.js';
+import { normalizeSnapPointId, parseSnapPointId, stringifySnapPointId } from '../geometry/snapPointId.js';
+import type { CubeSize, CutResult, DisplayState, UserPresetState } from '../types.js';
 
 const defaultIdFactory = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -17,12 +18,26 @@ export function buildUserPresetState({
   meta = {},
   now = () => new Date().toISOString(),
   idFactory = defaultIdFactory
-} = {}) {
+}: {
+  cube?: { getSize?: () => CubeSize; getVertexLabelMap?: () => Record<string, string> | null };
+  selection?: { getSelectedSnapIds?: () => string[] };
+  cutter?: { isCutInverted?: () => boolean; cutInverted?: boolean; getCutResult?: () => CutResult };
+  ui?: { getDisplayState?: () => DisplayState };
+  labelMap?: Record<string, string> | null;
+  meta?: { id?: string; name?: string; description?: string; category?: string; createdAt?: string; updatedAt?: string };
+  now?: () => string;
+  idFactory?: () => string;
+} = {}): UserPresetState | null {
   if (!cube || !selection || !cutter || !ui) return null;
 
   const size = cube.getSize ? cube.getSize() : null;
   const snapIds = selection.getSelectedSnapIds
-    ? selection.getSelectedSnapIds().map(id => normalizeSnapPointId(id)).filter(Boolean)
+    ? selection.getSelectedSnapIds()
+        .map(id => {
+          const parsed = normalizeSnapPointId(parseSnapPointId(id));
+          return parsed ? stringifySnapPointId(parsed) : null;
+        })
+        .filter(Boolean)
     : [];
   const display = ui.getDisplayState ? ui.getDisplayState() : null;
   const cutResult = cutter.getCutResult ? cutter.getCutResult() : null;

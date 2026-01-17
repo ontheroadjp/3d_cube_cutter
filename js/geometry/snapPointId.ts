@@ -1,4 +1,11 @@
-export function parseSnapPointId(id) {
+import type { Ratio, SnapPointID } from '../types.js';
+
+export type SnapPointRef =
+  | { type: 'vertex'; vertexIndex: string }
+  | { type: 'edge'; edgeIndex: string; ratio: Ratio }
+  | { type: 'face'; faceIndex: string };
+
+export function parseSnapPointId(id: string): SnapPointRef | null {
   if (typeof id !== 'string') return null;
   const trimmed = id.trim();
   let match = trimmed.match(/^V:(\d+)$/);
@@ -23,7 +30,7 @@ export function parseSnapPointId(id) {
   return null;
 }
 
-function gcd(a, b) {
+function gcd(a: number, b: number) {
   let x = Math.abs(a);
   let y = Math.abs(b);
   while (y !== 0) {
@@ -34,7 +41,7 @@ function gcd(a, b) {
   return x || 1;
 }
 
-function normalizeRatio(ratio) {
+function normalizeRatio(ratio: Ratio | null | undefined) {
   if (!ratio) return null;
   let { numerator, denominator } = ratio;
   if (denominator === 0) return null;
@@ -46,7 +53,7 @@ function normalizeRatio(ratio) {
   return { numerator: numerator / d, denominator: denominator / d };
 }
 
-export function normalizeSnapPointId(parsed) {
+export function normalizeSnapPointId(parsed: SnapPointRef | null): SnapPointRef | null {
   if (!parsed || !parsed.type) return null;
   if (parsed.type === 'vertex') {
     return { type: 'vertex', vertexIndex: parsed.vertexIndex };
@@ -76,7 +83,7 @@ export function normalizeSnapPointId(parsed) {
   return null;
 }
 
-export function stringifySnapPointId(parsed) {
+export function stringifySnapPointId(parsed: SnapPointRef | null): SnapPointID | null {
   if (!parsed || !parsed.type) return null;
   if (parsed.type === 'vertex') return `V:${parsed.vertexIndex}`;
   if (parsed.type === 'face') return `F:${parsed.faceIndex}@center`;
@@ -87,7 +94,7 @@ export function stringifySnapPointId(parsed) {
   return null;
 }
 
-export function canonicalizeSnapPointId(id) {
+export function canonicalizeSnapPointId(id: SnapPointID): SnapPointID | null {
   const parsed = parseSnapPointId(id);
   const normalized = normalizeSnapPointId(parsed);
   if (!normalized) return null;

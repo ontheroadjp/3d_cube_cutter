@@ -1,5 +1,7 @@
 # user_preset_state_spec.md
 
+Status: Active
+
 # ユーザープリセット（状態保存）仕様
 
 ## 1. 目的

@@ -1,5 +1,7 @@
 # net_mapping_spec.md
 
+Status: Active
+
 # NetManager 構造主体マッピング仕様
 
 ## 1. 目的

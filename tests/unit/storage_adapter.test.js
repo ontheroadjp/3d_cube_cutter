@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { IndexedDbStorageAdapter, NoopStorageAdapter } from '../../js/storage/storageAdapter.js';
+import { IndexedDbStorageAdapter, NoopStorageAdapter } from '../../dist/js/storage/storageAdapter.js';
 
 const createFakeIndexedDB = () => {
   const databases = new Map();
@@ -88,9 +88,24 @@ describe('StorageAdapter', () => {
   });
 
   it('IndexedDbStorageAdapter should save and load items', async () => {
-    global.indexedDB = createFakeIndexedDB();
+    global.indexedDB = /** @type {any} */ (createFakeIndexedDB());
     const adapter = new IndexedDbStorageAdapter({ dbName: 'test-db', storeName: 'items' });
-    const item = { id: 'item-1', name: 'Test' };
+    const item = {
+      id: 'item-1',
+      name: 'Test',
+      cube: { size: { lx: 10, ly: 10, lz: 10 } },
+      cut: { snapPoints: [], inverted: false },
+      display: {
+        showVertexLabels: true,
+        showFaceLabels: true,
+        edgeLabelMode: /** @type {'visible'} */ ('visible'),
+        showCutSurface: true,
+        showPyramid: false,
+        cubeTransparent: true
+      },
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z'
+    };
     await adapter.save(item);
     const loaded = await adapter.get('item-1');
     expect(loaded).toEqual(item);

@@ -6,7 +6,7 @@ import * as THREE from 'three';
 // Mock utils.js to prevent DOM-related errors in Node.js environment
 // This mock creates plain objects with the same "shape" as the real ones,
 // without referencing out-of-scope variables like THREE.
-vi.mock('../js/utils.js', () => ({
+vi.mock('../dist/js/utils.js', () => ({
     createLabel: vi.fn(() => ({
         position: {
             copy: vi.fn(function() { return this; }),
@@ -31,10 +31,10 @@ vi.mock('../js/utils.js', () => ({
     }))
 }));
 
-import { Cutter } from '../js/Cutter.js';
-import { Cube } from '../js/Cube.js';
-import { GeometryResolver } from '../js/geometry/GeometryResolver.js';
-import { buildUserPresetState } from '../js/presets/userPresetState.js';
+import { Cutter } from '../dist/js/Cutter.js';
+import { Cube } from '../dist/js/Cube.js';
+import { GeometryResolver } from '../dist/js/geometry/GeometryResolver.js';
+import { buildUserPresetState } from '../dist/js/presets/userPresetState.js';
 
 // Helper function to create a simple scene for testing and spy on its methods
 const createTestScene = () => {
@@ -227,6 +227,31 @@ describe('Cutter', () => {
             expect(flippedResultVolume).toBeCloseTo(initialRemovedVolume, 1);
             expect(flippedRemovedVolume).toBeCloseTo(initialResultVolume, 1);
             expect(flippedResultVolume + flippedRemovedVolume).toBeCloseTo(totalCubeVolume, 1);
+        });
+
+        it('should keep outline and cut segments consistent with intersection refs', () => {
+            const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
+            const success = cutter.cut(cube, snapIds, resolver);
+
+            expect(success).toBe(true);
+            const outlineRefs = cutter.getOutlineRefs();
+            const cutSegments = cutter.getCutSegments();
+
+            expect(outlineRefs.length).toBeGreaterThanOrEqual(3);
+            expect(cutSegments.length).toBe(outlineRefs.length);
+
+            outlineRefs.forEach(ref => {
+                expect(ref.id).toBeDefined();
+                expect(ref.position).toBeInstanceOf(THREE.Vector3);
+            });
+
+            const ids = new Set(outlineRefs.map(ref => ref.id));
+            cutSegments.forEach(seg => {
+                expect(ids.has(seg.startId)).toBe(true);
+                expect(ids.has(seg.endId)).toBe(true);
+                expect(seg.start).toBeInstanceOf(THREE.Vector3);
+                expect(seg.end).toBeInstanceOf(THREE.Vector3);
+            });
         });
 
         it('should restore cut result meta from user preset state', () => {

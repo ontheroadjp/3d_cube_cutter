@@ -1,5 +1,7 @@
 # vertex_labeling_spec.md
 
+Status: Active
+
 # 頂点ラベル設定仕様
 
 ## 1. 目的

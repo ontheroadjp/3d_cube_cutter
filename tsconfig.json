@@ -10,8 +10,13 @@
     "baseUrl": "."
   },
   "include": [
+    "js/**/*.ts",
     "js/**/*.js",
-    "main.js",
-    "tests/**/*.js"
+    "main.ts"
+  ],
+  "exclude": [
+    "lib/**",
+    "dist/**",
+    "tests/**"
   ]
 }

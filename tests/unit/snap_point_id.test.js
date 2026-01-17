@@ -4,7 +4,7 @@ import {
   normalizeSnapPointId,
   stringifySnapPointId,
   canonicalizeSnapPointId,
-} from '../../js/geometry/snapPointId.js';
+} from '../../dist/js/geometry/snapPointId.js';
 
 describe('snapPointId parsing', () => {
   it('parses vertex ids', () => {
@@ -48,6 +48,17 @@ describe('snapPointId normalization', () => {
       ratio: { numerator: 3, denominator: 4 },
     });
     expect(stringifySnapPointId(normalized)).toBe('E:01@3/4');
+  });
+
+  it('normalizes reversed edge with arbitrary ratio', () => {
+    const parsed = parseSnapPointId('E:21@3/10');
+    const normalized = normalizeSnapPointId(parsed);
+    expect(normalized).toEqual({
+      type: 'edge',
+      edgeIndex: '12',
+      ratio: { numerator: 7, denominator: 10 },
+    });
+    expect(stringifySnapPointId(normalized)).toBe('E:12@7/10');
   });
 
   it('canonicalizes edge endpoints to vertex ids', () => {
