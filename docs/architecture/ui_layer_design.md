@@ -1,9 +1,9 @@
 # ui_layer_design.md
 
 Status: Draft
-Summary: Three.js の描画ロジックと UI 層を分離し、学習機能の拡張に耐える構造にする。
+Summary: 現行UIの構成と、Three.js描画との責務分離方針を整理する。
 
-# UI層（React想定）設計方針
+# UI層（React + 既存UI）設計方針
 
 ## 1. 目的
 - Three.js の描画ロジックと UI 層を分離し、学習機能の拡張に耐える構造にする
@@ -12,38 +12,41 @@ Summary: Three.js の描画ロジックと UI 層を分離し、学習機能の�
 ---
 
 ## 2. 役割分担
-- **Core/Engine（既存JS）**
+- **Core/Engine（main.ts + JSモジュール）**
   - 立体モデル、SnapPointID、切断処理、展開図、教育メタ生成
+  - UIに必要な状態/イベントを `globalThis.__engine` で公開
 - **UI（React）**
-  - モード切替、設定、プリセット操作、学習UI、解説表示
-  - Engineの入力と出力の橋渡し
+  - サイドバー/パネル、設定、プリセット操作、学習UI、解説表示
+  - `__engine` を通じた操作と、`__setReactMode` 等による同期
+- **UIManager（legacy）**
+  - Tooltip/警告表示/解説パネルのフォールバック
+  - Reactが未ロード時のプリセット/ユーザープリセット表示補助
 
 ---
 
-## 3. UI層の構成
-- `AppShell`: 全体レイアウト、モード切替、画面構成
-- `PresetPanel`: プリセット選択/フィルタ
-- `SettingsPanel`: 表示設定、頂点ラベル、保存設定
-- `LearningPanel`: 解説、ヒント、問題表示、履歴
-- `NetViewPanel`: 展開図の表示・操作
+## 3. UI層の構成（現行）
+- `index.html`
+  - 固定ヘッダー（タイトル + 選択数）
+  - React root: `#react-root`（解説パネル）
+  - React root: `#react-side-panel-root`（サイドバー）
+- `side_panel.ts`（React）
+  - 左側のアイコン列 + 右のパネル（開閉アニメーション）
+  - パネル内: プリセット / 学習 / 設定
+- `reactApp.ts`
+  - 解説パネルの表示
+  - `side_panel.ts` の初期化
 
 ---
 
 ## 4. Engineとの接続
-UIは以下の **公開API** にのみ依存する。
-
-```
-engine.selectSnapPoints(ids: SnapPointID[]): void
-engine.executeCut(): CutResultMeta
-engine.applyPreset(id: string): void
-engine.getState(): EngineState
-engine.setDisplayState(display: DisplayState): void
-```
+UIは `globalThis.__engine` の公開APIにのみ依存する。
+詳細は `docs/architecture/engine_ui_contract.md` を参照。
 
 ---
 
 ## 5. 状態管理
-- 初期は `useState/useReducer` で十分
+- サイドバーは `useState` で管理（モード/パネル/タブ/プリセットカテゴリなど）
+- Engine側の表示状態は `getDisplayState` と `setDisplayState` による同期
 - 学習履歴や問題生成が増える段階で `zustand` 等を導入検討
 
 ---
@@ -56,4 +59,4 @@ engine.setDisplayState(display: DisplayState): void
 
 ## 7. まとめ
 - UIはReactで分離し、Engineは既存の構造主体ロジックを保持
-- 学習機能拡張に合わせてUIを段階的に強化
+- `__engine` を境界に責務を分離し、学習機能拡張に合わせて段階的に強化

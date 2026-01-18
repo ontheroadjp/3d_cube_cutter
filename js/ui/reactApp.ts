@@ -41,6 +41,7 @@ type Engine = {
   getVertexLabelMap?: () => Record<string, string> | null;
   configureCube?: (lx: number, ly: number, lz: number) => void;
   getCubeSize?: () => { lx: number; ly: number; lz: number };
+  setPanelOpen?: (open: boolean) => void;
 };
 
 type UserPresetForm = {
@@ -95,5 +96,4 @@ export function initReactApp() {
 
   initSidePanel(); // Call the new SidePanel initialization
 }
-
 

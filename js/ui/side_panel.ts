@@ -29,6 +29,7 @@ type Engine = {
   getVertexLabelMap?: () => Record<string, string> | null;
   configureCube?: (lx: number, ly: number, lz: number) => void;
   getCubeSize?: () => { lx: number; ly: number; lz: number };
+  setPanelOpen?: (open: boolean) => void;
 };
 
 // Removed duplicate declare global for __engine
@@ -49,12 +50,18 @@ declare global {
 // --- SidePanel Component ---
 export function SidePanel() {
   const [currentMode, setCurrentMode] = useState<string>('free'); // 'free', 'preset', 'learning', 'settings'
-  const [activeSettingsPanel, setActiveSettingsPanel] = useState<string>('display'); // 'display', 'cuboid', 'user-presets'
+  const [panelOpen, setPanelOpen] = useState<boolean>(false);
+  const [activePanel, setActivePanel] = useState<string | null>(null);
+  const [activeSettingsPanel, setActiveSettingsPanel] = useState<string>('display'); // 'display', 'cuboid'
 
   useEffect(() => {
     // Register global function to allow main.ts to update the mode
     globalThis.__setReactMode = (mode: string) => {
       setCurrentMode(mode);
+      if (mode === 'free') {
+        setPanelOpen(false);
+        setActivePanel(null);
+      }
       if (mode === 'settings') {
         // When entering settings mode, default to display settings
         setActiveSettingsPanel('display');
@@ -66,10 +73,22 @@ export function SidePanel() {
   }, []);
 
   const handleModeChange = (mode: string) => {
-    setCurrentMode(mode);
-    if (globalThis.__engine && typeof globalThis.__engine.setMode === 'function') {
-      globalThis.__engine.setMode(mode);
+    if (mode === 'free') {
+      setCurrentMode(mode);
+      setPanelOpen(false);
+      setActivePanel(null);
+      if (globalThis.__engine && typeof globalThis.__engine.setMode === 'function') {
+        globalThis.__engine.setMode(mode);
+      }
+      return;
     }
+    const nextOpen = mode === activePanel ? !panelOpen : true;
+    setActivePanel(nextOpen ? mode : null);
+    setPanelOpen(nextOpen);
+    if (globalThis.__engine && typeof globalThis.__engine.setMode === 'function') {
+      globalThis.__engine.setMode(nextOpen ? mode : 'free');
+    }
+    setCurrentMode(nextOpen ? mode : 'free');
   };
 
   const handleSettingsPanelChange = (panel: string) => {
@@ -80,52 +99,53 @@ export function SidePanel() {
     }
   };
 
+  useEffect(() => {
+    if (globalThis.__engine && typeof globalThis.__engine.setPanelOpen === 'function') {
+      globalThis.__engine.setPanelOpen(panelOpen);
+    }
+  }, [panelOpen]);
+
   return React.createElement(
     'div',
     {
+      className: 'chatgpt-sidebar',
       style: {
         position: 'fixed',
         top: 0,
         left: 0,
         height: '100%',
-        width: '60px', // Narrow sidebar
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-        boxShadow: '2px 0 5px rgba(0,0,0,0.1)',
+        width: '64px', // Narrow sidebar
         zIndex: 1000,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        paddingTop: '1rem',
-        borderRight: '1px solid var(--ui-border)'
+        paddingTop: '0.25rem',
       }
     },
     // Mode selection icons
     React.createElement(
       'div',
       { className: 'd-flex flex-column gap-3 mb-4' },
-      React.createElement(ModeButton, {
-        mode: 'free',
-        currentMode: currentMode,
-        onClick: handleModeChange,
-        icon: 'pencil' // Placeholder icon
-      }),
+      React.createElement('div', { className: 'chatgpt-logo' },
+        React.createElement(Icon, { name: 'cube' })
+      ),
       React.createElement(ModeButton, {
         mode: 'preset',
         currentMode: currentMode,
         onClick: handleModeChange,
-        icon: 'star' // Placeholder icon
+        icon: 'pencil'
       }),
       React.createElement(ModeButton, {
         mode: 'learning',
         currentMode: currentMode,
         onClick: handleModeChange,
-        icon: 'hat-wizard' // Placeholder icon
+        icon: 'book'
       }),
       React.createElement(ModeButton, {
         mode: 'settings',
         currentMode: currentMode,
         onClick: handleModeChange,
-        icon: 'gear' // Placeholder icon
+        icon: 'sliders'
       })
     ),
 
@@ -135,45 +155,49 @@ export function SidePanel() {
       { className: 'd-flex flex-column gap-3 mt-auto' }, // mt-auto pushes these to the bottom
       React.createElement(ActionButton, {
         onClick: () => globalThis.__engine?.flipCut?.(),
-        icon: 'arrow-repeat', // 切り取り反転アイコン
+        icon: 'repeat',
         title: '切り取り反転',
-        className: 'btn-warning'
+        variant: 'soft'
       }),
       React.createElement(ActionButton, {
         onClick: () => globalThis.__engine?.toggleNet?.(),
-        icon: 'bounding-box', // 展開図アイコン
+        icon: 'grid',
         title: '展開図',
-        className: 'btn-primary'
+        variant: 'soft'
       }),
       React.createElement(ActionButton, {
         onClick: () => globalThis.__engine?.resetScene?.(),
-        icon: 'arrow-counterclockwise', // リセットアイコン
+        icon: 'reset',
         title: 'リセット',
-        className: 'btn-outline-danger'
+        variant: 'danger'
       })
     ),
 
     // Content Panel (placeholder for now)
-    currentMode !== 'free' && React.createElement(
+    React.createElement(
         'div',
         {
+            className: `chatgpt-panel ${panelOpen ? 'chatgpt-panel--open' : 'chatgpt-panel--closed'}`,
             style: {
                 position: 'fixed',
                 top: 0,
-                left: '60px', // To the right of the sidebar
+                left: '64px', // To the right of the sidebar
                 height: '100%',
                 width: '320px', // Width of the content panel
-                backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                boxShadow: '2px 0 5px rgba(0,0,0,0.1)',
                 zIndex: 999,
-                padding: '1rem',
-                borderRight: '1px solid var(--ui-border)',
+                padding: '1.25rem 1rem',
                 overflowY: 'auto'
             }
         },
-        currentMode === 'preset' && React.createElement(PresetContent, { currentMode: currentMode }),
-        currentMode === 'learning' && React.createElement(LearningContent, { currentMode: currentMode }),
-        currentMode === 'settings' && React.createElement(SettingsContent, {
+        panelOpen && React.createElement('button', {
+            type: 'button',
+            className: 'chatgpt-btn chatgpt-panel-close',
+            title: '閉じる',
+            onClick: () => activePanel && handleModeChange(activePanel)
+        }, React.createElement(Icon, { name: 'close' })),
+        panelOpen && activePanel === 'preset' && React.createElement(PresetContent, { currentMode: currentMode }),
+        panelOpen && activePanel === 'learning' && React.createElement(LearningContent, { currentMode: currentMode }),
+        panelOpen && activePanel === 'settings' && React.createElement(SettingsContent, {
             activePanel: activeSettingsPanel,
             onPanelChange: handleSettingsPanelChange
         }),
@@ -181,30 +205,134 @@ export function SidePanel() {
   );
 }
 
+// --- Icon Component ---
+function Icon({ name }) {
+  const shared = {
+    width: 20,
+    height: 20,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    className: 'chatgpt-icon'
+  };
+  switch (name) {
+    case 'pencil':
+      return React.createElement(
+        'svg',
+        shared,
+        React.createElement('path', { d: 'M12 20h9' }),
+        React.createElement('path', { d: 'M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z' })
+      );
+    case 'sparkle':
+      return React.createElement(
+        'svg',
+        shared,
+        React.createElement('path', { d: 'M12 3.5l2.6 5.4 6 .9-4.3 4.2 1 6-5.3-2.8-5.3 2.8 1-6-4.3-4.2 6-.9z' })
+      );
+    case 'cap':
+      return React.createElement(
+        'svg',
+        shared,
+        React.createElement('path', { d: 'M3 10l9-4 9 4-9 4-9-4z' }),
+        React.createElement('path', { d: 'M6 12v4.5c0 .6 3 2 6 2s6-1.4 6-2V12' })
+      );
+    case 'book':
+      return React.createElement(
+        'svg',
+        shared,
+        React.createElement('path', { d: 'M4.5 5.5c0-1 1-2 2.2-2H20v15.5H7.2c-1.2 0-2.2 1-2.2 2' }),
+        React.createElement('path', { d: 'M4.5 5.5v13c0 1 1 2 2.2 2H20' })
+      );
+    case 'sliders':
+      return React.createElement(
+        'svg',
+        shared,
+        React.createElement('path', { d: 'M4 6h9' }),
+        React.createElement('path', { d: 'M16 6h4' }),
+        React.createElement('circle', { cx: 14, cy: 6, r: 2 }),
+        React.createElement('path', { d: 'M4 12h4' }),
+        React.createElement('path', { d: 'M12 12h8' }),
+        React.createElement('circle', { cx: 10, cy: 12, r: 2 }),
+        React.createElement('path', { d: 'M4 18h10' }),
+        React.createElement('path', { d: 'M18 18h2' }),
+        React.createElement('circle', { cx: 16, cy: 18, r: 2 })
+      );
+    case 'repeat':
+      return React.createElement(
+        'svg',
+        shared,
+        React.createElement('path', { d: 'M4 7h11' }),
+        React.createElement('path', { d: 'M13 3l4 4-4 4' }),
+        React.createElement('path', { d: 'M20 17H9' }),
+        React.createElement('path', { d: 'M11 21l-4-4 4-4' })
+      );
+    case 'grid':
+      return React.createElement(
+        'svg',
+        shared,
+        React.createElement('rect', { x: 3, y: 3, width: 7, height: 7 }),
+        React.createElement('rect', { x: 14, y: 3, width: 7, height: 7 }),
+        React.createElement('rect', { x: 3, y: 14, width: 7, height: 7 }),
+        React.createElement('rect', { x: 14, y: 14, width: 7, height: 7 })
+      );
+    case 'reset':
+      return React.createElement(
+        'svg',
+        shared,
+        React.createElement('path', { d: 'M3 12a9 9 0 1 0 3-6.7' }),
+        React.createElement('path', { d: 'M3 4v5h5' })
+      );
+    case 'close':
+      return React.createElement(
+        'svg',
+        shared,
+        React.createElement('path', { d: 'M6 6l12 12' }),
+        React.createElement('path', { d: 'M18 6l-12 12' })
+      );
+    case 'cube':
+      return React.createElement(
+        'svg',
+        shared,
+        React.createElement('path', { d: 'M12 2l8 4v12l-8 4-8-4V6l8-4z' }),
+        React.createElement('path', { d: 'M12 22V10' }),
+        React.createElement('path', { d: 'M4 6l8 4 8-4' })
+      );
+    default:
+      return React.createElement('svg', shared);
+  }
+}
+
 // --- ModeButton Component ---
 function ModeButton({ mode, currentMode, onClick, icon }) {
   const isActive = mode === currentMode;
+  const className = `chatgpt-btn ${isActive ? 'chatgpt-btn--active' : ''}`;
   return React.createElement(
     'button',
     {
-      className: `btn btn-lg ${isActive ? 'btn-primary' : 'btn-outline-secondary'}`,
+      type: 'button',
+      className: className,
       onClick: () => onClick(mode),
       title: mode.charAt(0).toUpperCase() + mode.slice(1) // Capitalize first letter for title
     },
-    React.createElement('i', { className: `bi bi-${icon}` }) // Bootstrap Icons placeholder
+    React.createElement(Icon, { name: icon })
   );
 }
 
 // --- ActionButton Component ---
-function ActionButton({ onClick, icon, title, className = 'btn-outline-secondary' }) {
+function ActionButton({ onClick, icon, title, variant = 'soft' }) {
+  const className = `chatgpt-btn chatgpt-btn--${variant}`;
   return React.createElement(
     'button',
     {
-      className: `btn btn-lg ${className}`,
+      type: 'button',
+      className: className,
       onClick: onClick,
       title: title
     },
-    React.createElement('i', { className: `bi bi-${icon}` })
+    React.createElement(Icon, { name: icon })
   );
 }
 
@@ -212,13 +340,33 @@ function ActionButton({ onClick, icon, title, className = 'btn-outline-secondary
 function PresetContent({ currentMode }) {
   // Logic for preset selection
   const [presets, setPresets] = useState<Preset[]>([]);
+  const [userPresets, setUserPresets] = useState<UserPresetState[]>([]);
   const [category, setCategory] = useState<string>('triangle'); // Default category
+  const [showSaveDialog, setShowSaveDialog] = useState<boolean>(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [storageEnabled, setStorageEnabled] = useState(true);
+  const [saveForm, setSaveForm] = useState<UserPresetForm>({ name: '', category: '', description: '' });
+
+  const refreshUserPresets = () => {
+    const engine = globalThis.__engine;
+    if (engine && typeof engine.listUserPresets === 'function') {
+      setUserPresets(engine.listUserPresets() || []);
+    }
+    if (engine && typeof engine.isUserPresetStorageEnabled === 'function') {
+      setStorageEnabled(!!engine.isUserPresetStorageEnabled());
+    }
+  };
 
   useEffect(() => {
     const engine = globalThis.__engine;
     if (engine && typeof engine.getPresets === 'function') {
       setPresets(engine.getPresets() || []);
     }
+    refreshUserPresets();
+    globalThis.__refreshUserPresets = refreshUserPresets;
+    return () => {
+      if (globalThis.__refreshUserPresets) delete globalThis.__refreshUserPresets;
+    };
   }, []);
 
   const filteredPresets = category
@@ -231,12 +379,82 @@ function PresetContent({ currentMode }) {
     }
   };
 
+  const applyUserPreset = (id: string) => {
+    const engine = globalThis.__engine;
+    if (engine && typeof engine.applyUserPreset === 'function') {
+      engine.applyUserPreset(id);
+    }
+  };
+
+  const updateSaveForm = (patch: Partial<UserPresetForm>) => setSaveForm({ ...saveForm, ...patch });
+
+  const openSaveDialog = () => {
+    const nextCategory = category !== 'saved' ? category : '';
+    setEditingId(null);
+    setSaveForm({ name: '', category: nextCategory, description: '' });
+    setShowSaveDialog(true);
+  };
+
+  const saveUserPreset = async () => {
+    if (!saveForm.name) return;
+    const engine = globalThis.__engine;
+    if (engine && typeof engine.saveUserPreset === 'function') {
+      await engine.saveUserPreset(saveForm);
+      refreshUserPresets();
+      setShowSaveDialog(false);
+      setEditingId(null);
+      setSaveForm({ name: '', category: '', description: '' });
+    }
+  };
+
+  const editUserPreset = (id: string) => {
+    const engine = globalThis.__engine;
+    if (engine && typeof engine.editUserPreset === 'function') {
+      engine.editUserPreset(id);
+    }
+    const target = userPresets.find(p => p.id === id);
+    if (target) {
+      setEditingId(id);
+      setSaveForm({ name: target.name || '', category: target.category || '', description: target.description || '' });
+      setShowSaveDialog(true);
+    }
+  };
+
+  const cancelEdit = () => {
+    const engine = globalThis.__engine;
+    if (engine && typeof engine.cancelUserPresetEdit === 'function') {
+      engine.cancelUserPresetEdit();
+    }
+    setEditingId(null);
+    setShowSaveDialog(false);
+    setSaveForm({ name: '', category: '', description: '' });
+  };
+
+  const deleteUserPreset = (id: string) => {
+    const engine = globalThis.__engine;
+    if (engine && typeof engine.deleteUserPreset === 'function') {
+      engine.deleteUserPreset(id);
+      refreshUserPresets();
+      if (editingId === id) {
+        setEditingId(null);
+        setShowSaveDialog(false);
+        setSaveForm({ name: '', category: '', description: '' });
+      }
+    }
+  };
+
   return React.createElement(
     React.Fragment,
     null,
-    React.createElement('h5', { className: 'mb-3' }, 'プリセットモード'),
+    React.createElement('h5', { className: 'mb-3' }, 'プリセット'),
+    React.createElement('div', { className: 'd-flex justify-content-between align-items-center mb-3' },
+      React.createElement('button', {
+        className: 'btn btn-outline-success btn-sm',
+        disabled: !storageEnabled,
+        onClick: openSaveDialog
+      }, '今の図形を保存')
+    ),
     React.createElement('div', { className: 'mb-3' },
-      React.createElement('label', { className: 'form-label small mb-1' }, 'カテゴリ'),
       React.createElement('select', {
         className: 'form-select form-select-sm',
         value: category,
@@ -244,10 +462,11 @@ function PresetContent({ currentMode }) {
       },
         React.createElement('option', { value: 'triangle' }, '三角形'),
         React.createElement('option', { value: 'quad' }, '四角形'),
-        React.createElement('option', { value: 'poly' }, '多角形')
+        React.createElement('option', { value: 'poly' }, '多角形'),
+        React.createElement('option', { value: 'saved' }, '保存した図形')
       )
     ),
-    React.createElement('div', { className: 'd-flex flex-wrap gap-2' },
+    category !== 'saved' && React.createElement('div', { className: 'd-flex flex-wrap gap-2' },
       filteredPresets.map(preset => (
         React.createElement('button', {
           key: preset.name,
@@ -255,6 +474,74 @@ function PresetContent({ currentMode }) {
           onClick: () => applyPreset(preset.name)
         }, preset.name)
       ))
+    ),
+    category === 'saved' && React.createElement(
+      React.Fragment,
+      null,
+      React.createElement('div', { className: `text-muted small mb-2 ${userPresets.length ? 'd-none' : ''}` }, '保存した図形はありません。'),
+      React.createElement('div', { className: 'list-group small' },
+        userPresets.map(item => (
+          React.createElement('div', { key: item.id, className: 'list-group-item d-flex justify-content-between align-items-center' },
+            React.createElement('div', null,
+              React.createElement('div', { className: 'fw-semibold' }, item.name || '保存した図形'),
+              React.createElement('div', { className: 'text-muted small' },
+                [item.description, item.category, item.updatedAt ? `更新: ${item.updatedAt}` : ''].filter(Boolean).join(' / ')
+              )
+            ),
+            React.createElement('div', { className: 'd-flex gap-2' },
+              React.createElement('button', { className: 'btn btn-outline-secondary btn-sm', onClick: () => editUserPreset(item.id) }, '編集'),
+              React.createElement('button', { className: 'btn btn-outline-primary btn-sm', onClick: () => applyUserPreset(item.id) }, '適用'),
+              React.createElement('button', { className: 'btn btn-outline-danger btn-sm', onClick: () => deleteUserPreset(item.id) }, '削除')
+            )
+          )
+        ))
+      )
+    ),
+    showSaveDialog && React.createElement(
+      'div',
+      { className: 'border rounded p-3 bg-light shadow-sm mt-3' },
+      React.createElement('div', { className: 'fw-semibold mb-2' }, editingId ? '保存した図形を編集' : '今の図形を保存'),
+      React.createElement('div', { className: 'mb-2' },
+        React.createElement('label', { className: 'form-label small mb-1' }, 'プリセット名'),
+        React.createElement('input', {
+          className: 'form-control form-control-sm',
+          type: 'text',
+          value: saveForm.name || '',
+          onChange: (e) => updateSaveForm({ name: (e.target as HTMLInputElement).value })
+        })
+      ),
+      React.createElement('div', { className: 'mb-2' },
+        React.createElement('label', { className: 'form-label small mb-1' }, 'カテゴリ'),
+        React.createElement('input', {
+          className: 'form-control form-control-sm',
+          type: 'text',
+          value: saveForm.category || '',
+          onChange: (e) => updateSaveForm({ category: (e.target as HTMLInputElement).value })
+        })
+      ),
+      React.createElement('div', { className: 'mb-3' },
+        React.createElement('label', { className: 'form-label small mb-1' }, '説明'),
+        React.createElement('input', {
+          className: 'form-control form-control-sm',
+          type: 'text',
+          value: saveForm.description || '',
+          onChange: (e) => updateSaveForm({ description: (e.target as HTMLInputElement).value })
+        })
+      ),
+      React.createElement('div', { className: 'd-flex align-items-center gap-2' },
+        React.createElement('button', {
+          className: 'btn btn-outline-success btn-sm',
+          disabled: !storageEnabled,
+          onClick: saveUserPreset
+        }, editingId ? '更新' : '保存'),
+        React.createElement('button', {
+          className: 'btn btn-outline-secondary btn-sm',
+          onClick: cancelEdit
+        }, editingId ? '編集を取り消す' : '閉じる'),
+        React.createElement('span', { className: 'text-muted small' },
+          storageEnabled ? 'ブラウザに保存します' : '保存機能は利用できません'
+        )
+      )
     )
   );
 }
@@ -265,7 +552,7 @@ function LearningContent({ currentMode }) {
     'div',
     null,
     React.createElement('h5', { className: 'mb-3' }, '学習モード'),
-    React.createElement('p', null, '学習コンテンツはここに表示されます。')
+    React.createElement('p', null, '準備中')
   );
 }
 
@@ -284,16 +571,10 @@ function SettingsContent({ activePanel, onPanelChange }) {
         type: 'button',
         className: `btn btn-outline-secondary btn-sm ${activePanel === 'cuboid' ? 'active' : ''}`,
         onClick: () => onPanelChange('cuboid')
-      }, '立体図形'),
-      React.createElement('button', {
-        type: 'button',
-        className: `btn btn-outline-secondary btn-sm ${activePanel === 'user-presets' ? 'active' : ''}`,
-        onClick: () => onPanelChange('user-presets')
-      }, 'ユーザープリセット')
+      }, '立体図形')
     ),
     activePanel === 'display' && React.createElement(DisplaySettingsPanel, null),
-    activePanel === 'cuboid' && React.createElement(CuboidSettingsPanel, null),
-    activePanel === 'user-presets' && React.createElement(UserPresetsSettingsPanel, null)
+    activePanel === 'cuboid' && React.createElement(CuboidSettingsPanel, null)
   );
 }
 

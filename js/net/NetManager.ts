@@ -117,6 +117,10 @@ export class NetManager {
         else this.hide();
     }
 
+    isVisible() {
+        return this.container.style.display !== 'none';
+    }
+
     setResolver(resolver: any) {
         this.resolver = resolver;
     }

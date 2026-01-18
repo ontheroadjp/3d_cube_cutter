@@ -271,14 +271,15 @@ export class Cube {
     }
   }
 
-  resize(camera){
-    const aspect = innerWidth/innerHeight;
+  resize(camera, width = innerWidth, height = innerHeight){
+    const aspect = width / height;
     const padding = 5;
-    const newSize = this.size/2 + padding;
-    camera.left = -newSize*aspect;
-    camera.right = newSize*aspect;
-    camera.top = newSize;
-    camera.bottom = -newSize;
+    const baseSize = this.size / 2 + padding;
+    const verticalSize = aspect < 1 ? baseSize / aspect : baseSize;
+    camera.left = -verticalSize * aspect;
+    camera.right = verticalSize * aspect;
+    camera.top = verticalSize;
+    camera.bottom = -verticalSize;
     camera.updateProjectionMatrix();
   }
 
@@ -485,5 +486,15 @@ export class Cube {
 
   getSize() {
       return { ...this.edgeLengths };
+  }
+
+  setVisible(visible: boolean) {
+      if (this.cubeMesh) this.cubeMesh.visible = visible;
+      if (this.edgeLines) this.edgeLines.visible = visible;
+      this.vertexSprites.forEach(sprite => { sprite.visible = visible; });
+      this.edgeLabels.forEach(label => { label.visible = visible; });
+      this.faceLabels.forEach(label => { label.visible = visible; });
+      this.vertexMeshes.forEach(mesh => { mesh.visible = visible; });
+      this.edgeMeshes.forEach(mesh => { mesh.visible = visible; });
   }
 }

@@ -27,6 +27,7 @@ export class Cutter {
   cutPlane: THREE.Plane | null;
   outline: THREE.Line | null;
   debug: boolean;
+  visible: boolean;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -53,6 +54,7 @@ export class Cutter {
     this.cutPlane = null; // 切断面の平面情報
     this.outline = null;
     this.debug = false;
+    this.visible = true;
   }
 
   setDebug(debug: boolean) {
@@ -811,6 +813,16 @@ export class Cutter {
     if (this.removedMesh) {
         this.removedMesh.visible = visible;
     }
+  }
+
+  setVisible(visible: boolean) {
+    this.visible = !!visible;
+    if (this.resultMesh) this.resultMesh.visible = visible;
+    if (this.removedMesh) this.removedMesh.visible = visible;
+    if (this.cornerMarker) this.cornerMarker.visible = visible;
+    if (this.outline) this.outline.visible = visible;
+    this.vertexMarkers.forEach(marker => { marker.visible = visible; });
+    this.edgeHighlights.forEach(edge => { edge.visible = visible; });
   }
 
   reset() {

@@ -58,6 +58,8 @@ TypeScript 移行は完了しており、`dist/` を出力して動作させま�
 │  │  │  └─ plane_builder_spec.md
 │  │  ├─ net/
 │  │  │  └─ net_mapping_spec.md
+│  │  ├─ ui/
+│  │  │  └─ ui_spec.md
 │  │  └─ storage/
 │  │     └─ storage_adapter_spec.md
 │  ├─ testing/
@@ -97,6 +99,7 @@ TypeScript 移行は完了しており、`dist/` を出力して動作させま�
 | `docs/specs/geometry/index_map_spec.md` | indexMap の実装仕様 |
 | `docs/specs/cutter/cut_result_schema.md` | CutResult/交点のデータ仕様 |
 | `docs/specs/net/net_mapping_spec.md` | 展開図の構造マッピング仕様 |
+| `docs/specs/ui/ui_spec.md` | UIの現行仕様（サイドバー/設定/プリセット） |
 | `docs/specs/storage/storage_adapter_spec.md` | 保存アダプタ仕様 |
 | `docs/testing/verification_plan.md` | 検証計画 |
 | `docs/implementation_notes.md` | 現行実装ノート（移行向け） |

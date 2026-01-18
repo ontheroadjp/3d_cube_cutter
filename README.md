@@ -26,7 +26,8 @@ This application allows users to interactively define cut points on a cuboid and
     *   **Rotate:** Left-click drag
     *   **Zoom:** Mouse wheel / Pinch
     *   **Pan:** Right-click drag
-5.  **Settings Panel:** Use the top-left panel to reset, configure size, or toggle display options.
+7.  **Sidebar:** Use the left sidebar icons to open Preset/Learning/Settings panels.
+8.  **Actions:** Use the bottom sidebar buttons for Flip Cut, Net (unfold), and Reset.
 
 ## Tech Stack
 

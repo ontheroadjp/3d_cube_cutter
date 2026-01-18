@@ -5,6 +5,9 @@
 <title>立体切断シミュレーター v0.3</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 html, body { margin:0; width:100%; height:100%; overflow:hidden; }
 :root {
@@ -13,6 +16,15 @@ html, body { margin:0; width:100%; height:100%; overflow:hidden; }
     --ui-border: rgba(0,0,0,0.12);
     --ui-accent: #0d6efd;
     --ui-text: #212529;
+    --chat-bg: #f7f7f8;
+    --chat-panel: #ffffff;
+    --chat-border: #e5e5e5;
+    --chat-text: #202123;
+    --chat-muted: #6e6e80;
+    --chat-accent: #10a37f;
+    --chat-accent-soft: rgba(16,163,127,0.14);
+    --chat-danger: #d84a4a;
+    --chat-danger-soft: rgba(216,74,74,0.14);
 }
 #ui-container {
     position: absolute; top: 0; left: 0; width: 100%; z-index: 100;
@@ -21,10 +33,139 @@ html, body { margin:0; width:100%; height:100%; overflow:hidden; }
 .navbar {
     background: var(--ui-muted-bg) !important;
     border-bottom: 1px solid var(--ui-border);
+    position: fixed;
+    top: 0;
+    left: calc(var(--sidebar-width, 64px) + var(--panel-offset, 0px));
+    width: calc(100% - var(--sidebar-width, 64px) - var(--panel-offset, 0px));
+    transition: none;
 }
 /* New style for main content to make space for sidebar */
 body {
-    padding-left: 60px; /* Width of the narrow sidebar */
+    padding-left: 0;
+}
+.chatgpt-sidebar,
+.chatgpt-panel {
+    font-family: 'Manrope', 'Noto Sans JP', sans-serif;
+    color: var(--chat-text);
+}
+.chatgpt-sidebar {
+    background: var(--chat-bg);
+    border-right: 1px solid var(--chat-border);
+    box-shadow: 4px 0 10px rgba(0,0,0,0.04);
+    position: relative;
+    overflow: hidden;
+}
+.chatgpt-logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 2px 0 8px;
+    box-shadow: none;
+}
+.chatgpt-logo .chatgpt-icon {
+    width: 26px;
+    height: 26px;
+    color: #111111;
+}
+.chatgpt-panel {
+    background: var(--chat-panel);
+    border-right: 1px solid var(--chat-border);
+    box-shadow: 6px 0 14px rgba(0,0,0,0.04);
+    transition: transform 240ms ease-in-out, opacity 240ms ease-in-out;
+    padding-top: 4.6rem;
+}
+.chatgpt-panel-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    z-index: 5;
+}
+.chatgpt-panel .btn-outline-success {
+    margin-right: 44px;
+}
+.navbar.shadow-sm {
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04) !important;
+}
+.chatgpt-panel--open {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+}
+.chatgpt-panel--closed {
+    opacity: 0;
+    transform: translateX(-100%);
+    pointer-events: none;
+}
+.chatgpt-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: transparent;
+    border: 1px solid var(--chat-border);
+    color: var(--chat-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 160ms ease, color 160ms ease, transform 120ms ease, box-shadow 160ms ease;
+}
+.chatgpt-btn:hover {
+    background: #ececf1;
+    transform: translateY(-1px);
+}
+.chatgpt-btn--active {
+    background: var(--chat-accent);
+    color: #ffffff;
+    border-color: var(--chat-accent);
+    box-shadow: 0 10px 20px rgba(16,163,127,0.25);
+}
+.chatgpt-btn--soft {
+    background: var(--chat-accent-soft);
+    color: var(--chat-accent);
+    border-color: transparent;
+}
+.chatgpt-btn--soft:hover {
+    background: rgba(16,163,127,0.2);
+}
+.chatgpt-btn--danger {
+    background: var(--chat-danger-soft);
+    color: var(--chat-danger);
+    border-color: transparent;
+}
+.chatgpt-btn--danger:hover {
+    background: rgba(216,74,74,0.2);
+}
+.chatgpt-panel h5 {
+    font-size: 16px;
+    font-weight: 600;
+}
+.chatgpt-panel .small {
+    color: var(--chat-muted);
+}
+.chatgpt-panel .btn-group .btn {
+    border-color: var(--chat-border);
+    color: var(--chat-text);
+    font-size: 12px;
+    padding: 6px 10px;
+    background: #ffffff;
+}
+.chatgpt-panel .btn-group .btn.active {
+    background: #ececf1;
+    border-color: var(--chat-border);
+    color: var(--chat-text);
+    box-shadow: inset 0 0 0 1px var(--chat-border);
+}
+#ui-container {
+    pointer-events: none;
+}
+.navbar {
+    pointer-events: auto;
 }
 </style>
 </head>
