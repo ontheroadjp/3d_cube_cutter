@@ -161,8 +161,10 @@ class App {
             applyUserPreset: (id) => this.handleUserPresetApply(id),
             editUserPreset: (id) => this.handleUserPresetEdit(id),
             deleteUserPreset: (id) => this.handleUserPresetDelete(id),
-            configureVertexLabels: () => this.handleConfigureVertexLabelsClick(),
-            configureCube: () => this.handleConfigureClick(),
+            configureVertexLabels: (labels: string[]) => this.configureVertexLabelsFromReact(labels),
+            configureCube: (lx: number, ly: number, lz: number) => this.configureCubeFromDimensions(lx, ly, lz),
+            getCubeSize: () => this.cube.getSize(),
+            getVertexLabelMap: () => this.currentLabelMap, // Add this line
         };
         initReactApp();
         if (!this.useReactPresets) {
@@ -230,7 +232,7 @@ class App {
         // UI Manager Events (legacy fallback only)
         this.ui.onPresetChange(this.handlePresetChange.bind(this));
         this.ui.onConfigureClick(this.handleConfigureClick.bind(this));
-        this.ui.onConfigureVertexLabelsClick(this.handleConfigureVertexLabelsClick.bind(this));
+        // this.ui.onConfigureVertexLabelsClick(this.handleConfigureVertexLabelsClick.bind(this)); // REMOVE
         if (!this.useReactUserPresets) {
             this.ui.onSaveUserPresetClick(this.handleSaveUserPreset.bind(this));
             this.ui.onCancelUserPresetEdit(this.handleCancelUserPresetEdit.bind(this));
@@ -892,16 +894,24 @@ class App {
         }
     }
 
-    handleConfigureVertexLabelsClick() {
-        const defaultLabels = ['A','B','C','D','E','F','G','H'];
-        const input = prompt("頂点ラベルを8個入力（例: A,B,C,D,E,F,G,H）", defaultLabels.join(','));
-        if (!input) return;
-        const parts = input.includes(',')
-            ? input.split(',').map(p => p.trim()).filter(Boolean)
-            : input.split(/\s+/).map(p => p.trim()).filter(Boolean);
-        const labels = parts.length === 1 && parts[0].length === 8
-            ? parts[0].split('')
-            : parts;
+    configureCubeFromDimensions(lx: number, ly: number, lz: number) {
+        this.resetScene();
+        this.ui.resetToFreeSelectMode();
+        this.cube.createCube([lx, ly, lz]);
+        this.resolver.setSize(this.cube.getSize());
+        if (this.currentLabelMap) {
+            this.cube.setVertexLabelMap(this.currentLabelMap);
+            this.resolver.setLabelMap(this.currentLabelMap);
+        }
+        const mode = this.ui.getEdgeLabelMode();
+        this.cube.setEdgeLabelMode(mode);
+        this.selection.setEdgeLabelMode(mode);
+        const isTrans = this.ui.isTransparencyChecked();
+        this.cube.toggleTransparency(isTrans);
+        this.cutter.setTransparency(isTrans);
+    }
+
+    configureVertexLabelsFromReact(labels: string[]) {
         if (labels.length !== 8) {
             this.ui.showMessage("頂点ラベルは8個必要です。", "warning");
             return;
@@ -912,7 +922,7 @@ class App {
             return;
         }
         /** @type {Record<string, string>} */
-        const labelMap = {};
+        const labelMap: Record<string, string> = {};
         labels.forEach((label, index) => {
             labelMap[`V:${index}`] = label;
         });

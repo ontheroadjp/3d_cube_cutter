@@ -1,0 +1,17 @@
+feat: Redesign UI with a modern sidebar layout
+
+This commit completely redesigns the user interface from a top-bar-centric layout to a modern, icon-based vertical sidebar.
+
+The key changes include:
+- **New Sidebar Layout:** All major UI controls (mode switching, settings, actions) are consolidated into a new sidebar component (`SidePanel.ts`).
+- **Improved UX:** Replaced all `prompt()` dialogs for "Configure Cube" and "Configure Vertex Labels" with dedicated forms and a modal window, providing a much better user experience.
+- **Refactored UI Code:**
+  - UI components are now primarily managed within `js/ui/side_panel.ts`.
+  - Removed obsolete UI elements and styles from `index.html`.
+  - Cleaned up `js/ui/reactApp.ts` to act as a simple entry point for React components.
+  - Adjusted the interface between the core logic (`main.ts`) and the UI layer.
+- **Updated Tests:**
+  - Added new tests for the `SidePanel` components (`side_panel.test.js`) using `@testing-library/react`.
+  - Skipped obsolete tests in `react_app.test.js`.
+
+This new design provides a cleaner, more intuitive, and more scalable foundation for future features.

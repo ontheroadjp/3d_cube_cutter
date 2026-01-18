@@ -1,3 +1,9 @@
+export type UserPresetForm = {
+  name: string;
+  category: string;
+  description: string;
+};
+
 export type SnapPointID = string;
 
 export type Ratio = {
