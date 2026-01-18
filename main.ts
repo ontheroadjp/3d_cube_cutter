@@ -11,9 +11,11 @@ import { buildUserPresetState } from './js/presets/userPresetState.js';
 import { NoopStorageAdapter, IndexedDbStorageAdapter } from './js/storage/storageAdapter.js';
 import { generateExplanation } from './js/education/explanationGenerator.js';
 import { initReactApp } from './js/ui/reactApp.js';
-import type { DisplayState, LearningProblem, UserPresetState } from './js/types.js';
-import { parseSnapPointId } from './js/geometry/snapPointId.js';
-import { createLabel } from './js/utils.js';
+import { ObjectModelManager } from './js/model/objectModelManager.js';
+import type { CutFacePolygon, DisplayState, LearningProblem, UserPresetState } from './js/types.js';
+import type { ObjectNetState } from './js/model/objectModel.js';
+import { normalizeSnapPointId, parseSnapPointId } from './js/geometry/snapPointId.js';
+import { createLabel, createMarker } from './js/utils.js';
 
 const DEBUG = false;
 
@@ -68,35 +70,27 @@ class App {
     netManager: NetManager;
     selection: SelectionManager;
     presetManager: PresetManager;
+    objectModelManager: ObjectModelManager;
     currentMode: string;
     panelOpen: boolean;
     netUnfoldGroup: THREE.Group | null;
     netUnfoldState: 'closed' | 'opening' | 'open' | 'closing' | 'prescale' | 'postscale';
-    netUnfoldStart: number;
     netUnfoldDuration: number;
-    netUnfoldProgress: number;
     netUnfoldFaceDuration: number;
     netUnfoldStagger: number;
-    netCameraStartPos: THREE.Vector3 | null;
-    netCameraStartTarget: THREE.Vector3 | null;
-    netCameraEndPos: THREE.Vector3 | null;
-    netCameraEndTarget: THREE.Vector3 | null;
     defaultCameraPosition: THREE.Vector3;
     defaultCameraTarget: THREE.Vector3;
     netUnfoldFaces: Array<{
         pivot: THREE.Group;
         mesh: THREE.Mesh;
-        startRot: THREE.Euler;
-        endRot: THREE.Euler;
+        startQuat: THREE.Quaternion;
+        endQuat: THREE.Quaternion;
         delayIndex: number;
+        faceId?: string;
     }>;
-    netUnfoldScale: number;
-    netUnfoldScaleTarget: number;
-    netUnfoldTargetCenter: THREE.Vector3 | null;
     netUnfoldPreScaleDelay: number;
     netUnfoldPostScaleDelay: number;
     netUnfoldScaleReadyAt: number | null;
-    netUnfoldPositionTarget: THREE.Vector3 | null;
     layoutPanelOffset: number;
     layoutTargetPanelOffset: number;
     layoutTransitionStart: number;
@@ -121,25 +115,15 @@ class App {
         this.panelOpen = false;
         this.netUnfoldGroup = null;
         this.netUnfoldState = 'closed';
-        this.netUnfoldStart = 0;
         this.netUnfoldDuration = 800;
-        this.netUnfoldProgress = 0;
         this.netUnfoldFaceDuration = 700;
         this.netUnfoldStagger = 700;
-        this.netCameraStartPos = null;
-        this.netCameraStartTarget = null;
-        this.netCameraEndPos = null;
-        this.netCameraEndTarget = null;
         this.defaultCameraPosition = new THREE.Vector3(10, 5, 3);
         this.defaultCameraTarget = new THREE.Vector3(0, 0, 0);
         this.netUnfoldFaces = [];
-        this.netUnfoldScale = 1;
-        this.netUnfoldScaleTarget = 1;
-        this.netUnfoldTargetCenter = null;
         this.netUnfoldPreScaleDelay = 320;
         this.netUnfoldPostScaleDelay = 220;
         this.netUnfoldScaleReadyAt = null;
-        this.netUnfoldPositionTarget = null;
         this.layoutPanelOffset = 0;
         this.layoutTargetPanelOffset = 0;
         this.layoutTransitionStart = 0;
@@ -199,6 +183,14 @@ class App {
         this.netManager.setResolver(this.resolver);
         this.selection = new SelectionManager(this.scene, this.cube, this.ui, this.resolver);
         this.presetManager = new PresetManager(this.selection, this.cube, this.cutter, this.resolver);
+        this.objectModelManager = new ObjectModelManager({
+            cube: this.cube,
+            resolver: this.resolver,
+            ui: this.ui,
+            selection: this.selection
+        });
+        this.objectModelManager.build();
+        this.cutter.setEdgeHighlightColorResolver((edgeId: string) => this.objectModelManager.getEdgeHighlightColor(edgeId));
     }
 
     init() {
@@ -230,6 +222,7 @@ class App {
             getCubeSize: () => this.cube.getSize(),
             getVertexLabelMap: () => this.currentLabelMap, // Add this line
             setPanelOpen: (open: boolean) => this.handlePanelOpenChange(open),
+            getNetVisible: () => this.objectModelManager.getNetVisible()
         };
         initReactApp();
         if (!this.useReactPresets) {
@@ -246,14 +239,11 @@ class App {
     }
 
     setInitialState() {
-        this.cube.toggleTransparency(this.ui.isTransparencyChecked());
         this.cutter.setTransparency(this.ui.isTransparencyChecked());
-        this.cube.toggleVertexLabels(this.ui.isVertexLabelsChecked());
-        this.selection.toggleVertexLabels(this.ui.isVertexLabelsChecked());
-        this.cube.toggleFaceLabels(this.ui.isFaceLabelsChecked());
-        const initialEdgeMode = this.ui.getEdgeLabelMode();
-        this.cube.setEdgeLabelMode(initialEdgeMode);
-        this.selection.setEdgeLabelMode(initialEdgeMode);
+        const display = this.ui.getDisplayState();
+        this.objectModelManager.setDisplay(display);
+        this.objectModelManager.applyDisplayToView(display);
+        this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
     }
 
     createUserPresetStorage() {
@@ -322,8 +312,18 @@ class App {
         }
         this.cutter.toggleSurface(this.ui.isCutSurfaceChecked());
         this.cutter.togglePyramid(this.ui.isPyramidChecked());
-        this.netManager.update(this.cutter.getCutSegments(), this.cube, this.resolver);
-        this.selection.updateSplitLabels(this.cutter.getIntersectionRefs());
+        this.cutter.setCutPointsVisible(this.ui.isCutPointsChecked());
+        this.cutter.setCutLineColorize(this.ui.isCutLineColorChecked());
+        this.objectModelManager.syncCutState({
+            intersections: this.cutter.getIntersectionRefs(),
+            cutSegments: this.cutter.getCutSegments(),
+            facePolygons: this.cutter.getResultFacePolygons(),
+            faceAdjacency: this.cutter.getResultFaceAdjacency()
+        });
+        this.cutter.refreshEdgeHighlightColors();
+        this.cutter.updateCutPointMarkers(this.objectModelManager.resolveCutIntersectionPositions());
+        this.netManager.update(this.objectModelManager.getCutSegments(), this.cube, this.resolver);
+        this.selection.updateSplitLabels(this.objectModelManager.getCutIntersections());
         const explanation = generateExplanation({
             snapIds,
             outlineRefs: this.cutter.getOutlineRefs(),
@@ -338,13 +338,19 @@ class App {
         this.clearLearningLines();
         this.clearLearningPlane();
         this.clearLearningHints();
-        if (this.netUnfoldState !== 'closed') {
+        if (this.objectModelManager.getNetState().state !== 'closed') {
             this.clearNetUnfoldGroup();
             this.cube.setVisible(true);
+        }
+        this.objectModelManager.setNetVisible(false);
+        this.netManager.hide();
+        if (typeof globalThis.__setNetVisible === 'function') {
+            globalThis.__setNetVisible(false);
         }
         this.selection.reset();
         this.cutter.resetInversion();
         this.cutter.reset();
+        this.objectModelManager.clearCutIntersections();
         this.netManager.update([], this.cube, this.resolver);
         this.isCutExecuted = false;
         this.snappedPointInfo = null;
@@ -504,15 +510,16 @@ class App {
         const current = this.ui.getDisplayState();
         const next = { ...current, ...display };
         this.ui.applyDisplayState(next);
-        this.cube.toggleVertexLabels(next.showVertexLabels);
-        this.selection.toggleVertexLabels(next.showVertexLabels);
-        this.cube.toggleFaceLabels(next.showFaceLabels);
-        this.cube.setEdgeLabelMode(next.edgeLabelMode);
-        this.selection.setEdgeLabelMode(next.edgeLabelMode);
-        this.cutter.toggleSurface(next.showCutSurface);
-        this.cutter.togglePyramid(next.showPyramid);
-        this.cube.toggleTransparency(next.cubeTransparent);
+        this.objectModelManager.setDisplay(next);
+        this.objectModelManager.applyDisplayToView(next);
+        this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
         this.cutter.setTransparency(next.cubeTransparent);
+        this.updateNetOverlayDisplay(next);
+        this.updateNetLabelDisplay(next);
+        if (this.objectModelManager.getNetState().state !== 'closed') {
+            this.cube.setVisible(false);
+            this.cutter.setVisible(false);
+        }
         if (typeof globalThis.__setDisplayState === 'function') {
             globalThis.__setDisplayState(next);
         }
@@ -526,12 +533,14 @@ class App {
         if (size && typeof size.lx === 'number' && typeof size.ly === 'number' && typeof size.lz === 'number') {
             this.cube.createCube([size.lx, size.ly, size.lz]);
             this.resolver.setSize(this.cube.getSize());
+            this.objectModelManager.syncFromCube();
         }
 
         const labelMap = state.cube ? state.cube.labelMap : null;
         this.currentLabelMap = labelMap || null;
         this.cube.setVertexLabelMap(this.currentLabelMap);
         this.resolver.setLabelMap(this.currentLabelMap);
+        this.objectModelManager.syncFromCube();
 
         this.applyDisplayState(state.display || {});
         if (typeof globalThis.__setDisplayState === 'function') {
@@ -549,8 +558,16 @@ class App {
             this.executeCut();
             if (state.cut && state.cut.result) {
                 this.cutter.applyCutResultMeta(state.cut.result, this.resolver);
-                this.netManager.update(this.cutter.getCutSegments(), this.cube, this.resolver);
-                this.selection.updateSplitLabels(this.cutter.getIntersectionRefs());
+                this.objectModelManager.syncCutState({
+                    intersections: this.cutter.getIntersectionRefs(),
+                    cutSegments: this.cutter.getCutSegments(),
+                    facePolygons: this.cutter.getResultFacePolygons(),
+                    faceAdjacency: this.cutter.getResultFaceAdjacency()
+                });
+                this.cutter.refreshEdgeHighlightColors();
+                this.cutter.updateCutPointMarkers(this.objectModelManager.resolveCutIntersectionPositions());
+                this.netManager.update(this.objectModelManager.getCutSegments(), this.cube, this.resolver);
+                this.selection.updateSplitLabels(this.objectModelManager.getCutIntersections());
                 const explanation = generateExplanation({
                     snapIds,
                     outlineRefs: this.cutter.getOutlineRefs(),
@@ -713,8 +730,8 @@ class App {
     updateNetUnfoldScale() {
         if (!this.netUnfoldGroup) return;
         const originalScale = this.netUnfoldGroup.scale.clone();
-        const originalRotations = this.netUnfoldFaces.map(face => face.pivot.rotation.clone());
-        this.netUnfoldFaces.forEach(face => face.pivot.rotation.copy(face.endRot));
+        const originalQuats = this.netUnfoldFaces.map(face => face.pivot.quaternion.clone());
+        this.netUnfoldFaces.forEach(face => face.pivot.quaternion.copy(face.endQuat));
         this.netUnfoldGroup.scale.setScalar(1);
         this.netUnfoldGroup.updateMatrixWorld(true);
         const box = new THREE.Box3().setFromObject(this.netUnfoldGroup);
@@ -722,16 +739,21 @@ class App {
         box.getCenter(center);
         const size = new THREE.Vector3();
         box.getSize(size);
-        this.netUnfoldFaces.forEach((face, idx) => face.pivot.rotation.copy(originalRotations[idx]));
+        this.netUnfoldFaces.forEach((face, idx) => face.pivot.quaternion.copy(originalQuats[idx]));
         this.netUnfoldGroup.scale.copy(originalScale);
         this.netUnfoldGroup.updateMatrixWorld(true);
         const viewWidth = this.camera.right - this.camera.left;
         const viewHeight = this.camera.top - this.camera.bottom;
         if (size.x <= 0 || size.y <= 0) return;
         const scale = Math.min(viewWidth / size.x, viewHeight / size.y) * 0.85;
-        this.netUnfoldScaleTarget = Math.min(1, scale);
-        this.netUnfoldTargetCenter = center;
-        this.netUnfoldPositionTarget = new THREE.Vector3(-center.x, -center.y, 0);
+        const scaleTarget = Math.min(1, scale);
+        const targetCenter = center;
+        const positionTarget = new THREE.Vector3(-center.x, -center.y, 0);
+        this.setNetAnimationState({
+            scaleTarget,
+            targetCenter,
+            positionTarget
+        });
     }
 
     handlePanelOpenChange(open: boolean) {
@@ -783,6 +805,8 @@ class App {
         this.cutter.toggleSurface(this.ui.isCutSurfaceChecked());
         this.cutter.togglePyramid(this.ui.isPyramidChecked());
         this.cutter.setTransparency(this.ui.isTransparencyChecked());
+        this.cutter.setCutPointsVisible(this.ui.isCutPointsChecked());
+        this.cutter.setCutLineColorize(this.ui.isCutLineColorChecked());
         this.selection.toggleVertexLabels(this.ui.isVertexLabelsChecked());
     }
 
@@ -1004,13 +1028,12 @@ class App {
             this.ui.resetToFreeSelectMode();
             this.cube.createCube([lx, ly, lz]);
             this.resolver.setSize(this.cube.getSize());
+            this.objectModelManager.syncFromCube();
             if (this.currentLabelMap) {
                 this.cube.setVertexLabelMap(this.currentLabelMap);
                 this.resolver.setLabelMap(this.currentLabelMap);
             }
-            const mode = this.ui.getEdgeLabelMode();
-            this.cube.setEdgeLabelMode(mode);
-            this.selection.setEdgeLabelMode(mode);
+            this.objectModelManager.applyDisplayToView(this.ui.getDisplayState());
             const isTrans = this.ui.isTransparencyChecked();
             this.cube.toggleTransparency(isTrans);
             this.cutter.setTransparency(isTrans);
@@ -1022,13 +1045,12 @@ class App {
         this.ui.resetToFreeSelectMode();
         this.cube.createCube([lx, ly, lz]);
         this.resolver.setSize(this.cube.getSize());
+        this.objectModelManager.syncFromCube();
         if (this.currentLabelMap) {
             this.cube.setVertexLabelMap(this.currentLabelMap);
             this.resolver.setLabelMap(this.currentLabelMap);
         }
-        const mode = this.ui.getEdgeLabelMode();
-        this.cube.setEdgeLabelMode(mode);
-        this.selection.setEdgeLabelMode(mode);
+        this.objectModelManager.applyDisplayToView(this.ui.getDisplayState());
         const isTrans = this.ui.isTransparencyChecked();
         this.cube.toggleTransparency(isTrans);
         this.cutter.setTransparency(isTrans);
@@ -1052,7 +1074,8 @@ class App {
         this.currentLabelMap = labelMap;
         this.cube.setVertexLabelMap(labelMap);
         this.resolver.setLabelMap(labelMap);
-        this.selection.toggleVertexLabels(this.ui.isVertexLabelsChecked());
+        this.objectModelManager.syncFromCube();
+        this.objectModelManager.applyDisplayToView(this.ui.getDisplayState());
     }
 
     handleCancelUserPresetEdit() {
@@ -1126,6 +1149,15 @@ class App {
     }
 
     buildNetUnfoldGroup() {
+        const cutFaces = this.isCutExecuted ? this.objectModelManager.getCutFacePolygons() : [];
+        if (cutFaces.length) {
+            this.buildCutNetUnfoldGroup(cutFaces, this.objectModelManager.getCutFaceAdjacency());
+            return;
+        }
+        this.buildCubeNetUnfoldGroup();
+    }
+
+    buildCubeNetUnfoldGroup() {
         const { lx, ly, lz } = this.cube.getSize();
         const group = new THREE.Group();
         const material = new THREE.MeshPhongMaterial({
@@ -1169,20 +1201,24 @@ class App {
         };
 
         const addPivotFace = (
+            faceId: string,
             pivot: THREE.Group,
             mesh: THREE.Mesh,
             startRot: THREE.Euler,
             endRot: THREE.Euler,
             delayIndex: number
         ) => {
-            pivot.rotation.copy(startRot);
+            const startQuat = new THREE.Quaternion().setFromEuler(startRot);
+            const endQuat = new THREE.Quaternion().setFromEuler(endRot);
+            pivot.quaternion.copy(startQuat);
             group.add(pivot);
             faces.push({
                 pivot,
                 mesh,
-                startRot,
-                endRot,
-                delayIndex
+                startQuat,
+                endQuat,
+                delayIndex,
+                faceId
             });
         };
 
@@ -1199,7 +1235,7 @@ class App {
         rightPivot.add(right);
         addFaceLabels(right, lz, ly, 'Right', [1, 2, 6, 5]);
         addFaceOutline(right);
-        addPivotFace(rightPivot, right, new THREE.Euler(0, -Math.PI / 2, 0), new THREE.Euler(0, 0, 0), 0);
+        addPivotFace('F:1265', rightPivot, right, new THREE.Euler(0, -Math.PI / 2, 0), new THREE.Euler(0, 0, 0), 0);
 
         const leftPivot = new THREE.Group();
         leftPivot.position.set(-lx / 2, 0, 0);
@@ -1208,7 +1244,7 @@ class App {
         leftPivot.add(left);
         addFaceLabels(left, lz, ly, 'Left', [4, 7, 3, 0]);
         addFaceOutline(left);
-        addPivotFace(leftPivot, left, new THREE.Euler(0, Math.PI / 2, 0), new THREE.Euler(0, 0, 0), 3);
+        addPivotFace('F:0473', leftPivot, left, new THREE.Euler(0, Math.PI / 2, 0), new THREE.Euler(0, 0, 0), 3);
 
         const topPivot = new THREE.Group();
         topPivot.position.set(0, ly / 2, 0);
@@ -1218,7 +1254,7 @@ class App {
         topPivot.add(top);
         addFaceLabels(top, lx, lz, 'Top', [3, 2, 6, 7]);
         addFaceOutline(top);
-        addPivotFace(topPivot, top, new THREE.Euler(Math.PI / 2, 0, 0), new THREE.Euler(0, 0, 0), 1);
+        addPivotFace('F:4567', topPivot, top, new THREE.Euler(Math.PI / 2, 0, 0), new THREE.Euler(0, 0, 0), 1);
 
         const bottomPivot = new THREE.Group();
         bottomPivot.position.set(0, -ly / 2, 0);
@@ -1228,7 +1264,7 @@ class App {
         bottomPivot.add(bottom);
         addFaceLabels(bottom, lx, lz, 'Bottom', [0, 1, 5, 4]);
         addFaceOutline(bottom);
-        addPivotFace(bottomPivot, bottom, new THREE.Euler(-Math.PI / 2, 0, 0), new THREE.Euler(0, 0, 0), 2);
+        addPivotFace('F:0321', bottomPivot, bottom, new THREE.Euler(-Math.PI / 2, 0, 0), new THREE.Euler(0, 0, 0), 2);
 
         const backPivot = new THREE.Group();
         backPivot.position.set(lz, 0, 0);
@@ -1241,9 +1277,10 @@ class App {
         faces.push({
             pivot: backPivot,
             mesh: back,
-            startRot: new THREE.Euler(0, -Math.PI / 2, 0),
-            endRot: new THREE.Euler(0, 0, 0),
-            delayIndex: 4
+            startQuat: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0)),
+            endQuat: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0)),
+            delayIndex: 4,
+            faceId: 'F:2376'
         });
 
         this.netUnfoldGroup = group;
@@ -1251,6 +1288,534 @@ class App {
         const maxDelay = Math.max(...faces.map(face => face.delayIndex));
         this.netUnfoldDuration = this.netUnfoldFaceDuration + maxDelay * this.netUnfoldStagger;
         this.scene.add(group);
+        this.syncNetModelState();
+    }
+
+    updateNetOverlayDisplay(display: DisplayState) {
+        if (!this.netUnfoldGroup) return;
+        const showPoints = !!display.showCutPoints;
+        const colorizeLines = !!display.colorizeCutLines;
+        this.netUnfoldGroup.traverse((obj) => {
+            const type = obj.userData && obj.userData.type;
+            if (type === 'net-cut-point') {
+                obj.visible = showPoints;
+            }
+            if (type === 'net-cut-line' && obj instanceof THREE.Line) {
+                const material = obj.material;
+                const highlightColor = obj.userData ? obj.userData.highlightColor : null;
+                const defaultColor = obj.userData ? obj.userData.defaultColor : null;
+                if (material instanceof THREE.LineBasicMaterial) {
+                    const color = colorizeLines && typeof highlightColor === 'number'
+                        ? highlightColor
+                        : (typeof defaultColor === 'number' ? defaultColor : 0x333333);
+                    material.color.setHex(color);
+                    material.needsUpdate = true;
+                }
+                obj.visible = true;
+            }
+        });
+    }
+
+    updateNetLabelDisplay(display: DisplayState) {
+        if (!this.netUnfoldGroup) return;
+        this.netUnfoldGroup.traverse((obj) => {
+            const type = obj.userData && obj.userData.type;
+            if (type === 'net-face-label') {
+                obj.visible = !!display.showFaceLabels;
+            }
+            if (type === 'net-vertex-label') {
+                obj.visible = !!display.showVertexLabels;
+            }
+        });
+    }
+
+    applyNetStateFromModel() {
+        const state = this.objectModelManager.getNetState();
+        if (!state) return;
+        this.netUnfoldState = state.state;
+        this.netUnfoldDuration = state.duration;
+        this.netUnfoldFaceDuration = state.faceDuration;
+        this.netUnfoldStagger = state.stagger;
+        this.netUnfoldPreScaleDelay = state.preScaleDelay;
+        this.netUnfoldPostScaleDelay = state.postScaleDelay;
+    }
+
+    setNetAnimationState(partial: {
+        state?: ObjectNetState['state'];
+        progress?: number;
+        duration?: number;
+        faceDuration?: number;
+        stagger?: number;
+        scale?: number;
+        scaleTarget?: number;
+        startAt?: number;
+        targetCenter?: THREE.Vector3 | null;
+        positionTarget?: THREE.Vector3 | null;
+        preScaleDelay?: number;
+        postScaleDelay?: number;
+        camera?: {
+            startPos: THREE.Vector3 | null;
+            startTarget: THREE.Vector3 | null;
+            endPos: THREE.Vector3 | null;
+            endTarget: THREE.Vector3 | null;
+        };
+    }) {
+        const current = this.objectModelManager.getNetState();
+        this.objectModelManager.syncNetState({
+            animation: {
+                ...current,
+                ...partial
+            }
+        });
+        this.applyNetStateFromModel();
+    }
+
+    syncNetModelState() {
+        const faces = this.netUnfoldFaces.map(face => ({
+            faceId: face.faceId,
+            delayIndex: face.delayIndex
+        }));
+        const current = this.objectModelManager.getNetState();
+        const animation = {
+            state: current.state,
+            progress: current.progress,
+            duration: this.netUnfoldDuration,
+            faceDuration: this.netUnfoldFaceDuration,
+            stagger: this.netUnfoldStagger,
+            scale: current.scale,
+            scaleTarget: current.scaleTarget,
+            startAt: current.startAt,
+            targetCenter: current.targetCenter ? current.targetCenter.clone() : null,
+            positionTarget: current.positionTarget ? current.positionTarget.clone() : null,
+            preScaleDelay: this.netUnfoldPreScaleDelay,
+            postScaleDelay: this.netUnfoldPostScaleDelay,
+            camera: current.camera
+        };
+        this.objectModelManager.syncNetState({ faces, animation });
+        this.applyNetStateFromModel();
+    }
+
+    buildCutNetUnfoldGroup(polygons: CutFacePolygon[], adjacency: Array<{ a: string; b: string; sharedEdge: [THREE.Vector3, THREE.Vector3] }>) {
+        const group = new THREE.Group();
+        const faces = [];
+        const faceMap = new Map<string, CutFacePolygon>();
+        polygons.forEach(face => {
+            if (face && face.faceId) faceMap.set(face.faceId, face);
+        });
+        if (!faceMap.size) return;
+
+        const computeNormal = (face: CutFacePolygon) => {
+            const normal = face.normal as THREE.Vector3 | undefined;
+            if (normal instanceof THREE.Vector3) return normal.clone().normalize();
+            const verts = face.vertices as THREE.Vector3[];
+            if (!verts || verts.length < 3) return new THREE.Vector3(0, 0, 1);
+            const v0 = verts[0];
+            const v1 = verts[1];
+            const v2 = verts[2];
+            return new THREE.Vector3().crossVectors(
+                new THREE.Vector3().subVectors(v1, v0),
+                new THREE.Vector3().subVectors(v2, v0)
+            ).normalize();
+        };
+
+        const { lx, ly, lz } = this.cube.getSize();
+        const faceSpecs = [
+            { faceId: 'F:0154', name: 'Front', corners: [4, 5, 6, 7], width: lx, height: ly },
+            { faceId: 'F:1265', name: 'Right', corners: [1, 2, 6, 5], width: lz, height: ly },
+            { faceId: 'F:0473', name: 'Left', corners: [4, 7, 3, 0], width: lz, height: ly },
+            { faceId: 'F:4567', name: 'Top', corners: [3, 2, 6, 7], width: lx, height: lz },
+            { faceId: 'F:0321', name: 'Bottom', corners: [0, 1, 5, 4], width: lx, height: lz },
+            { faceId: 'F:2376', name: 'Back', corners: [1, 0, 3, 2], width: lx, height: ly }
+        ];
+        const cubeFaceNames = new Map(faceSpecs.map(spec => [spec.faceId, spec.name]));
+        const cubeFaceCandidates = faceSpecs
+            .map(spec => {
+                const cornerPositions = spec.corners
+                    .map(index => this.resolver.resolveVertex(`V:${index}`))
+                    .filter((pos): pos is THREE.Vector3 => pos instanceof THREE.Vector3);
+                if (cornerPositions.length !== 4) return null;
+                const center = cornerPositions.reduce((acc, v) => acc.add(v), new THREE.Vector3())
+                    .divideScalar(cornerPositions.length);
+                const basisU = cornerPositions[1].clone().sub(cornerPositions[0]).normalize();
+                const basisV = cornerPositions[3].clone().sub(cornerPositions[0]).normalize();
+                const normal = new THREE.Vector3().crossVectors(basisU, basisV).normalize();
+                return {
+                    faceId: spec.faceId,
+                    name: spec.name,
+                    normal,
+                    center,
+                    basisU,
+                    basisV,
+                    width: spec.width,
+                    height: spec.height
+                };
+            })
+            .filter(Boolean) as Array<{
+                faceId: string;
+                name: string;
+                normal: THREE.Vector3;
+                center: THREE.Vector3;
+                basisU: THREE.Vector3;
+                basisV: THREE.Vector3;
+                width: number;
+                height: number;
+            }>;
+
+        const matchSourceFaceId = (face: CutFacePolygon) => {
+            if (face.type !== 'original') return null;
+            const verts = face.vertices as THREE.Vector3[];
+            if (!verts || verts.length < 3) return null;
+            const center = verts.reduce((acc, v) => acc.add(v), new THREE.Vector3()).divideScalar(verts.length);
+            const normal = computeNormal(face);
+            let best: { faceId: string; name: string; score: number } | null = null;
+            cubeFaceCandidates.forEach(candidate => {
+                const dot = Math.abs(normal.dot(candidate.normal));
+                if (dot < 0.9) return;
+                const dist = center.distanceTo(candidate.center);
+                const score = dot * 10 - dist;
+                if (!best || score > best.score) {
+                    best = { faceId: candidate.faceId, name: candidate.name, score };
+                }
+            });
+            return best;
+        };
+
+        const facePolygonsBySource = new Map<string, { polygon: CutFacePolygon; area: number }>();
+        const computeAreaForFace = (faceId: string, verts: THREE.Vector3[]) => {
+            const frame = cubeFaceCandidates.find(candidate => candidate.faceId === faceId);
+            if (!frame || verts.length < 3) return 0;
+            let area = 0;
+            for (let i = 0; i < verts.length; i++) {
+                const next = verts[(i + 1) % verts.length];
+                const current = verts[i];
+                const currentVec = current.clone().sub(frame.center);
+                const nextVec = next.clone().sub(frame.center);
+                const x1 = currentVec.dot(frame.basisU);
+                const y1 = currentVec.dot(frame.basisV);
+                const x2 = nextVec.dot(frame.basisU);
+                const y2 = nextVec.dot(frame.basisV);
+                area += x1 * y2 - x2 * y1;
+            }
+            return Math.abs(area) * 0.5;
+        };
+        polygons.forEach(face => {
+            const match = matchSourceFaceId(face);
+            if (!match) return;
+            const verts = face.vertices as THREE.Vector3[];
+            const area = computeAreaForFace(match.faceId, verts || []);
+            const current = facePolygonsBySource.get(match.faceId);
+            if (!current || area > current.area) {
+                face.sourceFaceId = match.faceId;
+                facePolygonsBySource.set(match.faceId, { polygon: face, area });
+            }
+        });
+
+        const buildPolygonGeometry = (vertices: THREE.Vector3[]) => {
+            const geometry = new THREE.BufferGeometry();
+            if (vertices.length < 3) return geometry;
+            const contour = vertices.map(v => new THREE.Vector2(v.x, v.y));
+            const triangles = THREE.ShapeUtils.triangulateShape(contour, []);
+            const positions = [];
+            triangles.forEach(([a, b, c]) => {
+                const v1 = vertices[a];
+                const v2 = vertices[b];
+                const v3 = vertices[c];
+                positions.push(v1.x, v1.y, v1.z, v2.x, v2.y, v2.z, v3.x, v3.y, v3.z);
+            });
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.computeVertexNormals();
+            return geometry;
+        };
+
+        const projectToFacePlane = (vertex: THREE.Vector3, faceId: string) => {
+            const frame = cubeFaceCandidates.find(candidate => candidate.faceId === faceId);
+            if (!frame) return new THREE.Vector3();
+            const vec = vertex.clone().sub(frame.center);
+            const u = vec.dot(frame.basisU);
+            const v = vec.dot(frame.basisV);
+            return new THREE.Vector3(u, v, 0);
+        };
+
+        const addFaceOutline = (mesh: THREE.Mesh) => {
+            const edges = new THREE.EdgesGeometry(mesh.geometry as THREE.BufferGeometry);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x222222 }));
+            line.position.set(0, 0, 0.05);
+            mesh.add(line);
+        };
+
+        const createFaceMesh = (faceId: string, color: number) => {
+            const entry = facePolygonsBySource.get(faceId);
+            const polygon = entry ? entry.polygon : null;
+            const frame = cubeFaceCandidates.find(candidate => candidate.faceId === faceId);
+            if (!polygon || !frame) return null;
+            const verts = (polygon.vertices as THREE.Vector3[] || []).map(v => projectToFacePlane(v, faceId));
+            if (verts.length < 3) return null;
+            const geometry = buildPolygonGeometry(verts);
+            const material = new THREE.MeshBasicMaterial({
+                color,
+                transparent: true,
+                opacity: 0.7,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+                depthTest: true
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.userData.faceId = faceId;
+            mesh.userData.faceType = polygon.type;
+            addFaceOutline(mesh);
+            const center = verts.reduce((acc, v) => acc.add(v), new THREE.Vector3()).divideScalar(verts.length);
+            const label = createLabel(frame.name, this.cube.size / 10, 'rgba(0,0,0,0.6)');
+            label.position.copy(center);
+            label.position.z += 0.06;
+            label.userData.type = 'net-face-label';
+            label.visible = this.ui.isFaceLabelsChecked();
+            mesh.add(label);
+            const vertexCandidates: Array<{ label: string; position: THREE.Vector3 }> = [];
+            for (let i = 0; i < 8; i++) {
+                const pos = this.resolver.resolveVertex(`V:${i}`);
+                if (!pos) continue;
+                const label = this.cube.getDisplayLabelByIndex(i);
+                if (!label) continue;
+                vertexCandidates.push({ label, position: pos.clone() });
+            }
+            const findVertexLabel = (pos: THREE.Vector3) => {
+                const epsilon = 1e-2;
+                for (const candidate of vertexCandidates) {
+                    if (candidate.position.distanceTo(pos) <= epsilon) return candidate.label;
+                }
+                return null;
+            };
+            const usedLabels = new Set<string>();
+            (polygon.vertices as THREE.Vector3[] || []).forEach((world, i) => {
+                const label = findVertexLabel(world);
+                if (!label || usedLabels.has(label)) return;
+                usedLabels.add(label);
+                const sprite = createLabel(label, this.cube.size / 14, 'rgba(0,0,0,0.75)');
+                const localPos = verts[i] || center;
+                sprite.position.copy(localPos);
+                sprite.position.z += 0.06;
+                sprite.userData.type = 'net-vertex-label';
+                sprite.visible = this.ui.isVertexLabelsChecked();
+                mesh.add(sprite);
+            });
+            return mesh;
+        };
+
+        const pivotMap = new Map<string, THREE.Group>();
+        const addPivot = (
+            faceId: string,
+            pivot: THREE.Group,
+            mesh: THREE.Mesh | null,
+            startEuler: THREE.Euler,
+            endEuler: THREE.Euler,
+            delayIndex: number,
+            parent?: THREE.Group
+        ) => {
+            if (!mesh) return;
+            pivot.quaternion.copy(new THREE.Quaternion().setFromEuler(startEuler));
+            pivot.add(mesh);
+            if (parent) {
+                parent.add(pivot);
+            } else {
+                group.add(pivot);
+            }
+            pivotMap.set(faceId, pivot);
+            faces.push({
+                pivot,
+                mesh,
+                startQuat: new THREE.Quaternion().setFromEuler(startEuler),
+                endQuat: new THREE.Quaternion().setFromEuler(endEuler),
+                delayIndex,
+                faceId
+            });
+        };
+
+        const faceColor = () => 0x66ccff;
+
+        const frontMesh = createFaceMesh('F:0154', faceColor());
+        if (frontMesh) {
+            group.add(frontMesh);
+            faces.push({
+                pivot: group,
+                mesh: frontMesh,
+                startQuat: new THREE.Quaternion(),
+                endQuat: new THREE.Quaternion(),
+                delayIndex: 0,
+                faceId: 'F:0154'
+            });
+        }
+
+        const rightPivot = new THREE.Group();
+        rightPivot.position.set(lx / 2, 0, 0);
+        const rightMesh = createFaceMesh('F:1265', faceColor());
+        if (rightMesh) rightMesh.position.set(lz / 2, 0, 0);
+        addPivot('F:1265', rightPivot, rightMesh, new THREE.Euler(0, -Math.PI / 2, 0), new THREE.Euler(0, 0, 0), 1, group);
+
+        const leftPivot = new THREE.Group();
+        leftPivot.position.set(-lx / 2, 0, 0);
+        const leftMesh = createFaceMesh('F:0473', faceColor());
+        if (leftMesh) leftMesh.position.set(-lz / 2, 0, 0);
+        addPivot('F:0473', leftPivot, leftMesh, new THREE.Euler(0, Math.PI / 2, 0), new THREE.Euler(0, 0, 0), 4, group);
+
+        const topPivot = new THREE.Group();
+        topPivot.position.set(0, ly / 2, 0);
+        const topMesh = createFaceMesh('F:4567', faceColor());
+        if (topMesh) {
+            topMesh.position.set(0, lz / 2, 0);
+            topMesh.rotation.set(Math.PI, 0, 0);
+        }
+        addPivot('F:4567', topPivot, topMesh, new THREE.Euler(Math.PI / 2, 0, 0), new THREE.Euler(0, 0, 0), 2, group);
+
+        const bottomPivot = new THREE.Group();
+        bottomPivot.position.set(0, -ly / 2, 0);
+        const bottomMesh = createFaceMesh('F:0321', faceColor());
+        if (bottomMesh) {
+            bottomMesh.position.set(0, -lz / 2, 0);
+            bottomMesh.rotation.set(Math.PI, 0, 0);
+        }
+        addPivot('F:0321', bottomPivot, bottomMesh, new THREE.Euler(-Math.PI / 2, 0, 0), new THREE.Euler(0, 0, 0), 3, group);
+
+        const backPivot = new THREE.Group();
+        backPivot.position.set(lz, 0, 0);
+        const backMesh = createFaceMesh('F:2376', faceColor());
+        if (backMesh) backMesh.position.set(lx / 2, 0, 0);
+        addPivot('F:2376', backPivot, backMesh, new THREE.Euler(0, -Math.PI / 2, 0), new THREE.Euler(0, 0, 0), 5, rightPivot);
+
+        const cutFace = polygons.find(face => face.type === 'cut');
+        if (cutFace) {
+            const cutSegments = this.objectModelManager.getCutSegments();
+            const edgeLengthsByFace = new Map<string, { length: number; edge: { start: THREE.Vector3; end: THREE.Vector3 } }>();
+            cutSegments.forEach(seg => {
+                if (!seg.faceIds || !seg.faceIds.length) return;
+                seg.faceIds.forEach(faceId => {
+                    const length = seg.start.distanceTo(seg.end);
+                    if (!edgeLengthsByFace.has(faceId) || (edgeLengthsByFace.get(faceId)?.length || 0) < length) {
+                        edgeLengthsByFace.set(faceId, { length, edge: { start: seg.start.clone(), end: seg.end.clone() } });
+                    }
+                });
+            });
+            let targetFaceId: string | null = null;
+            let bestLength = -Infinity;
+            edgeLengthsByFace.forEach((meta, faceId) => {
+                if (!cubeFaceNames.has(faceId)) return;
+                if (meta.length > bestLength) {
+                    bestLength = meta.length;
+                    targetFaceId = faceId;
+                }
+            });
+            if (targetFaceId) {
+                const frame = cubeFaceCandidates.find(candidate => candidate.faceId === targetFaceId);
+                const pivot = pivotMap.get(targetFaceId);
+                const edge = edgeLengthsByFace.get(targetFaceId)?.edge;
+                if (frame && pivot && edge) {
+                    const cutNormal = computeNormal(cutFace);
+                    const targetNormal = frame.normal;
+                    const axis = edge.end.clone().sub(edge.start).normalize();
+                    const dot = THREE.MathUtils.clamp(cutNormal.dot(targetNormal), -1, 1);
+                    const angle = Math.acos(dot);
+                    const cross = new THREE.Vector3().crossVectors(cutNormal, targetNormal);
+                    const sign = cross.dot(axis) >= 0 ? 1 : -1;
+                    const quat = new THREE.Quaternion().setFromAxisAngle(axis, sign * angle);
+                    const rotatedVerts = (cutFace.vertices as THREE.Vector3[] || [])
+                        .map(v => v.clone().sub(edge.start).applyQuaternion(quat).add(edge.start));
+                    const localVerts = rotatedVerts.map(v => projectToFacePlane(v, targetFaceId as string));
+                    if (localVerts.length >= 3) {
+                        const geometry = buildPolygonGeometry(localVerts);
+                        const material = new THREE.MeshBasicMaterial({
+                            color: 0xffc4c4,
+                            transparent: false,
+                            opacity: 1.0,
+                            side: THREE.DoubleSide,
+                            depthWrite: true,
+                            depthTest: true
+                        });
+                        const mesh = new THREE.Mesh(geometry, material);
+                        addFaceOutline(mesh);
+                        const center = localVerts.reduce((acc, v) => acc.add(v), new THREE.Vector3()).divideScalar(localVerts.length);
+                        const label = createLabel('Cut', this.cube.size / 10, 'rgba(0,0,0,0.6)');
+                        label.position.copy(center);
+                        label.position.z += 0.06;
+                        label.userData.type = 'net-face-label';
+                        label.visible = this.ui.isFaceLabelsChecked();
+                        mesh.add(label);
+                        pivot.add(mesh);
+                    }
+                }
+            }
+        }
+
+        const structure = this.cube.getStructure ? this.cube.getStructure() : null;
+        const modelIntersections = this.objectModelManager.getCutIntersections();
+        if (structure && structure.edgeMap) {
+            const edgeHighlightMeta = new Map<string, { hasMidpoint: boolean }>();
+            modelIntersections.forEach(ref => {
+                const parsed = normalizeSnapPointId(parseSnapPointId(ref.id));
+                if (!parsed) return;
+                if (parsed.type === 'edge') {
+                    const edgeId = `E:${parsed.edgeIndex}`;
+                    const isMidpoint = parsed.ratio ? parsed.ratio.numerator * 2 === parsed.ratio.denominator : false;
+                    if (!edgeHighlightMeta.has(edgeId)) edgeHighlightMeta.set(edgeId, { hasMidpoint: false });
+                    if (isMidpoint) edgeHighlightMeta.get(edgeId)!.hasMidpoint = true;
+                } else if (parsed.type === 'vertex' && structure.vertexMap) {
+                    const vertex = structure.vertexMap.get(`V:${parsed.vertexIndex}`);
+                    if (vertex && vertex.edges) {
+                        vertex.edges.forEach(edgeId => {
+                            if (!edgeHighlightMeta.has(edgeId)) edgeHighlightMeta.set(edgeId, { hasMidpoint: false });
+                        });
+                    }
+                }
+            });
+            const colorize = this.ui.isCutLineColorChecked();
+            edgeHighlightMeta.forEach((meta, edgeId) => {
+                const resolved = this.resolver.resolveEdge(edgeId);
+                const edge = structure.edgeMap.get(edgeId);
+                if (!resolved || !edge) return;
+                const targetFaceId = edge.faces.find(faceId => pivotMap.has(faceId));
+                if (!targetFaceId) return;
+                const pivot = pivotMap.get(targetFaceId);
+                if (!pivot) return;
+                const startFlat = projectToFacePlane(resolved.start, targetFaceId);
+                const endFlat = projectToFacePlane(resolved.end, targetFaceId);
+                const geometry = new THREE.BufferGeometry().setFromPoints([startFlat, endFlat]);
+                const highlightColor = this.objectModelManager.getEdgeHighlightColor(edgeId, 0xff8800);
+                const defaultColor = 0x333333;
+                const color = colorize ? highlightColor : defaultColor;
+                const material = new THREE.LineBasicMaterial({ color });
+                const line = new THREE.Line(geometry, material);
+                line.userData.type = 'net-cut-line';
+                line.userData.highlightColor = highlightColor;
+                line.userData.defaultColor = defaultColor;
+                line.visible = true;
+                pivot.add(line);
+            });
+        }
+
+        const cutPointsVisible = this.ui.isCutPointsChecked();
+        const intersectionRefs = this.objectModelManager.resolveCutIntersectionPositions();
+        intersectionRefs.forEach(ref => {
+            const position = ref ? (ref.position as THREE.Vector3 | undefined) : undefined;
+            if (!ref || !ref.id || !(position instanceof THREE.Vector3)) return;
+            const faceIds = ref.faceIds || [];
+            const targetFaceId = faceIds.find(faceId => pivotMap.has(faceId));
+            if (!targetFaceId) return;
+            const pivot = pivotMap.get(targetFaceId);
+            if (!pivot) return;
+            const pos = projectToFacePlane(position, targetFaceId);
+            const parsed = normalizeSnapPointId(parseSnapPointId(ref.id));
+            const ratio = parsed && parsed.type === 'edge' ? parsed.ratio : null;
+            const isMidpoint = ratio ? ratio.numerator * 2 === ratio.denominator : false;
+            const markerColor = isMidpoint ? 0x00ff00 : 0xffff00;
+            const marker = createMarker(pos, this.scene, markerColor, isMidpoint, pivot);
+            marker.userData.type = 'net-cut-point';
+            marker.visible = cutPointsVisible;
+        });
+
+        this.netUnfoldGroup = group;
+        this.netUnfoldFaces = faces;
+        const maxDelay = Math.max(...faces.map(face => face.delayIndex));
+        this.netUnfoldDuration = this.netUnfoldFaceDuration + maxDelay * this.netUnfoldStagger;
+        this.scene.add(group);
+        this.syncNetModelState();
     }
 
     clearNetUnfoldGroup() {
@@ -1272,130 +1837,195 @@ class App {
         this.scene.remove(this.netUnfoldGroup);
         this.netUnfoldGroup = null;
         this.netUnfoldFaces = [];
-        this.netUnfoldState = 'closed';
-        this.netUnfoldProgress = 0;
-        this.netCameraStartPos = null;
-        this.netCameraStartTarget = null;
-        this.netCameraEndPos = null;
-        this.netCameraEndTarget = null;
-        this.netUnfoldTargetCenter = null;
+        this.setNetAnimationState({
+            state: 'closed',
+            progress: 0,
+            targetCenter: null,
+            positionTarget: null,
+            camera: {
+                startPos: null,
+                startTarget: null,
+                endPos: null,
+                endTarget: null
+            }
+        });
     }
 
     startNetUnfold() {
-        if (this.netUnfoldState === 'opening' || this.netUnfoldState === 'open' || this.netUnfoldState === 'prescale') return;
+        const netState = this.objectModelManager.getNetState();
+        if (netState.state === 'opening' || netState.state === 'open' || netState.state === 'prescale') return;
         this.isCameraAnimating = false;
         this.cameraTargetPosition = null;
         this.clearNetUnfoldGroup();
         this.buildNetUnfoldGroup();
-        this.netUnfoldFaces.forEach(face => face.pivot.rotation.copy(face.startRot));
-        this.netUnfoldScale = 1;
-        this.netUnfoldScaleTarget = 1;
-        this.netUnfoldState = 'prescale';
-        this.netUnfoldStart = performance.now();
-        this.netUnfoldProgress = 0;
+        this.netUnfoldFaces.forEach(face => face.pivot.quaternion.copy(face.startQuat));
+        const startAt = performance.now();
         this.cube.setVisible(false);
         this.cutter.setVisible(false);
         this.highlightMarker.visible = false;
         this.snappedPointInfo = null;
-        const { lz } = this.cube.getSize();
-        this.netCameraStartPos = this.camera.position.clone();
-        this.netCameraStartTarget = this.controls.target.clone();
-        this.netCameraEndPos = new THREE.Vector3(0, 0, this.cube.size * 3);
-        this.netCameraEndTarget = new THREE.Vector3(0, 0, 0);
+        const camera = {
+            startPos: this.camera.position.clone(),
+            startTarget: this.controls.target.clone(),
+            endPos: new THREE.Vector3(0, 0, this.cube.size * 3),
+            endTarget: new THREE.Vector3(0, 0, 0)
+        };
         this.netUnfoldScaleReadyAt = null;
         if (this.netUnfoldGroup) {
             this.netUnfoldGroup.position.set(0, 0, 0);
         }
-        this.netUnfoldPositionTarget = null;
+        this.updateNetOverlayDisplay(this.ui.getDisplayState());
+        this.updateNetLabelDisplay(this.ui.getDisplayState());
         this.updateNetUnfoldScale();
+        this.setNetAnimationState({
+            state: 'prescale',
+            progress: 0,
+            duration: this.netUnfoldDuration,
+            faceDuration: this.netUnfoldFaceDuration,
+            stagger: this.netUnfoldStagger,
+            scale: 1,
+            scaleTarget: this.objectModelManager.getNetState().scaleTarget,
+            targetCenter: this.objectModelManager.getNetState().targetCenter,
+            positionTarget: this.objectModelManager.getNetState().positionTarget,
+            preScaleDelay: this.netUnfoldPreScaleDelay,
+            postScaleDelay: this.netUnfoldPostScaleDelay,
+            startAt,
+            camera
+        });
     }
 
     startNetFold() {
-        if (this.netUnfoldState === 'closed' || this.netUnfoldState === 'closing' || this.netUnfoldState === 'prescale') return;
+        const netState = this.objectModelManager.getNetState();
+        if (netState.state === 'closed' || netState.state === 'closing' || netState.state === 'prescale') return;
         this.isCameraAnimating = false;
         this.cameraTargetPosition = null;
-        this.netUnfoldState = 'closing';
-        this.netUnfoldStart = performance.now() - (1 - this.netUnfoldProgress) * this.netUnfoldDuration;
-        this.netCameraStartPos = this.camera.position.clone();
-        this.netCameraStartTarget = this.controls.target.clone();
-        this.netCameraEndPos = this.defaultCameraPosition.clone();
-        this.netCameraEndTarget = this.defaultCameraTarget.clone();
+        const duration = netState.duration || this.netUnfoldDuration;
+        const startAt = performance.now() - (1 - netState.progress) * duration;
+        const camera = {
+            startPos: this.camera.position.clone(),
+            startTarget: this.controls.target.clone(),
+            endPos: this.defaultCameraPosition.clone(),
+            endTarget: this.defaultCameraTarget.clone()
+        };
         this.netUnfoldScaleReadyAt = null;
+        this.setNetAnimationState({
+            state: 'closing',
+            progress: netState.progress,
+            duration,
+            faceDuration: netState.faceDuration || this.netUnfoldFaceDuration,
+            stagger: netState.stagger || this.netUnfoldStagger,
+            scale: netState.scale,
+            scaleTarget: netState.scaleTarget,
+            targetCenter: netState.targetCenter,
+            positionTarget: netState.positionTarget,
+            preScaleDelay: this.netUnfoldPreScaleDelay,
+            postScaleDelay: this.netUnfoldPostScaleDelay,
+            startAt,
+            camera
+        });
     }
 
     updateNetUnfoldAnimation() {
-        if (this.netUnfoldState === 'closed' || this.netUnfoldState === 'open' || this.netUnfoldState === 'prescale' || this.netUnfoldState === 'postscale') return;
-        const elapsed = performance.now() - this.netUnfoldStart;
-        if (elapsed < 0 && this.netUnfoldState === 'opening') {
+        const netState = this.objectModelManager.getNetState();
+        if (netState.state === 'closed' || netState.state === 'open' || netState.state === 'prescale' || netState.state === 'postscale') return;
+        if (netState.duration <= 0 || netState.faceDuration <= 0) return;
+        const elapsed = performance.now() - netState.startAt;
+        if (elapsed < 0 && netState.state === 'opening') {
             return;
         }
-        const progress = Math.min(1, elapsed / this.netUnfoldDuration);
+        const duration = netState.duration;
+        const faceDuration = netState.faceDuration;
+        const stagger = netState.stagger;
+        const progress = Math.min(1, elapsed / duration);
         const maxDelay = Math.max(...this.netUnfoldFaces.map(face => face.delayIndex));
         this.netUnfoldFaces.forEach(face => {
-            const delayIndex = this.netUnfoldState === 'opening'
+            const delayIndex = netState.state === 'opening'
                 ? face.delayIndex
                 : (maxDelay - face.delayIndex);
-            const delay = delayIndex * this.netUnfoldStagger;
+            const delay = delayIndex * stagger;
             const localElapsed = elapsed - delay;
-            const localProgress = Math.min(1, Math.max(0, localElapsed / this.netUnfoldFaceDuration));
+            const localProgress = Math.min(1, Math.max(0, localElapsed / faceDuration));
             const eased = localProgress < 0.5
                 ? 2 * localProgress * localProgress
                 : 1 - Math.pow(-2 * localProgress + 2, 2) / 2;
-            const t = this.netUnfoldState === 'opening'
+            const t = netState.state === 'opening'
                 ? eased
                 : 1 - eased;
             const effectiveT = localElapsed < 0
-                ? (this.netUnfoldState === 'opening' ? 0 : 1)
+                ? (netState.state === 'opening' ? 0 : 1)
                 : t;
-
-            face.pivot.rotation.set(
-                face.startRot.x + (face.endRot.x - face.startRot.x) * effectiveT,
-                face.startRot.y + (face.endRot.y - face.startRot.y) * effectiveT,
-                face.startRot.z + (face.endRot.z - face.startRot.z) * effectiveT
-            );
+            face.pivot.quaternion.slerpQuaternions(face.startQuat, face.endQuat, effectiveT);
         });
-        this.netUnfoldProgress = this.netUnfoldState === 'opening' ? progress : 1 - progress;
+        const netProgress = netState.state === 'opening' ? progress : 1 - progress;
 
-        if (this.netCameraStartPos && this.netCameraEndPos && this.netCameraStartTarget && this.netCameraEndTarget) {
+        if (netState.camera && netState.camera.startPos && netState.camera.endPos && netState.camera.startTarget && netState.camera.endTarget) {
             const cameraT = progress;
             const cameraEased = cameraT < 0.5
                 ? 2 * cameraT * cameraT
                 : 1 - Math.pow(-2 * cameraT + 2, 2) / 2;
-            this.camera.position.lerpVectors(this.netCameraStartPos, this.netCameraEndPos, cameraEased);
-            this.controls.target.lerpVectors(this.netCameraStartTarget, this.netCameraEndTarget, cameraEased);
+            this.camera.position.lerpVectors(netState.camera.startPos, netState.camera.endPos, cameraEased);
+            this.controls.target.lerpVectors(netState.camera.startTarget, netState.camera.endTarget, cameraEased);
             this.camera.up.set(0, 1, 0);
             this.camera.lookAt(this.controls.target);
         }
 
+        let nextState: ObjectNetState['state'] = netState.state;
         if (progress >= 1) {
-            if (this.netUnfoldState === 'opening') {
-                this.netUnfoldState = 'open';
+            if (netState.state === 'opening') {
+                nextState = 'open';
             } else {
-                this.netUnfoldState = 'postscale';
-                this.netUnfoldScaleTarget = 1;
-                this.netUnfoldStart = performance.now() + this.netUnfoldPostScaleDelay;
+                nextState = 'postscale';
+                this.setNetAnimationState({ startAt: performance.now() + this.netUnfoldPostScaleDelay });
             }
         }
+        this.setNetAnimationState({
+            state: nextState,
+            progress: netProgress,
+            duration,
+            faceDuration,
+            stagger,
+            scale: netState.scale,
+            scaleTarget: nextState === 'postscale' ? 1 : netState.scaleTarget,
+            targetCenter: netState.targetCenter,
+            positionTarget: netState.positionTarget,
+            preScaleDelay: this.netUnfoldPreScaleDelay,
+            postScaleDelay: this.netUnfoldPostScaleDelay
+        });
     }
 
     handleFlipCutClick() {
         this.cutter.flipCut();
         this.cutter.toggleSurface(this.ui.isCutSurfaceChecked());
         this.cutter.togglePyramid(this.ui.isPyramidChecked());
-        this.netManager.update(this.cutter.getCutSegments(), this.cube, this.resolver);
-        this.selection.updateSplitLabels(this.cutter.getIntersections());
+        this.cutter.setCutPointsVisible(this.ui.isCutPointsChecked());
+        this.cutter.setCutLineColorize(this.ui.isCutLineColorChecked());
+        this.objectModelManager.syncCutState({
+            intersections: this.cutter.getIntersectionRefs(),
+            cutSegments: this.cutter.getCutSegments(),
+            facePolygons: this.cutter.getResultFacePolygons(),
+            faceAdjacency: this.cutter.getResultFaceAdjacency()
+        });
+        this.cutter.refreshEdgeHighlightColors();
+        this.cutter.updateCutPointMarkers(this.objectModelManager.resolveCutIntersectionPositions());
+        this.netManager.update(this.objectModelManager.getCutSegments(), this.cube, this.resolver);
+        this.selection.updateSplitLabels(this.objectModelManager.getCutIntersections());
     }
 
     handleToggleNetClick() {
-        const wasVisible = this.netManager.isVisible();
-        this.netManager.toggle();
-        const isVisible = this.netManager.isVisible();
-        if (isVisible && !wasVisible) {
+        const wasVisible = this.objectModelManager.getNetVisible();
+        const nextVisible = !wasVisible;
+        this.objectModelManager.setNetVisible(nextVisible);
+        if (typeof globalThis.__setNetVisible === 'function') {
+            globalThis.__setNetVisible(nextVisible);
+        }
+        if (nextVisible) {
+            this.netManager.show();
             this.startNetUnfold();
-        } else if (!isVisible && wasVisible) {
+        } else {
+            this.netManager.hide();
             this.startNetFold();
         }
-        this.netManager.update(this.cutter.getCutSegments(), this.cube, this.resolver);
+        this.netManager.update(this.objectModelManager.getCutSegments(), this.cube, this.resolver);
     }
 
     // --- Animation Loop ---
@@ -1416,52 +2046,69 @@ class App {
             }
         }
         if (this.netUnfoldGroup) {
-            const scaleReady = this.netUnfoldState !== 'postscale' || (performance.now() - this.netUnfoldStart) >= 0;
-            if (Math.abs(this.netUnfoldScaleTarget - this.netUnfoldScale) > 0.001) {
+            this.applyNetStateFromModel();
+            const netState = this.objectModelManager.getNetState();
+            const scaleReady = netState.state !== 'postscale' || (performance.now() - netState.startAt) >= 0;
+            let nextScale = netState.scale;
+            if (Math.abs(netState.scaleTarget - netState.scale) > 0.001) {
                 if (scaleReady) {
-                    const speed = this.netUnfoldState === 'prescale' ? 0.08 : 0.15;
-                    this.netUnfoldScale += (this.netUnfoldScaleTarget - this.netUnfoldScale) * speed;
+                    const speed = netState.state === 'prescale' ? 0.08 : 0.15;
+                    nextScale = netState.scale + (netState.scaleTarget - netState.scale) * speed;
                 }
             } else {
-                this.netUnfoldScale = this.netUnfoldScaleTarget;
+                nextScale = netState.scaleTarget;
             }
-            this.netUnfoldGroup.scale.setScalar(this.netUnfoldScale);
-            if (this.netUnfoldState === 'prescale') {
-                this.netUnfoldFaces.forEach(face => face.pivot.rotation.copy(face.startRot));
+            this.netUnfoldGroup.scale.setScalar(nextScale);
+            if (netState.state === 'prescale') {
+                this.netUnfoldFaces.forEach(face => face.pivot.quaternion.copy(face.startQuat));
             }
-            if (this.netUnfoldPositionTarget) {
-                const target = this.netUnfoldPositionTarget;
-                const scale = this.netUnfoldScale;
+            if (netState.positionTarget) {
+                const target = netState.positionTarget;
+                const scale = nextScale;
                 const scaledTarget = new THREE.Vector3(target.x * scale, target.y * scale, 0);
-                if (this.netUnfoldState === 'postscale') {
+                if (netState.state === 'postscale') {
                     this.netUnfoldGroup.position.lerp(new THREE.Vector3(0, 0, 0), 0.15);
-                } else if (this.netUnfoldState === 'prescale') {
+                } else if (netState.state === 'prescale') {
                     this.netUnfoldGroup.position.lerp(scaledTarget, 0.12);
                 } else {
                     this.netUnfoldGroup.position.copy(scaledTarget);
                 }
             }
-            if (this.netUnfoldState === 'prescale') {
-                if (Math.abs(this.netUnfoldScaleTarget - this.netUnfoldScale) <= 0.001) {
+            if (netState.state === 'prescale') {
+                if (Math.abs(netState.scaleTarget - nextScale) <= 0.001) {
                     if (!this.netUnfoldScaleReadyAt) {
                         this.netUnfoldScaleReadyAt = performance.now();
                     }
                     if (performance.now() - this.netUnfoldScaleReadyAt >= this.netUnfoldPreScaleDelay) {
-                        this.netUnfoldState = 'opening';
-                        this.netUnfoldStart = performance.now();
                         this.netUnfoldScaleReadyAt = null;
+                        this.setNetAnimationState({ state: 'opening', progress: 0, startAt: performance.now() });
                     }
                 } else {
                     this.netUnfoldScaleReadyAt = null;
                 }
             }
-            if (this.netUnfoldState === 'postscale' && scaleReady && Math.abs(this.netUnfoldScaleTarget - this.netUnfoldScale) <= 0.001) {
+            if (netState.state === 'postscale' && scaleReady && Math.abs(netState.scaleTarget - nextScale) <= 0.001) {
                 this.clearNetUnfoldGroup();
                 this.cube.setVisible(true);
                 this.cutter.setVisible(true);
                 this.cutter.toggleSurface(this.ui.isCutSurfaceChecked());
                 this.cutter.togglePyramid(this.ui.isPyramidChecked());
                 this.controls.update();
+            }
+            if (netState.state !== 'closed') {
+                this.setNetAnimationState({
+                    state: netState.state,
+                    progress: netState.progress,
+            duration: netState.duration,
+            faceDuration: netState.faceDuration,
+            stagger: netState.stagger,
+                    scale: nextScale,
+                    scaleTarget: netState.scaleTarget,
+                    targetCenter: netState.targetCenter,
+                    positionTarget: netState.positionTarget,
+                    preScaleDelay: this.netUnfoldPreScaleDelay,
+                    postScaleDelay: this.netUnfoldPostScaleDelay
+                });
             }
         }
         this.updateNetUnfoldAnimation();

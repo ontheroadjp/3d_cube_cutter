@@ -19,10 +19,20 @@ export function createLabel(text: string, scale=0.5, color = 'black'): THREE.Spr
   return sprite;
 }
 
-export function createMarker(position: THREE.Vector3, scene: THREE.Scene, color = 0xff0000, isOutline = false): THREE.Mesh {
+export function createMarker(
+  position: THREE.Vector3,
+  scene: THREE.Scene,
+  color = 0xff0000,
+  isOutline = false,
+  parent?: THREE.Object3D
+): THREE.Mesh {
   const material = new THREE.MeshBasicMaterial({ color: color, wireframe: isOutline });
   const m = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), material);
   m.position.copy(position);
-  scene.add(m);
+  if (parent) {
+    parent.add(m);
+  } else {
+    scene.add(m);
+  }
   return m;
 }

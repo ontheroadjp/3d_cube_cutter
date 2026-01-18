@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { SUBTRACTION, INTERSECTION, Brush, Evaluator } from 'three-bvh-csg';
 import { createMarker } from './utils.js';
+import { extractFacePolygonsFromMesh } from './cutter/cutFaceExtractor.js';
+import { buildFaceAdjacency } from './cutter/cutFaceGraph.js';
 import { canonicalizeSnapPointId, normalizeSnapPointId, parseSnapPointId, stringifySnapPointId } from './geometry/snapPointId.js';
-import type { CutResult, CutResultMeta, CutSegmentMeta, IntersectionPoint, Ratio, SnapPointID } from './types.js';
+import type { CutFacePolygon, CutResult, CutResultMeta, CutSegmentMeta, IntersectionPoint, Ratio, SnapPointID } from './types.js';
 
 type IntersectionPointWithPosition = IntersectionPoint & { position: THREE.Vector3 };
 
@@ -26,6 +28,13 @@ export class Cutter {
   edgeHighlights: THREE.Object3D[];
   cutPlane: THREE.Plane | null;
   outline: THREE.Line | null;
+  cutOverlayGroup: THREE.Group | null;
+  cutLineMaterial: THREE.LineBasicMaterial | null;
+  showCutPoints: boolean;
+  colorizeCutLines: boolean;
+  cutLineDefaultColor: number;
+  cutLineHighlightColor: number;
+  edgeHighlightColorResolver: ((edgeId: string) => number) | null;
   debug: boolean;
   visible: boolean;
 
@@ -53,12 +62,25 @@ export class Cutter {
     this.edgeHighlights = []; // 教育用の重要辺ハイライト
     this.cutPlane = null; // 切断面の平面情報
     this.outline = null;
+    this.cutOverlayGroup = null;
+    this.cutLineMaterial = null;
+    this.showCutPoints = true;
+    this.colorizeCutLines = false;
+    this.cutLineDefaultColor = 0x444444;
+    this.cutLineHighlightColor = 0xff0000;
+    this.edgeHighlightColorResolver = null;
     this.debug = false;
     this.visible = true;
   }
 
   setDebug(debug: boolean) {
     this.debug = !!debug;
+  }
+
+  ensureCutOverlayGroup() {
+    if (this.cutOverlayGroup) return;
+    this.cutOverlayGroup = new THREE.Group();
+    this.scene.add(this.cutOverlayGroup);
   }
 
   getCutPlaneNormal() {
@@ -218,9 +240,10 @@ export class Cutter {
         }
 
         // 切り取られる頂点に赤丸を表示
-        if (!suppressMarkers) {
+        if (!suppressMarkers && this.debug) {
             targetVertices.forEach(v => {
-                const m = createMarker(v, this.scene);
+                this.ensureCutOverlayGroup();
+                const m = createMarker(v, this.scene, 0xff0000, false, this.cutOverlayGroup);
                 this.vertexMarkers.push(m);
             });
         }
@@ -471,10 +494,10 @@ export class Cutter {
             const resolved = resolver.resolveEdge(edgeId);
             if (!resolved) return;
             const geometry = new THREE.BufferGeometry().setFromPoints([resolved.start, resolved.end]);
-            const color = meta && meta.hasMidpoint ? 0x00cc66 : 0xff8800;
-            const material = new THREE.LineBasicMaterial({ color });
+            const material = new THREE.LineBasicMaterial({ color: this.cutLineDefaultColor });
             const line = new THREE.Line(geometry, material);
-            line.userData = { type: 'education-edge', edgeId };
+            line.userData = { type: 'education-edge', edgeId, hasMidpoint: !!(meta && meta.hasMidpoint) };
+            line.visible = this.visible;
             this.scene.add(line);
             this.edgeHighlights.push(line);
         });
@@ -626,11 +649,13 @@ export class Cutter {
         const linePoints = [...outlinePoints, outlinePoints[0]];
         const lineGeo = new THREE.BufferGeometry().setFromPoints(linePoints);
         if (!suppressOutline) {
-            this.outline = new THREE.Line(
-                lineGeo,
-                new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 })
-            );
-            this.scene.add(this.outline);
+            this.ensureCutOverlayGroup();
+            this.cutLineMaterial = new THREE.LineBasicMaterial({
+                color: this.colorizeCutLines ? this.cutLineHighlightColor : this.cutLineDefaultColor,
+                linewidth: 2
+            });
+            this.outline = new THREE.Line(lineGeo, this.cutLineMaterial);
+            this.cutOverlayGroup.add(this.outline);
         }
 
         // 切断面の頂点（交点）にマーカーを表示（構造情報に依存）
@@ -661,7 +686,8 @@ export class Cutter {
                     const ratio = parsed && parsed.type === 'edge' ? parsed.ratio : null;
                     const isMidpoint = ratio ? ratio.numerator * 2 === ratio.denominator : false;
                     const markerColor = isMidpoint ? 0x00ff00 : 0xffff00;
-                    const m = createMarker(point, this.scene, markerColor, isMidpoint);
+                    this.ensureCutOverlayGroup();
+                    const m = createMarker(point, this.scene, markerColor, isMidpoint, this.cutOverlayGroup);
                     this.vertexMarkers.push(m);
                     created.add(ref.id);
                 });
@@ -680,9 +706,6 @@ export class Cutter {
         const mat = this.resultMesh.material[1];
         if(mat) mat.visible = visible;
     }
-    if (this.outline) {
-        this.outline.visible = visible;
-    }
   }
 
   /** @returns {THREE.Vector3[]} */
@@ -700,9 +723,37 @@ export class Cutter {
       return this.outlineRefs;
   }
 
+  /** @returns {CutFacePolygon | null} */
+  getCutFacePolygon() {
+      if (!this.outlineRefs || this.outlineRefs.length < 3) return null;
+      const vertices = this.outlineRefs
+          .map(ref => ref && ref.position)
+          .filter((pos): pos is THREE.Vector3 => pos instanceof THREE.Vector3)
+          .map(pos => pos.clone());
+      if (vertices.length < 3) return null;
+      return {
+          faceId: 'F:cut',
+          type: 'cut',
+          vertices,
+          normal: this.cutPlane ? this.cutPlane.normal.clone() : undefined
+      };
+  }
+
   /** @returns {Array<{ startId: SnapPointID, endId: SnapPointID, start: THREE.Vector3, end: THREE.Vector3, faceIds?: string[] }>} */
   getCutSegments() {
       return this.cutSegments;
+  }
+
+  /** @returns {CutFacePolygon[]} */
+  getResultFacePolygons() {
+      if (!this.resultMesh) return [];
+      return extractFacePolygonsFromMesh(this.resultMesh);
+  }
+
+  /** @returns {Array<{ a: string; b: string; sharedEdge: [THREE.Vector3, THREE.Vector3] }>} */
+  getResultFaceAdjacency() {
+      const polygons = this.getResultFacePolygons();
+      return buildFaceAdjacency(polygons);
   }
 
   /**
@@ -815,13 +866,92 @@ export class Cutter {
     }
   }
 
+  setCutPointsVisible(visible: boolean) {
+    this.showCutPoints = !!visible;
+    const next = this.visible && this.showCutPoints;
+    if (this.cornerMarker) this.cornerMarker.visible = next;
+    this.vertexMarkers.forEach(marker => { marker.visible = next; });
+  }
+
+  clearCutPointMarkers() {
+    if (!this.vertexMarkers) return;
+    this.vertexMarkers.forEach(marker => {
+      if (this.cutOverlayGroup) {
+        this.cutOverlayGroup.remove(marker);
+      } else {
+        this.scene.remove(marker);
+      }
+      if (marker.geometry) marker.geometry.dispose();
+    });
+    this.vertexMarkers = [];
+  }
+
+  updateCutPointMarkers(intersections: Array<IntersectionPoint & { position: THREE.Vector3 }>) {
+    this.clearCutPointMarkers();
+    if (!intersections || !intersections.length) return;
+    const selectionIds = new Set(
+      intersections
+        .filter(ref => ref.type === 'snap' && ref.id)
+        .map(ref => ref.id)
+    );
+    intersections
+      .filter(ref => ref.type === 'intersection' && ref.id)
+      .forEach(ref => {
+        if (selectionIds.has(ref.id)) return;
+        if (!(ref.position instanceof THREE.Vector3)) return;
+        const parsed = normalizeSnapPointId(parseSnapPointId(ref.id));
+        const ratio = parsed && parsed.type === 'edge' ? parsed.ratio : null;
+        const isMidpoint = ratio ? ratio.numerator * 2 === ratio.denominator : false;
+        const markerColor = isMidpoint ? 0x00ff00 : 0xffff00;
+        this.ensureCutOverlayGroup();
+        const marker = createMarker(ref.position.clone(), this.scene, markerColor, isMidpoint, this.cutOverlayGroup);
+        this.vertexMarkers.push(marker);
+      });
+    this.setCutPointsVisible(this.showCutPoints);
+  }
+
+  setCutLineColorize(enabled: boolean) {
+    this.colorizeCutLines = !!enabled;
+    this.refreshEdgeHighlightColors();
+    if (this.cutLineMaterial) {
+        this.cutLineMaterial.color.setHex(
+            this.colorizeCutLines ? this.cutLineHighlightColor : this.cutLineDefaultColor
+        );
+        this.cutLineMaterial.needsUpdate = true;
+    }
+  }
+
+  setEdgeHighlightColorResolver(resolver: ((edgeId: string) => number) | null) {
+    this.edgeHighlightColorResolver = resolver || null;
+    this.refreshEdgeHighlightColors();
+  }
+
+  refreshEdgeHighlightColors() {
+    this.edgeHighlights.forEach(edge => {
+      edge.visible = this.visible;
+      const edgeId = edge.userData ? edge.userData.edgeId : null;
+      const material = (edge as THREE.Line).material;
+      if (!(material instanceof THREE.LineBasicMaterial)) return;
+      let color = this.cutLineDefaultColor;
+      if (this.colorizeCutLines && this.edgeHighlightColorResolver && typeof edgeId === 'string') {
+        color = this.edgeHighlightColorResolver(edgeId);
+      }
+      material.color.setHex(color);
+      material.needsUpdate = true;
+    });
+  }
+
+  updateOverlayVisibility() {
+    const overlayVisible = this.visible;
+    if (this.outline) this.outline.visible = overlayVisible;
+    this.setCutPointsVisible(this.showCutPoints);
+  }
+
   setVisible(visible: boolean) {
     this.visible = !!visible;
     if (this.resultMesh) this.resultMesh.visible = visible;
     if (this.removedMesh) this.removedMesh.visible = visible;
-    if (this.cornerMarker) this.cornerMarker.visible = visible;
-    if (this.outline) this.outline.visible = visible;
-    this.vertexMarkers.forEach(marker => { marker.visible = visible; });
+    this.updateOverlayVisibility();
     this.edgeHighlights.forEach(edge => { edge.visible = visible; });
   }
 
@@ -837,18 +967,21 @@ export class Cutter {
         this.removedMesh = null;
     }
     if (this.outline) {
-        this.scene.remove(this.outline);
+        if (this.cutOverlayGroup) {
+            this.cutOverlayGroup.remove(this.outline);
+        } else {
+            this.scene.remove(this.outline);
+        }
         this.outline.geometry.dispose();
         this.outline.material.dispose();
         this.outline = null;
     }
+    this.cutLineMaterial = null;
     
-    if (this.vertexMarkers) {
-        this.vertexMarkers.forEach(m => {
-            this.scene.remove(m);
-            m.geometry.dispose();
-        });
-        this.vertexMarkers = [];
+    this.clearCutPointMarkers();
+    if (this.cutOverlayGroup) {
+        this.scene.remove(this.cutOverlayGroup);
+        this.cutOverlayGroup = null;
     }
     if (this.edgeHighlights) {
         this.edgeHighlights.forEach(edge => {

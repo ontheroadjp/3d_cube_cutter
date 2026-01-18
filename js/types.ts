@@ -24,6 +24,8 @@ export type DisplayState = {
   showCutSurface: boolean;
   showPyramid: boolean;
   cubeTransparent: boolean;
+  showCutPoints: boolean;
+  colorizeCutLines: boolean;
 };
 
 export type IntersectionPoint = {
@@ -63,6 +65,14 @@ export type CutResult = {
     end: unknown;
     faceIds?: string[];
   }>;
+};
+
+export type CutFacePolygon = {
+  faceId: string;
+  type: 'cut' | 'original';
+  vertices: unknown[];
+  normal?: unknown;
+  sourceFaceId?: string;
 };
 
 export type UserPresetState = {

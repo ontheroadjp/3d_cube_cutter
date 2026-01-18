@@ -46,6 +46,22 @@ setPanelOpen(open: boolean): void
 - `setPanelOpen` はサイドバー開閉によるレイアウト/縮尺調整に使用する。
 - `toggleNet` は展開図モードの開閉（3D展開アニメーション + 2D俯瞰表示）を担う。
 
+### 2.1 DisplayState の拡張
+表示設定は `DisplayState` で管理し、UIとEngineで同期する。
+
+```
+DisplayState = {
+  showVertexLabels: boolean,
+  showFaceLabels: boolean,
+  edgeLabelMode: 'visible' | 'popup' | 'hidden',
+  showCutSurface: boolean,
+  showPyramid: boolean,
+  cubeTransparent: boolean,
+  showCutPoints: boolean,
+  colorizeCutLines: boolean
+}
+```
+
 ---
 
 ## 3. UI が保持する状態

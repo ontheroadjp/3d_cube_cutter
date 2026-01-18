@@ -34,7 +34,9 @@ describe('buildUserPresetState', () => {
         edgeLabelMode: /** @type {'visible'} */ ('visible'),
         showCutSurface: true,
         showPyramid: false,
-        cubeTransparent: true
+        cubeTransparent: true,
+        showCutPoints: true,
+        colorizeCutLines: false
       })
     };
 
@@ -89,7 +91,9 @@ describe('buildUserPresetState', () => {
         edgeLabelMode: /** @type {'hidden'} */ ('hidden'),
         showCutSurface: false,
         showPyramid: true,
-        cubeTransparent: false
+        cubeTransparent: false,
+        showCutPoints: false,
+        colorizeCutLines: true
       })
     };
 
@@ -109,7 +113,9 @@ describe('buildUserPresetState', () => {
       edgeLabelMode: 'hidden',
       showCutSurface: false,
       showPyramid: true,
-      cubeTransparent: false
+      cubeTransparent: false,
+      showCutPoints: false,
+      colorizeCutLines: true
     });
     expect(state.name).toBe('User Preset');
     expect(state.description).toBeUndefined();

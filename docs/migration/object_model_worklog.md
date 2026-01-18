@@ -1,0 +1,195 @@
+# object_model_worklog.md
+
+Status: Active
+Summary: オブジェクトベース移行の作業履歴を記録する。
+
+## Log Format
+- Date: ISO 8601
+- Summary: 作業の要点
+- Notes: 課題/判断/次のアクション
+
+---
+
+## 2026-01-18T20:29:08+09:00
+Summary:
+- オブジェクトベース移行の方針を合意
+- 全体モデルの最小仕様を `object_model_spec.md` として起票
+
+Notes:
+- 既存の構造主体モデルを拡張して段階移行する
+- 作業はこのログに追記し続ける
+
+## 2026-01-18T20:34:21+09:00
+Summary:
+- Object Model の型定義とビルダーを追加
+- 既存構造モデルからのマッピング検証テストを追加
+
+Notes:
+- 既存機能への影響を避けるため、現時点では参照のみ
+
+## 2026-01-18T20:39:22+09:00
+Summary:
+- Object Model の管理クラスを追加し、DisplayState 連携の起点を作成
+- マネージャーのユニットテストを追加
+
+Notes:
+- まだ描画ロジックは Model を参照しない
+
+## 2026-01-18T20:54:19+09:00
+Summary:
+- 切断線の色分けを Object Model の Edge flags から参照するルートを追加
+- Cut intersections を Model に反映する処理とテストを追加
+
+Notes:
+- View は最小変更で Model を参照するように段階的に移行
+
+## 2026-01-18T21:14:50+09:00
+Summary:
+- Net 展開図の切断線/切断点生成を Object Model の Cut intersections 参照に切替
+- Cutter の色分け描画は Object Model 由来の色を利用
+
+Notes:
+- 次は Cut points マーカーを Model 起点で描画する
+
+## 2026-01-18T21:22:12+09:00
+Summary:
+- 3D 切断点マーカーの生成を Object Model の交点参照に切替
+- Cutter にマーカー更新APIを追加し、View 更新を統一
+
+Notes:
+- 既存の切断処理後フローで Model -> View 更新を呼び出す
+
+## 2026-01-18T21:25:21+09:00
+Summary:
+- 展開図以外の描画を ObjectModel 参照へ拡張する次フェーズ計画を作成
+
+Notes:
+- ラベル表示/透明化/切断補助表示の順で段階移行する
+
+## 2026-01-18T21:33:11+09:00
+Summary:
+- ラベル表示（頂点/面/辺）の適用を ObjectModelManager 経由に切替
+- DisplayState から View 更新を統一する入口を追加
+
+Notes:
+- 次は透明化/切断補助表示の Model 参照化を検討
+
+## 2026-01-18T21:38:41+09:00
+Summary:
+- 透明化の適用を ObjectModelManager 経由に統一
+- 表示状態と View 更新の責務を段階的に集約
+
+Notes:
+- Cutter 側の透明化は従来通り main で制御
+
+## 2026-01-18T21:45:37+09:00
+Summary:
+- 切断補助表示トグルを ObjectModelManager 経由に統一
+- DisplayState と Cutter 表示の適用経路を一箇所に集約
+
+Notes:
+- 次は Cut 面表示の Model 化を検討
+
+## 2026-01-18T21:54:25+09:00
+Summary:
+- Cut 面表示の状態を ObjectModel の cut 領域で保持
+- Cut 表示トグルは ObjectModelManager 経由で反映
+
+Notes:
+- Cutter 表示トグルの責務を段階的に Model 側へ移行中
+
+## 2026-01-18T22:11:40+09:00
+Summary:
+- 切断結果（intersections/cutSegments/facePolygons/faceAdjacency）を ObjectModelManager に同期
+- 展開図の参照元を ObjectModel の cut 情報に切替
+
+Notes:
+- Cutter からの同期入口を統一し、次フェーズの Net モデル化に備える
+
+## 2026-01-18T22:33:08+09:00
+Summary:
+- Net 展開の状態（faces/animation）を ObjectModelManager に同期
+- Cube/Cut どちらの展開図でも faceId を保持し、モデル化の足場を追加
+
+Notes:
+- まだ描画は main の状態を参照し、段階的に Model 参照へ切替予定
+
+## 2026-01-18T22:42:51+09:00
+Summary:
+- Net のアニメーション更新を setNetAnimationState 経由で Model に反映
+- 展開の状態遷移を Model 同期に寄せて二重管理を低減
+
+Notes:
+- 次は Net 描画の参照元を Model へ切替する
+
+## 2026-01-18T22:49:28+09:00
+Summary:
+- Net 展開の state 更新を setNetAnimationState に統一
+- start/clear フローの直接代入を削減
+
+Notes:
+- 次は Net 描画の参照元を Model へ切替する
+
+## 2026-01-18T22:55:41+09:00
+Summary:
+- Net 展開中の表示判定を Model の state 起点に切替
+- reset/applyDisplay のガード条件を Model 参照に変更
+
+Notes:
+- 次は描画系の参照元を Model へ移す
+
+## 2026-01-18T23:02:14+09:00
+Summary:
+- Net 展開の progress ローカル保持を削減し、Model 参照へ寄せる
+- start/clear での進捗値依存を削除
+
+Notes:
+- 次は Net の scale/position も Model 起点へ寄せる
+
+## 2026-01-18T23:07:59+09:00
+Summary:
+- Net の scale/scaleTarget を Model 参照に切替し、ローカル保持を削減
+- 描画側の scale 計算を Model 同期の値に合わせた
+
+Notes:
+- 次は targetCenter/positionTarget の参照も Model 起点へ寄せる
+
+## 2026-01-18T23:12:31+09:00
+Summary:
+- Net の targetCenter/positionTarget を Model 参照に切替し、ローカル保持を削減
+- 展開位置の参照を Model 起点に統一
+
+Notes:
+- 次は netUnfoldStart の Model 化を検討
+
+## 2026-01-18T23:19:45+09:00
+Summary:
+- Net の startAt とカメラ遷移を Model に移行
+- netUnfoldStart とカメラ状態のローカル保持を削除
+
+Notes:
+- 次は Net の duration/faceDuration も Model 起点へ寄せる
+
+## 2026-01-18T23:27:18+09:00
+Summary:
+- Net の duration/faceDuration/stagger を Model 起点で参照
+- Net アニメーション更新のガード条件を追加
+
+Notes:
+- 次は UI 側の Net 表示参照を Model に寄せる
+
+## 2026-01-19T00:10:12+09:00
+Summary:
+- Net の visible を ObjectModel に追加し、UI 表示切替を Model 起点に統一
+- Net の表示状態を Model 参照で管理
+
+Notes:
+- 次は UI 側で Model の visible を参照し状態反映を統一する
+
+## 2026-01-19T00:21:48+09:00
+Summary:
+- Net の visible を React UI に同期し、トグルの active 表示を Model 起点で反映
+- __setNetVisible を追加して UI への通知経路を統一
+
+Notes:
+- 次は Net 表示状態の UI テスト追加を検討

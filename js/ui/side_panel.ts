@@ -30,6 +30,7 @@ type Engine = {
   configureCube?: (lx: number, ly: number, lz: number) => void;
   getCubeSize?: () => { lx: number; ly: number; lz: number };
   setPanelOpen?: (open: boolean) => void;
+  getNetVisible?: () => boolean;
 };
 
 // Removed duplicate declare global for __engine
@@ -45,6 +46,7 @@ type Engine = {
 declare global {
   var __setReactMode: ((mode: string) => void) | undefined;
   var __setDisplayState: ((display: DisplayState | null) => void) | undefined;
+  var __setNetVisible: ((visible: boolean) => void) | undefined;
 }
 
 // --- SidePanel Component ---
@@ -53,6 +55,7 @@ export function SidePanel() {
   const [panelOpen, setPanelOpen] = useState<boolean>(false);
   const [activePanel, setActivePanel] = useState<string | null>(null);
   const [activeSettingsPanel, setActiveSettingsPanel] = useState<string>('display'); // 'display', 'cuboid'
+  const [netVisible, setNetVisible] = useState<boolean>(false);
 
   useEffect(() => {
     // Register global function to allow main.ts to update the mode
@@ -69,6 +72,19 @@ export function SidePanel() {
     };
     return () => {
       if (globalThis.__setReactMode) delete globalThis.__setReactMode;
+    };
+  }, []);
+
+  useEffect(() => {
+    const engine = globalThis.__engine;
+    if (engine && typeof engine.getNetVisible === 'function') {
+      setNetVisible(!!engine.getNetVisible());
+    }
+    globalThis.__setNetVisible = (visible: boolean) => {
+      setNetVisible(!!visible);
+    };
+    return () => {
+      if (globalThis.__setNetVisible) delete globalThis.__setNetVisible;
     };
   }, []);
 
@@ -163,7 +179,8 @@ export function SidePanel() {
         onClick: () => globalThis.__engine?.toggleNet?.(),
         icon: 'grid',
         title: '展開図',
-        variant: 'soft'
+        variant: 'soft',
+        isActive: netVisible
       }),
       React.createElement(ActionButton, {
         onClick: () => globalThis.__engine?.resetScene?.(),
@@ -322,8 +339,8 @@ function ModeButton({ mode, currentMode, onClick, icon }) {
 }
 
 // --- ActionButton Component ---
-function ActionButton({ onClick, icon, title, variant = 'soft' }) {
-  const className = `chatgpt-btn chatgpt-btn--${variant}`;
+function ActionButton({ onClick, icon, title, variant = 'soft', isActive = false }) {
+  const className = `chatgpt-btn chatgpt-btn--${variant} ${isActive ? 'chatgpt-btn--active' : ''}`;
   return React.createElement(
     'button',
     {
@@ -623,6 +640,22 @@ function DisplaySettingsPanel() {
         onChange: (e) => updateDisplayState({ showCutSurface: e.target.checked })
       }),
       React.createElement('label', { className: 'form-check-label' }, '切断面を表示')
+    ),
+    React.createElement('div', { className: 'form-check form-switch mb-2' },
+      React.createElement('input', {
+        className: 'form-check-input', type: 'checkbox',
+        checked: !!display.showCutPoints,
+        onChange: (e) => updateDisplayState({ showCutPoints: e.target.checked })
+      }),
+      React.createElement('label', { className: 'form-check-label' }, '切断点を表示')
+    ),
+    React.createElement('div', { className: 'form-check form-switch mb-2' },
+      React.createElement('input', {
+        className: 'form-check-input', type: 'checkbox',
+        checked: !!display.colorizeCutLines,
+        onChange: (e) => updateDisplayState({ colorizeCutLines: e.target.checked })
+      }),
+      React.createElement('label', { className: 'form-check-label' }, '切断線を色分け')
     ),
     React.createElement('div', { className: 'form-check form-switch mb-2' },
       React.createElement('input', {

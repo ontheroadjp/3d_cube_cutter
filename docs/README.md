@@ -5,8 +5,9 @@ Summary: 本プロジェクトは、中学受験算数向けの教育ツール�
 
 ## 1. 概要
 本プロジェクトは、中学受験算数向けの教育ツールとして、立方体・直方体の切断操作をシミュレーションするウェブアプリケーションです。
-構造主体アーキテクチャへの移行を前提に、SnapPointID を中心とした仕様を整理しています。
+構造主体アーキテクチャへの移行は完了しており、SnapPointID を中心とした仕様が整理されています。
 TypeScript 移行は完了しており、`dist/` を出力して動作させます。
+React UI 移行やオブジェクトモデル移行は継続中のため、`docs/migration/` を参照してください。
 
 ---
 
@@ -26,6 +27,7 @@ TypeScript 移行は完了しており、`dist/` を出力して動作させま�
 │  │  ├─ snap_point_id_spec.md
 │  │  ├─ snap_point_id_parsing.md
 │  │  ├─ vertex_labeling_spec.md
+│  │  ├─ object_model_spec.md
 │  │  └─ ui_layer_design.md
 │  ├─ migration/
 │  │  ├─ architecture_migration_plan.md
@@ -33,7 +35,10 @@ TypeScript 移行は完了しており、`dist/` を出力して動作させま�
 │  │  ├─ step0_current_architecture.md
 │  │  ├─ structure_first_migration_plan.md
 │  │  ├─ typescript_migration_plan.md
-│  │  └─ react_ui_migration_plan.md
+│  │  ├─ react_ui_migration_plan.md
+│  │  ├─ object_model_migration_plan.md
+│  │  ├─ object_model_worklog.md
+│  │  └─ object_model_next_phase_plan.md
 │  ├─ education/
 │  │  ├─ explanation_templates.md
 │  │  └─ mobile_ui_policy.md
@@ -84,6 +89,7 @@ TypeScript 移行は完了しており、`dist/` を出力して動作させま�
 | `docs/architecture/snap_point_id_spec.md` | SnapPointID 仕様書 |
 | `docs/architecture/snap_point_id_parsing.md` | SnapPointID パース/正規化仕様 |
 | `docs/architecture/vertex_labeling_spec.md` | 頂点ラベル設定仕様 |
+| `docs/architecture/object_model_spec.md` | オブジェクトベースのモデル仕様 |
 | `docs/architecture/education_engine_integrated_design.md` | 最重要: 思考整理ログ + 教育ツール設計の統合版 |
 | `docs/architecture/engine_ui_contract.md` | UI/Engine の契約（API設計） |
 | `docs/architecture/ui_layer_design.md` | UI層（React想定）の設計方針 |
@@ -95,6 +101,9 @@ TypeScript 移行は完了しており、`dist/` を出力して動作させま�
 | `docs/migration/implementation_checklist.md` | 実装チェックリスト |
 | `docs/migration/typescript_migration_plan.md` | TypeScript移行プラン |
 | `docs/migration/react_ui_migration_plan.md` | React UI移行プラン |
+| `docs/migration/object_model_migration_plan.md` | オブジェクトモデル移行計画 |
+| `docs/migration/object_model_worklog.md` | オブジェクトモデル移行の作業履歴 |
+| `docs/migration/object_model_next_phase_plan.md` | オブジェクトモデル移行の次フェーズ計画 |
 | `docs/specs/geometry/geometry_resolver_spec.md` | GeometryResolver 仕様 |
 | `docs/specs/geometry/index_map_spec.md` | indexMap の実装仕様 |
 | `docs/specs/cutter/cut_result_schema.md` | CutResult/交点のデータ仕様 |

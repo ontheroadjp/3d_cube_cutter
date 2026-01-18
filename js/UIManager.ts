@@ -31,6 +31,8 @@ export class UIManager {
   togglePyramid: HTMLInputElement | null;
   toggleCubeTransparency: HTMLInputElement | null;
   toggleFaceLabels: HTMLInputElement | null;
+  toggleCutPoints: HTMLInputElement | null;
+  toggleCutLineColor: HTMLInputElement | null;
   configureVertexLabelsBtn: HTMLButtonElement | null;
   flipCutBtn: HTMLButtonElement | null;
   toggleNetBtn: HTMLButtonElement | null;
@@ -78,6 +80,8 @@ export class UIManager {
     this.togglePyramid = document.getElementById('togglePyramid') as HTMLInputElement | null;
     this.toggleCubeTransparency = document.getElementById('toggleCubeTransparency') as HTMLInputElement | null;
     this.toggleFaceLabels = document.getElementById('toggleFaceLabels') as HTMLInputElement | null;
+    this.toggleCutPoints = document.getElementById('toggleCutPoints') as HTMLInputElement | null;
+    this.toggleCutLineColor = document.getElementById('toggleCutLineColor') as HTMLInputElement | null;
     this.configureVertexLabelsBtn = document.getElementById('configureVertexLabels') as HTMLButtonElement | null;
 
     // --- Action Buttons ---
@@ -95,7 +99,9 @@ export class UIManager {
       edgeLabelMode: edgeMode === 'popup' || edgeMode === 'hidden' ? edgeMode : 'visible',
       showCutSurface: this.toggleCutSurface ? this.toggleCutSurface.checked : true,
       showPyramid: this.togglePyramid ? this.togglePyramid.checked : false,
-      cubeTransparent: this.toggleCubeTransparency ? this.toggleCubeTransparency.checked : true
+      cubeTransparent: this.toggleCubeTransparency ? this.toggleCubeTransparency.checked : true,
+      showCutPoints: this.toggleCutPoints ? this.toggleCutPoints.checked : true,
+      colorizeCutLines: this.toggleCutLineColor ? this.toggleCutLineColor.checked : false
     };
     this.currentMode = this.modeSelector ? this.modeSelector.value : 'free';
     this.currentSettingsCategory = this.settingsCategorySelector ? this.settingsCategorySelector.value : 'display';
@@ -114,6 +120,8 @@ export class UIManager {
   isPyramidChecked() { return this.togglePyramid ? this.togglePyramid.checked : this.displayState.showPyramid; }
   isTransparencyChecked() { return this.toggleCubeTransparency ? this.toggleCubeTransparency.checked : this.displayState.cubeTransparent; }
   isFaceLabelsChecked() { return this.toggleFaceLabels ? this.toggleFaceLabels.checked : this.displayState.showFaceLabels; }
+  isCutPointsChecked() { return this.toggleCutPoints ? this.toggleCutPoints.checked : this.displayState.showCutPoints; }
+  isCutLineColorChecked() { return this.toggleCutLineColor ? this.toggleCutLineColor.checked : this.displayState.colorizeCutLines; }
   getDisplayState(): DisplayState {
     return {
       showVertexLabels: this.displayState.showVertexLabels,
@@ -121,7 +129,9 @@ export class UIManager {
       edgeLabelMode: this.displayState.edgeLabelMode,
       showCutSurface: this.displayState.showCutSurface,
       showPyramid: this.displayState.showPyramid,
-      cubeTransparent: this.displayState.cubeTransparent
+      cubeTransparent: this.displayState.cubeTransparent,
+      showCutPoints: this.displayState.showCutPoints,
+      colorizeCutLines: this.displayState.colorizeCutLines
     };
   }
 
@@ -133,6 +143,8 @@ export class UIManager {
     if (typeof display.showCutSurface === 'boolean' && this.toggleCutSurface) this.toggleCutSurface.checked = display.showCutSurface;
     if (typeof display.showPyramid === 'boolean' && this.togglePyramid) this.togglePyramid.checked = display.showPyramid;
     if (typeof display.cubeTransparent === 'boolean' && this.toggleCubeTransparency) this.toggleCubeTransparency.checked = display.cubeTransparent;
+    if (typeof display.showCutPoints === 'boolean' && this.toggleCutPoints) this.toggleCutPoints.checked = display.showCutPoints;
+    if (typeof display.colorizeCutLines === 'boolean' && this.toggleCutLineColor) this.toggleCutLineColor.checked = display.colorizeCutLines;
   }
 
   // --- UI Visibility Controls ---

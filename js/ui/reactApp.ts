@@ -42,6 +42,7 @@ type Engine = {
   configureCube?: (lx: number, ly: number, lz: number) => void;
   getCubeSize?: () => { lx: number; ly: number; lz: number };
   setPanelOpen?: (open: boolean) => void;
+  getNetVisible?: () => boolean;
 };
 
 type UserPresetForm = {
@@ -96,4 +97,3 @@ export function initReactApp() {
 
   initSidePanel(); // Call the new SidePanel initialization
 }
-

@@ -37,7 +37,33 @@ Summary: 現行実装の把握と構造主体移行のための実装メモを�
 ### 2.5 展開図（NetUnfold）
 - 展開図は3D上で面が順番に開くアニメーション + 俯瞰視点
 - 展開中は立体を非表示にし、面ラベル/頂点ラベル/輪郭線は表示
-- 切断線/切断点は追従しないため展開中は非表示
+- 切断線/切断点/断面は面に追従し、表示設定に連動
+
+### 2.6 表示設定の拡張
+- 切断点の表示/非表示を追加
+- 切断線は色分けトグル（デフォルト色 ↔ 強調色）
+
+### 2.7 オブジェクトモデル移行の起点
+- 立体/切断/展開図の要素を Object Model として保持する方針
+- 既存構造モデルから Object Model を構築するビルダーを追加
+- Object Model を保持/同期するマネージャーを導入
+- 切断線の色分けは Object Model の Edge flags を参照する準備を進行
+- Cut intersections を Object Model に反映し、色分け/追従の起点にする
+- 3D 切断点マーカーの生成は Object Model の交点参照に切替
+- ラベル表示の切替は ObjectModelManager 経由で View に適用
+- 透明化は ObjectModelManager を起点に View へ反映
+- 切断補助表示（断面/切断線/切断点のトグル）は ObjectModelManager 経由で適用
+- 切断結果（cutSegments / facePolygons / faceAdjacency）を ObjectModelManager に同期し、展開図はそこから参照
+- Net 展開アニメーションの状態を ObjectModelManager に同期し、段階的にモデル起点へ寄せる
+- Net アニメーション状態の更新は setNetAnimationState を経由して Model を更新する
+- Net 展開の状態遷移は Model 側に寄せ、直接の state 代入は避ける
+- Net 展開中の表示判定も Model の state を参照する
+- Net の progress は Model 起点で参照し、ローカル保持を削減する
+- Net の scale は Model 起点で参照し、ローカル保持を削減する
+- Net の targetCenter/positionTarget は Model 起点で参照し、ローカル保持を削減する
+- Net の startAt/カメラ遷移は Model に保持し、描画で参照する
+- Net の表示状態（visible）は Model 起点で管理する
+- Net の UI 反映は __setNetVisible を介して Model の visible に同期する
 
 ---
 

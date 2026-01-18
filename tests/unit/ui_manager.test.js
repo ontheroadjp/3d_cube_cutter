@@ -47,7 +47,9 @@ describe('UIManager', () => {
       edgeLabelMode: 'hidden',
       showCutSurface: false,
       showPyramid: true,
-      cubeTransparent: false
+      cubeTransparent: false,
+      showCutPoints: false,
+      colorizeCutLines: true
     });
 
     expect(ui.getDisplayState()).toEqual({
@@ -56,7 +58,9 @@ describe('UIManager', () => {
       edgeLabelMode: 'hidden',
       showCutSurface: false,
       showPyramid: true,
-      cubeTransparent: false
+      cubeTransparent: false,
+      showCutPoints: false,
+      colorizeCutLines: true
     });
   });
 
@@ -69,6 +73,8 @@ describe('UIManager', () => {
     elements.set('toggleVertexLabels', createInput(false));
     elements.set('toggleFaceLabels', createInput(true));
     elements.set('toggleCutSurface', createInput(false));
+    elements.set('toggleCutPoints', createInput(true));
+    elements.set('toggleCutLineColor', createInput(true));
     elements.set('togglePyramid', createInput(true));
     elements.set('toggleCubeTransparency', createInput(false));
 
@@ -81,7 +87,9 @@ describe('UIManager', () => {
       edgeLabelMode: 'popup',
       showCutSurface: false,
       showPyramid: true,
-      cubeTransparent: false
+      cubeTransparent: false,
+      showCutPoints: true,
+      colorizeCutLines: true
     });
   });
 
