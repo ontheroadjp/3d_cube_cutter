@@ -243,3 +243,10 @@ Summary:
 
 Notes:
 - legacy DOM を前提とした UI 更新を段階的に縮退
+
+## 2026-01-19T09:28:53+09:00
+Summary:
+- UIManager の legacy DOM 参照をフラグで抑制し、React UI 前提に整理
+
+Notes:
+- React サイドパネルがある場合は legacy DOM を初期化しない

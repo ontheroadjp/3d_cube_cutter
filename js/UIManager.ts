@@ -42,7 +42,10 @@ export class UIManager {
   currentMode: string;
   currentSettingsCategory: string;
 
-  constructor(){
+  legacyControlsEnabled: boolean;
+
+  constructor(options: { legacyControls?: boolean } = {}){
+    this.legacyControlsEnabled = options.legacyControls !== false;
     this.tooltip = document.getElementById('tooltip') as HTMLElement;
     this.countSpan = document.getElementById('count') as HTMLElement;
     this.alertContainer = document.getElementById('alert-container') as HTMLElement;
@@ -50,45 +53,87 @@ export class UIManager {
     this.explanationText = document.getElementById('explanation-text');
 
     // --- Mode/Preset/Settings Controls ---
-    this.modeSelector = document.getElementById('mode-selector') as HTMLSelectElement | null;
+    this.modeSelector = this.legacyControlsEnabled
+      ? (document.getElementById('mode-selector') as HTMLSelectElement | null)
+      : null;
     
-    this.presetControls = document.getElementById('preset-controls');
-    this.presetCategoryFilter = document.getElementById('preset-category-filter') as HTMLSelectElement | null;
-    this.presetButtonsContainer = document.getElementById('presetButtons');
+    this.presetControls = this.legacyControlsEnabled ? document.getElementById('preset-controls') : null;
+    this.presetCategoryFilter = this.legacyControlsEnabled
+      ? (document.getElementById('preset-category-filter') as HTMLSelectElement | null)
+      : null;
+    this.presetButtonsContainer = this.legacyControlsEnabled ? document.getElementById('presetButtons') : null;
     
-    this.settingsControls = document.getElementById('settings-controls');
-    this.settingsCategorySelector = document.getElementById('settings-category-selector') as HTMLSelectElement | null;
+    this.settingsControls = this.legacyControlsEnabled ? document.getElementById('settings-controls') : null;
+    this.settingsCategorySelector = this.legacyControlsEnabled
+      ? (document.getElementById('settings-category-selector') as HTMLSelectElement | null)
+      : null;
     
-    this.settingsPanels = document.getElementById('settings-panels');
-    this.learningPanels = document.getElementById('learning-panels');
-    this.displaySettingsPanel = document.getElementById('display-settings-panel');
-    this.cuboidSettingsPanel = document.getElementById('cuboid-settings-panel');
-    this.userPresetsPanel = document.getElementById('user-presets-panel');
-    this.saveUserPresetBtn = document.getElementById('saveUserPreset') as HTMLButtonElement | null;
-    this.cancelUserPresetEditBtn = document.getElementById('cancelUserPresetEdit') as HTMLButtonElement | null;
-    this.userPresetList = document.getElementById('userPresetList');
-    this.userPresetEmpty = document.getElementById('userPresetEmpty');
-    this.userPresetName = document.getElementById('userPresetName') as HTMLInputElement | null;
-    this.userPresetCategory = document.getElementById('userPresetCategory') as HTMLInputElement | null;
-    this.userPresetDescription = document.getElementById('userPresetDescription') as HTMLInputElement | null;
-    this.userPresetStorageNote = document.getElementById('userPresetStorageNote');
+    this.settingsPanels = this.legacyControlsEnabled ? document.getElementById('settings-panels') : null;
+    this.learningPanels = this.legacyControlsEnabled ? document.getElementById('learning-panels') : null;
+    this.displaySettingsPanel = this.legacyControlsEnabled ? document.getElementById('display-settings-panel') : null;
+    this.cuboidSettingsPanel = this.legacyControlsEnabled ? document.getElementById('cuboid-settings-panel') : null;
+    this.userPresetsPanel = this.legacyControlsEnabled ? document.getElementById('user-presets-panel') : null;
+    this.saveUserPresetBtn = this.legacyControlsEnabled
+      ? (document.getElementById('saveUserPreset') as HTMLButtonElement | null)
+      : null;
+    this.cancelUserPresetEditBtn = this.legacyControlsEnabled
+      ? (document.getElementById('cancelUserPresetEdit') as HTMLButtonElement | null)
+      : null;
+    this.userPresetList = this.legacyControlsEnabled ? document.getElementById('userPresetList') : null;
+    this.userPresetEmpty = this.legacyControlsEnabled ? document.getElementById('userPresetEmpty') : null;
+    this.userPresetName = this.legacyControlsEnabled
+      ? (document.getElementById('userPresetName') as HTMLInputElement | null)
+      : null;
+    this.userPresetCategory = this.legacyControlsEnabled
+      ? (document.getElementById('userPresetCategory') as HTMLInputElement | null)
+      : null;
+    this.userPresetDescription = this.legacyControlsEnabled
+      ? (document.getElementById('userPresetDescription') as HTMLInputElement | null)
+      : null;
+    this.userPresetStorageNote = this.legacyControlsEnabled ? document.getElementById('userPresetStorageNote') : null;
 
     // --- Display Settings Toggles ---
-    this.edgeLabelSelect = document.getElementById('edgeLabelMode') as HTMLSelectElement | null;
-    this.toggleVertexLabels = document.getElementById('toggleVertexLabels') as HTMLInputElement | null;
-    this.toggleCutSurface = document.getElementById('toggleCutSurface') as HTMLInputElement | null;
-    this.togglePyramid = document.getElementById('togglePyramid') as HTMLInputElement | null;
-    this.toggleCubeTransparency = document.getElementById('toggleCubeTransparency') as HTMLInputElement | null;
-    this.toggleFaceLabels = document.getElementById('toggleFaceLabels') as HTMLInputElement | null;
-    this.toggleCutPoints = document.getElementById('toggleCutPoints') as HTMLInputElement | null;
-    this.toggleCutLineColor = document.getElementById('toggleCutLineColor') as HTMLInputElement | null;
-    this.configureVertexLabelsBtn = document.getElementById('configureVertexLabels') as HTMLButtonElement | null;
+    this.edgeLabelSelect = this.legacyControlsEnabled
+      ? (document.getElementById('edgeLabelMode') as HTMLSelectElement | null)
+      : null;
+    this.toggleVertexLabels = this.legacyControlsEnabled
+      ? (document.getElementById('toggleVertexLabels') as HTMLInputElement | null)
+      : null;
+    this.toggleCutSurface = this.legacyControlsEnabled
+      ? (document.getElementById('toggleCutSurface') as HTMLInputElement | null)
+      : null;
+    this.togglePyramid = this.legacyControlsEnabled
+      ? (document.getElementById('togglePyramid') as HTMLInputElement | null)
+      : null;
+    this.toggleCubeTransparency = this.legacyControlsEnabled
+      ? (document.getElementById('toggleCubeTransparency') as HTMLInputElement | null)
+      : null;
+    this.toggleFaceLabels = this.legacyControlsEnabled
+      ? (document.getElementById('toggleFaceLabels') as HTMLInputElement | null)
+      : null;
+    this.toggleCutPoints = this.legacyControlsEnabled
+      ? (document.getElementById('toggleCutPoints') as HTMLInputElement | null)
+      : null;
+    this.toggleCutLineColor = this.legacyControlsEnabled
+      ? (document.getElementById('toggleCutLineColor') as HTMLInputElement | null)
+      : null;
+    this.configureVertexLabelsBtn = this.legacyControlsEnabled
+      ? (document.getElementById('configureVertexLabels') as HTMLButtonElement | null)
+      : null;
 
     // --- Action Buttons ---
-    this.flipCutBtn = document.getElementById('flipCut') as HTMLButtonElement | null;
-    this.toggleNetBtn = document.getElementById('toggleNet') as HTMLButtonElement | null;
-    this.resetBtn = document.getElementById('reset') as HTMLButtonElement | null;
-    this.configureBtn = document.getElementById('configure') as HTMLButtonElement | null;
+    this.flipCutBtn = this.legacyControlsEnabled
+      ? (document.getElementById('flipCut') as HTMLButtonElement | null)
+      : null;
+    this.toggleNetBtn = this.legacyControlsEnabled
+      ? (document.getElementById('toggleNet') as HTMLButtonElement | null)
+      : null;
+    this.resetBtn = this.legacyControlsEnabled
+      ? (document.getElementById('reset') as HTMLButtonElement | null)
+      : null;
+    this.configureBtn = this.legacyControlsEnabled
+      ? (document.getElementById('configure') as HTMLButtonElement | null)
+      : null;
 
     const edgeMode = this.edgeLabelSelect
         ? this.edgeLabelSelect.value

@@ -174,7 +174,8 @@ class App {
         this.scene.add(this.highlightMarker);
 
         // --- Managers ---
-        this.ui = new UIManager();
+        const hasReactSidePanel = !!document.getElementById('react-side-panel-root');
+        this.ui = new UIManager({ legacyControls: !hasReactSidePanel });
         this.cube = new Cube(this.scene, size);
         this.resolver = new GeometryResolver({ size: this.cube.getSize(), indexMap: this.cube.getIndexMap() });
         this.cutter = new Cutter(this.scene);
