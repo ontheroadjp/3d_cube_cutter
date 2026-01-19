@@ -773,7 +773,91 @@ export class Cutter {
   /** @returns {CutFacePolygon[]} */
   getResultFacePolygons() {
       if (!this.resultMesh) return [];
-      return extractFacePolygonsFromMesh(this.resultMesh);
+      const polygons = extractFacePolygonsFromMesh(this.resultMesh);
+      const resolver = this.lastResolver;
+      const cube = this.lastCube;
+      if (!resolver || !cube) return polygons;
+      const structure = cube.getStructure ? cube.getStructure() : null;
+      const epsilon = 1e-2;
+      const epsilonSq = epsilon * epsilon;
+      const denominator = 1000;
+
+      const candidates = new Map();
+      const addCandidate = (id) => {
+          if (!id || candidates.has(id)) return;
+          const position = resolver.resolveSnapPoint(id);
+          if (position) candidates.set(id, position);
+      };
+      (this.intersectionRefs || []).forEach(ref => addCandidate(ref && ref.id));
+      if (structure && Array.isArray(structure.vertices)) {
+          structure.vertices.forEach(vertex => addCandidate(vertex && vertex.id));
+      }
+      const candidateEntries = Array.from(candidates.entries());
+
+      const resolveSnapIdForPosition = (point) => {
+          if (!(point instanceof THREE.Vector3)) return null;
+          let bestId = null;
+          let bestDist = Infinity;
+          candidateEntries.forEach(([id, position]) => {
+              const dist = position.distanceToSquared(point);
+              if (dist < bestDist) {
+                  bestDist = dist;
+                  bestId = id;
+              }
+          });
+          if (bestId && bestDist <= epsilonSq) return bestId;
+          if (structure && Array.isArray(structure.edges)) {
+              for (const edge of structure.edges) {
+                  if (!edge || !edge.id) continue;
+                  const resolved = resolver.resolveEdge(edge.id);
+                  if (!resolved) continue;
+                  const start = resolved.start;
+                  const end = resolved.end;
+                  const edgeVec = end.clone().sub(start);
+                  const edgeLenSq = edgeVec.lengthSq();
+                  if (edgeLenSq <= 0) continue;
+                  const t = edgeVec.dot(point.clone().sub(start)) / edgeLenSq;
+                  if (t < -0.001 || t > 1.001) continue;
+                  const closest = start.clone().add(edgeVec.multiplyScalar(t));
+                  if (closest.distanceToSquared(point) > epsilonSq) continue;
+                  const numerator = Math.max(0, Math.min(denominator, Math.round(t * denominator)));
+                  const parsed = normalizeSnapPointId({
+                      type: 'edge',
+                      edgeIndex: edge.id.slice(2),
+                      ratio: { numerator, denominator }
+                  });
+                  const snapId = stringifySnapPointId(parsed);
+                  if (!snapId) continue;
+                  return canonicalizeSnapPointId(snapId) || snapId;
+              }
+          }
+          return null;
+      };
+
+      return polygons.map(polygon => {
+          const vertices = (polygon.vertices || []).filter(v => v instanceof THREE.Vector3);
+          if (!vertices.length) return polygon;
+          const vertexIds = vertices
+              .map(vertex => resolveSnapIdForPosition(vertex))
+              .filter(Boolean);
+          if (vertexIds.length !== vertices.length) {
+              console.warn('[cut] failed to resolve polygon vertices to snap ids', {
+                  faceId: polygon.faceId,
+                  vertexCount: vertices.length,
+                  resolved: vertexIds.length
+              });
+              return {
+                  ...polygon,
+                  vertexIds: vertexIds.length ? vertexIds : undefined
+              };
+          }
+          return {
+              ...polygon,
+              vertices: [],
+              vertexIds,
+              normal: undefined
+          };
+      });
   }
 
   /** @returns {Array<{ a: string; b: string; sharedEdge: [THREE.Vector3, THREE.Vector3] }>} */
