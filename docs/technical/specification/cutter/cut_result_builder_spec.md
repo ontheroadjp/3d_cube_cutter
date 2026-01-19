@@ -6,7 +6,7 @@ Summary: CSG の切断結果から CutResult を組み立てる仕様を定義�
 CSG の切断結果から CutResult を組み立てる仕様を定義する。
 
 ## ファイル名
-docs/specs/cutter/cut_result_builder_spec.md
+docs/technical/specification/cutter/cut_result_builder_spec.md
 
 ## 目的
 - CSG 演算を行い、切断結果を Mesh / outline / vertexMarkers として生成

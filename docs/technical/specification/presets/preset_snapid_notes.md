@@ -1,4 +1,4 @@
-# docs/presets/preset_snapid_notes.md
+# docs/technical/specification/presets/preset_snapid_notes.md
 
 Status: Active
 Summary: SnapPointID を使ったプリセット切断パターンを PresetManager / presetData.js で扱う際の注意点とベストプラクティスを整理します。

@@ -5,9 +5,9 @@ Summary: 本プロジェクトは、中学受験算数向けの教育ツール�
 
 ## 1. 概要
 本プロジェクトは、中学受験算数向けの教育ツールとして、立方体・直方体の切断操作をシミュレーションするウェブアプリケーションです。
-構造主体アーキテクチャへの移行は完了しており、SnapPointID を中心とした仕様が整理されています。
+構造主体アーキテクチャへの移行は継続中で、SnapPointID を中心とした仕様の整備を進めています。
 TypeScript 移行は完了しており、`dist/` を出力して動作させます。
-React UI 移行やオブジェクトモデル移行は継続中のため、`docs/migration/` を参照してください。
+React UI 移行やオブジェクトモデル移行は継続中のため、`docs/technical/migration/` を参照してください。
 
 ---
 
@@ -17,59 +17,29 @@ React UI 移行やオブジェクトモデル移行は継続中のため、`docs
 3d_cube_cutter/
 ├─ docs/
 │  ├─ README.md
-│  ├─ architecture/
-│  │  ├─ design_principles.md
-│  │  ├─ education_engine_integrated_design.md
-│  │  ├─ engine_ui_contract.md
-│  │  ├─ structure_first_overview.md
-│  │  ├─ structure_model_spec.md
-│  │  ├─ snap_point_id_naming.md
-│  │  ├─ snap_point_id_spec.md
-│  │  ├─ snap_point_id_parsing.md
-│  │  ├─ vertex_labeling_spec.md
-│  │  ├─ object_model_spec.md
-│  │  └─ ui_layer_design.md
-│  ├─ migration/
-│  │  ├─ architecture_migration_plan.md
-│  │  ├─ implementation_checklist.md
-│  │  ├─ step0_current_architecture.md
-│  │  ├─ structure_first_migration_plan.md
-│  │  ├─ typescript_migration_plan.md
-│  │  ├─ react_ui_migration_plan.md
-│  │  ├─ object_model_migration_plan.md
-│  │  ├─ object_model_worklog.md
-│  │  └─ object_model_next_phase_plan.md
+│  ├─ CURRENT.md
+│  ├─ workflow.md
+│  ├─ documentation_policy.md
+│  ├─ issue_pr_policy.md
+│  ├─ technical/
+│  │  ├─ README.md
+│  │  ├─ architecture/
+│  │  ├─ specification/
+│  │  ├─ migration/
+│  │  ├─ patterns/
+│  │  ├─ testing/
+│  │  └─ notes/
 │  ├─ education/
-│  │  ├─ explanation_templates.md
-│  │  └─ mobile_ui_policy.md
-│  ├─ patterns/
-│  │  ├─ frequent_patterns.md
-│  │  └─ frequent_patterns_snapid.md
-│  ├─ presets/
-│  │  ├─ preset_snapid_notes.md
-│  │  ├─ preset_snapid_usage.md
-│  │  ├─ preset_unification_policy.md
-│  │  └─ user_preset_state_spec.md
-│  ├─ specs/
-│  │  ├─ cutter/
-│  │  │  ├─ cut_result_builder_spec.md
-│  │  │  ├─ cut_result_schema.md
-│  │  │  ├─ cutter_module_spec.md
-│  │  │  ├─ cutter_spec.md
-│  │  │  └─ intersection_calculator_spec.md
-│  │  ├─ geometry/
-│  │  │  ├─ geometry_resolver_spec.md
-│  │  │  ├─ index_map_spec.md
-│  │  │  └─ plane_builder_spec.md
-│  │  ├─ net/
-│  │  │  └─ net_mapping_spec.md
-│  │  ├─ ui/
-│  │  │  └─ ui_spec.md
-│  │  └─ storage/
-│  │     └─ storage_adapter_spec.md
-│  ├─ testing/
-│  │  └─ verification_plan.md
-│  ├─ implementation_notes.md
+│  │  ├─ README.md
+│  │  ├─ philosophy.md
+│  │  ├─ learning_goals.md
+│  │  ├─ learner_model.md
+│  │  ├─ ui_policy.md
+│  │  ├─ content_guidelines.md
+│  │  └─ examples/
+│  ├─ migration/
+│  │  └─ object_model/
+│  │     └─ object_model_worklog.md
 │  └─ legacy/
 │     └─ v0.0.1/
 │        ├─ implementation_notes.md
@@ -82,52 +52,37 @@ React UI 移行やオブジェクトモデル移行は継続中のため、`docs
 
 | ファイル | 内容 |
 |----------|------|
-| `docs/architecture/design_principles.md` | 構造主体アーキテクチャの設計原則 |
-| `docs/architecture/structure_first_overview.md` | 構造主体モデルの概要 |
-| `docs/architecture/structure_model_spec.md` | Vertex/Edge/Face/SnapPoint の構造モデル仕様 |
-| `docs/architecture/snap_point_id_naming.md` | SnapPointID 命名規則 |
-| `docs/architecture/snap_point_id_spec.md` | SnapPointID 仕様書 |
-| `docs/architecture/snap_point_id_parsing.md` | SnapPointID パース/正規化仕様 |
-| `docs/architecture/vertex_labeling_spec.md` | 頂点ラベル設定仕様 |
-| `docs/architecture/object_model_spec.md` | オブジェクトベースのモデル仕様 |
-| `docs/architecture/education_engine_integrated_design.md` | 最重要: 思考整理ログ + 教育ツール設計の統合版 |
-| `docs/architecture/engine_ui_contract.md` | UI/Engine の契約（API設計） |
-| `docs/architecture/ui_layer_design.md` | UI層（React想定）の設計方針 |
-| `docs/presets/user_preset_state_spec.md` | ユーザープリセット（状態保存）仕様 |
-| `docs/presets/preset_unification_policy.md` | プリセット統合方針 |
-| `docs/migration/architecture_migration_plan.md` | 移行計画（全体） |
-| `docs/migration/step0_current_architecture.md` | 現行コードの責務整理 |
-| `docs/migration/structure_first_migration_plan.md` | 移行手順（詳細） |
-| `docs/migration/implementation_checklist.md` | 実装チェックリスト |
-| `docs/migration/typescript_migration_plan.md` | TypeScript移行プラン |
-| `docs/migration/react_ui_migration_plan.md` | React UI移行プラン |
-| `docs/migration/object_model_migration_plan.md` | オブジェクトモデル移行計画 |
-| `docs/migration/object_model_worklog.md` | オブジェクトモデル移行の作業履歴 |
-| `docs/migration/object_model_next_phase_plan.md` | オブジェクトモデル移行の次フェーズ計画 |
-| `docs/specs/geometry/geometry_resolver_spec.md` | GeometryResolver 仕様 |
-| `docs/specs/geometry/index_map_spec.md` | indexMap の実装仕様 |
-| `docs/specs/cutter/cut_result_schema.md` | CutResult/交点のデータ仕様 |
-| `docs/specs/net/net_mapping_spec.md` | 展開図の構造マッピング仕様 |
-| `docs/specs/ui/ui_spec.md` | UIの現行仕様（サイドバー/設定/プリセット） |
-| `docs/specs/storage/storage_adapter_spec.md` | 保存アダプタ仕様 |
-| `docs/testing/verification_plan.md` | 検証計画 |
-| `docs/implementation_notes.md` | 現行実装ノート（移行向け） |
-| `docs/education/mobile_ui_policy.md` | モバイルUI簡略化方針 |
+| `docs/CURRENT.md` | 現在地（進行中のフェーズと次の作業） |
+| `docs/documentation_policy.md` | ドキュメント管理ポリシー |
+| `docs/workflow.md` | 作業フロー（Issue/PR/ブランチ運用） |
+| `docs/issue_pr_policy.md` | Issue/PR 運用の入口 |
+| `docs/technical/architecture/design_principles.md` | 構造主体アーキテクチャの設計原則 |
+| `docs/technical/architecture/structure_first_overview.md` | 構造主体モデルの概要 |
+| `docs/technical/architecture/structure_model_spec.md` | Vertex/Edge/Face/SnapPoint の構造モデル仕様 |
+| `docs/technical/architecture/snap_point_id_spec.md` | SnapPointID 仕様書 |
+| `docs/technical/architecture/object_model_spec.md` | オブジェクトベースのモデル仕様 |
+| `docs/technical/specification/geometry/geometry_resolver_spec.md` | GeometryResolver 仕様 |
+| `docs/technical/specification/net/net_mapping_spec.md` | 展開図の構造マッピング仕様 |
+| `docs/technical/specification/ui/ui_spec.md` | UI の現行仕様 |
+| `docs/technical/specification/storage/storage_adapter_spec.md` | 保存アダプタ仕様 |
+| `docs/technical/migration/architecture_migration_plan.md` | 移行計画（全体） |
+| `docs/migration/object_model/object_model_worklog.md` | オブジェクトモデル移行の作業履歴（例外配置） |
+| `docs/technical/testing/verification_plan.md` | 検証計画 |
 
 ---
 
 ## 4. 使い方の目安
 
-- 設計方針を理解する: `docs/architecture/design_principles.md`
-- SnapPointID を理解する: `docs/architecture/snap_point_id_spec.md`
-- 移行計画を確認する: `docs/migration/architecture_migration_plan.md`
-- 実装設計を確認する: `docs/specs/`
+- 設計方針を理解する: `docs/technical/architecture/design_principles.md`
+- SnapPointID を理解する: `docs/technical/architecture/snap_point_id_spec.md`
+- 移行計画を確認する: `docs/technical/migration/architecture_migration_plan.md`
+- 実装設計を確認する: `docs/technical/specification/`
 
 ---
 
 ## 5. 補足
 - 旧版の仕様は `docs/legacy/v0.0.1/` に隔離しています。必要な場合のみ参照してください。
-- 移行計画ドキュメントは「当時の判断」を含むため、最新の方針は `docs/migration/*.md` の最新版を参照してください。
+- 移行計画ドキュメントは「当時の判断」を含むため、最新の方針は `docs/technical/migration/` を参照してください。
 
 ## 6. ステータス指標
 新規参加者の混乱を避けるため、各ドキュメントの冒頭に以下のステータスを付与する運用を推奨します。

@@ -1,9 +1,9 @@
 # architecture_migration_plan.md
 
 Status: Superseded
-Summary: 置き換え先: docs/migration/structurefirstmigrationplan.md。
+Summary: 置き換え先: docs/technical/migration/structurefirstmigrationplan.md。
 
-置き換え先: `docs/migration/structure_first_migration_plan.md`
+置き換え先: `docs/technical/migration/structure_first_migration_plan.md`
 
 # 3D 立体切断シミュレーター: 構造主体アーキテクチャへの移行計画
 
@@ -23,8 +23,8 @@ Summary: 置き換え先: docs/migration/structurefirstmigrationplan.md。
 
 ### フェーズ 1: 準備
 1. 現行コードの機能確認、主要モジュールの責務整理
-2. `docs/architecture/design_principles.md` に基づく設計思想の理解
-3. SnapPointID 命名規則を策定 (`docs/architecture/snap_point_id_naming.md`)
+2. `docs/technical/architecture/design_principles.md` に基づく設計思想の理解
+3. SnapPointID 命名規則を策定 (`docs/technical/architecture/snap_point_id_naming.md`)
 
 **目的:** 移行の共通理解と土台作り
 

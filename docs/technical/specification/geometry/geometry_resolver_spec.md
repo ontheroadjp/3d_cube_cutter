@@ -61,7 +61,7 @@ interface GeometryResolverConfig {
 - `indexMap` を指定しない場合は以下の規約をデフォルトとする。
   - `0(-x,-y,+z)`, `1(+x,-y,+z)`, `2(+x,-y,-z)`, `3(-x,-y,-z)`
   - `4(-x,+y,+z)`, `5(+x,+y,+z)`, `6(+x,+y,-z)`, `7(-x,+y,-z)`
-- indexMap の仕様詳細は `docs/specs/geometry/index_map_spec.md` を参照
+- indexMap の仕様詳細は `docs/technical/specification/geometry/index_map_spec.md` を参照
 
 ---
 

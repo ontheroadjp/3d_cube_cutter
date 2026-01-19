@@ -40,7 +40,7 @@ Summary: 現行UIの構成と、Three.js描画との責務分離方針を整理�
 
 ## 4. Engineとの接続
 UIは `globalThis.__engine` の公開APIにのみ依存する。
-詳細は `docs/architecture/engine_ui_contract.md` を参照。
+詳細は `docs/technical/architecture/engine_ui_contract.md` を参照。
 
 ---
 
