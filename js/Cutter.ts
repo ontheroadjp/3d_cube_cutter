@@ -76,7 +76,6 @@ export class Cutter {
 
   resolveIntersectionPosition(ref: IntersectionPoint, resolverOverride: any = null) {
     if (!ref) return null;
-    if (ref.position instanceof THREE.Vector3) return ref.position;
     const resolver = resolverOverride || this.lastResolver;
     if (!resolver || !ref.id) return null;
     return resolver.resolveSnapPoint(ref.id) || null;
@@ -890,7 +889,7 @@ export class Cutter {
       return polygons;
   }
 
-  /** @returns {Array<{ a: string; b: string; sharedEdge: [THREE.Vector3, THREE.Vector3] }>} */
+  /** @returns {Array<{ a: string; b: string; sharedEdgeIds?: [SnapPointID, SnapPointID] }>} */
   getResultFaceAdjacency() {
       const polygons = this.getResultFacePolygons();
       return buildFaceAdjacency(polygons);
@@ -998,7 +997,7 @@ export class Cutter {
     this.vertexMarkers = [];
   }
 
-  updateCutPointMarkers(intersections: Array<IntersectionPoint & { position: THREE.Vector3 }>) {
+  updateCutPointMarkers(intersections: IntersectionPoint[]) {
     this.clearCutPointMarkers();
     if (!intersections || !intersections.length) return;
     const selectionIds = new Set(

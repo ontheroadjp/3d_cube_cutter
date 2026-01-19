@@ -34,8 +34,6 @@ export type IntersectionPoint = {
   edgeId?: string;
   ratio?: Ratio;
   faceIds?: string[];
-  // Derived via GeometryResolver; not source of truth.
-  position?: unknown;
 };
 
 export type CutSegmentMeta = {
@@ -62,10 +60,6 @@ export type CutResult = {
   cutSegments: Array<{
     startId: SnapPointID;
     endId: SnapPointID;
-    // Derived via GeometryResolver; not source of truth.
-    start?: unknown;
-    // Derived via GeometryResolver; not source of truth.
-    end?: unknown;
     faceIds?: string[];
   }>;
 };
@@ -73,9 +67,7 @@ export type CutResult = {
 export type CutFacePolygon = {
   faceId: string;
   type: 'cut' | 'original';
-  vertices?: unknown[];
   vertexIds?: SnapPointID[];
-  normal?: unknown;
   sourceFaceId?: string;
 };
 

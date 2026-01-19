@@ -50,9 +50,7 @@ export class SelectionManager {
           .forEach(ref => {
               const edgeId = ref.edgeId || null;
               if (!edgeId) return;
-              const point = ref.position
-                  ? ref.position
-                  : (this.resolver ? this.resolver.resolveSnapPoint(ref.id) : null);
+              const point = this.resolver ? this.resolver.resolveSnapPoint(ref.id) : null;
               if (!point) return;
               const edgeIdx = this.cube.getEdgeMeshIndexById(edgeId);
               if (edgeIdx !== -1 && edgeIdx !== null) {

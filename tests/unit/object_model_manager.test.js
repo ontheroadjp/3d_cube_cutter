@@ -81,7 +81,7 @@ describe('object model manager', () => {
     }
   });
 
-  it('resolves cut intersection positions via resolver only when needed', () => {
+  it('resolves cut intersection positions via resolver', () => {
     const scene = new THREE.Scene();
     const cube = new Cube(scene, 10);
     const resolver = new GeometryResolver({ size: cube.getSize(), indexMap: cube.getIndexMap() });
@@ -90,7 +90,7 @@ describe('object model manager', () => {
 
     const resolveSpy = vi.spyOn(resolver, 'resolveSnapPoint');
     manager.applyCutIntersections([
-      { id: 'V:0', type: 'intersection', position: new THREE.Vector3(1, 2, 3) },
+      { id: 'V:0', type: 'intersection' },
       { id: 'E:01@1/2', type: 'intersection' }
     ]);
 
@@ -111,30 +111,25 @@ describe('object model manager', () => {
     const manager = new ObjectModelManager({ cube, resolver, ui: null });
     manager.build();
 
-    const start = new THREE.Vector3(0, 0, 0);
-    const end = new THREE.Vector3(1, 0, 0);
     const polygon = {
       faceId: 'F:test',
       type: 'original',
-      vertices: [new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 0, 0), new THREE.Vector3(1, 1, 0)],
-      normal: new THREE.Vector3(0, 0, 1)
+      vertexIds: ['V:0', 'V:1', 'V:2']
     };
 
     manager.syncCutState({
       intersections: [{ id: 'V:0', type: 'intersection' }],
-      cutSegments: [{ startId: 'V:0', endId: 'V:1', start, end }],
+      cutSegments: [{ startId: 'V:0', endId: 'V:1' }],
       facePolygons: [polygon],
-      faceAdjacency: [{ a: 'F:test', b: 'F:neighbor', sharedEdge: [start, end] }]
+      faceAdjacency: [{ a: 'F:test', b: 'F:neighbor' }]
     });
 
     const model = manager.getModel();
     expect(model.cut.cutSegments.length).toBe(1);
-    expect(model.cut.cutSegments[0].start).toBeUndefined();
-    expect(model.cut.cutSegments[0].end).toBeUndefined();
     expect(manager.getCutSegments().length).toBe(1);
     expect(model.cut.facePolygons.length).toBe(1);
     expect(manager.getCutFaceAdjacency().length).toBe(1);
-    expect(manager.getCutFaceAdjacency()[0].sharedEdge).toBeUndefined();
+    expect(manager.getCutFaceAdjacency()[0].sharedEdgeIds).toBeUndefined();
   });
 
   it('syncs net state', () => {

@@ -1489,42 +1489,10 @@ class App {
         });
         if (!faceMap.size) return;
 
-        const vertexMatchEpsilon = 1e-2;
-        const snapPointCandidates = new Map<string, THREE.Vector3>();
-        const addCandidate = (id: string | null | undefined) => {
-            if (!id || snapPointCandidates.has(id)) return;
-            const position = this.resolver.resolveSnapPoint(id);
-            if (position) snapPointCandidates.set(id, position);
-        };
-        this.objectModelManager.getCutIntersections().forEach(ref => addCandidate(ref.id));
-        const cubeStructureForIds = this.cube.getStructure();
-        if (cubeStructureForIds && Array.isArray(cubeStructureForIds.vertices)) {
-            cubeStructureForIds.vertices.forEach(vertex => addCandidate(vertex.id));
-        }
-
         const getPolygonVertexIds = (face: CutFacePolygon) => {
             const cached = (face as CutFacePolygon & { vertexIds?: string[] }).vertexIds;
             if (Array.isArray(cached) && cached.length) return cached.slice();
-            const verts = face.vertices as THREE.Vector3[];
-            if (!Array.isArray(verts) || !verts.length) return [];
-            const ids: string[] = [];
-            const epsilonSq = vertexMatchEpsilon * vertexMatchEpsilon;
-            for (const vertex of verts) {
-                if (!(vertex instanceof THREE.Vector3)) return [];
-                let bestId: string | null = null;
-                let bestDist = Infinity;
-                snapPointCandidates.forEach((candidate, id) => {
-                    const dist = vertex.distanceToSquared(candidate);
-                    if (dist < bestDist) {
-                        bestDist = dist;
-                        bestId = id;
-                    }
-                });
-                if (!bestId || bestDist > epsilonSq) return [];
-                ids.push(bestId);
-            }
-            (face as CutFacePolygon & { vertexIds?: string[] }).vertexIds = ids.slice();
-            return ids;
+            return [];
         };
 
         const resolvePolygonVertices = (face: CutFacePolygon) => {
@@ -1855,7 +1823,8 @@ class App {
                     const cross = new THREE.Vector3().crossVectors(cutNormal, targetNormal);
                     const sign = cross.dot(axis) >= 0 ? 1 : -1;
                     const quat = new THREE.Quaternion().setFromAxisAngle(axis, sign * angle);
-                    const rotatedVerts = (cutFace.vertices as THREE.Vector3[] || [])
+                    const cutVerts = resolvePolygonVertices(cutFace);
+                    const rotatedVerts = cutVerts
                         .map(v => v.clone().sub(edge.start).applyQuaternion(quat).add(edge.start));
                     const localVerts = rotatedVerts.map(v => projectToFacePlane(v, targetFaceId as string));
                     if (localVerts.length >= 3) {
