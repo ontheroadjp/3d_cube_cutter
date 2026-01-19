@@ -1,6 +1,7 @@
 .DS_Store
 GEMINI.md
 AGENTS.md
+docs/DOCS_INDEX.md
 
 node_modules/
 package-lock.json
