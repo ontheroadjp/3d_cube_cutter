@@ -252,6 +252,14 @@ Summary:
 Notes:
 - 座標は派生情報として扱い、今後も保持箇所を削減していく
 
+## 2026-01-19T11:24:43+09:00
+Summary:
+- 座標依存の棚卸しドキュメントを追加
+- SnapPointID/Resolver 起点の移行優先度案を整理
+
+Notes:
+- Issue #9 の成果物として更新
+
 ## 2026-01-19T09:28:53+09:00
 Summary:
 - UIManager の legacy DOM 参照をフラグで抑制し、React UI 前提に整理
