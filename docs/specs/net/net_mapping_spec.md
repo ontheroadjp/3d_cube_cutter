@@ -17,6 +17,7 @@ Face / Edge / IntersectionPoint の構造情報から安定的に描画する。
 - GeometryResolver が face の basisU / basisV を提供する
 - 展開図描画は GeometryResolver を前提とし、座標ベースのフォールバックは使用しない
 - 展開図の対象は「切断後の残立体」に含まれる面集合とする
+- 切断線は `startId/endId` を正とし、座標は Resolver で都度解決する
 
 ---
 
@@ -54,6 +55,12 @@ interface NetMappingContext {
   offsetX: number;
   offsetY: number;
   layouts: FaceLayout[];
+}
+
+interface CutSegment {
+  startId: string;
+  endId: string;
+  faceIds?: string[];
 }
 ```
 

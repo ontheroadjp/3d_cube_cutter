@@ -276,6 +276,14 @@ Summary:
 Notes:
 - Issue #11 の成果物として更新
 
+## 2026-01-19T12:19:58+09:00
+Summary:
+- Net 展開の切断線描画を Resolver 起点で解決するよう整理
+- Net マッピング仕様に SnapPointID 正の前提を追記
+
+Notes:
+- Issue #12 の成果物として更新
+
 ## 2026-01-19T09:28:53+09:00
 Summary:
 - UIManager の legacy DOM 参照をフラグで抑制し、React UI 前提に整理

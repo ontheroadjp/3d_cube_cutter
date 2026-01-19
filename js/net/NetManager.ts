@@ -134,10 +134,10 @@ export class NetManager {
     }
 
     // 切断線を描画
-    // cutSegments: Array of {startId, endId, start, end} (World座標系)
+    // cutSegments: Array of {startId, endId, start?, end?} (座標は派生情報)
     // cube: Cube instance (to get vertices and transform to local/face coords)
     /**
-     * @param {Array<{ startId: SnapPointID, endId: SnapPointID, start: THREE.Vector3, end: THREE.Vector3, faceIds?: string[], faceId?: string }>} cutSegments
+     * @param {Array<{ startId: SnapPointID, endId: SnapPointID, start?: THREE.Vector3, end?: THREE.Vector3, faceIds?: string[], faceId?: string }>} cutSegments
      * @param {object} cube
      * @param {object | null} resolver
      */
@@ -227,8 +227,11 @@ export class NetManager {
             if (!faceId) return;
             const face = faceIndex.get(faceId);
             if (!face) return;
-            const uv1 = this.map3Dto2D(segment.start, face, activeResolver);
-            const uv2 = this.map3Dto2D(segment.end, face, activeResolver);
+            const start = activeResolver.resolveSnapPoint(segment.startId);
+            const end = activeResolver.resolveSnapPoint(segment.endId);
+            if (!start || !end) return;
+            const uv1 = this.map3Dto2D(start, face, activeResolver);
+            const uv2 = this.map3Dto2D(end, face, activeResolver);
             if (!uv1 || !uv2) return;
             const ox = L.offsetX + face.grid.x * s;
             const oy = L.offsetY + face.grid.y * s;
