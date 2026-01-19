@@ -497,3 +497,11 @@ Summary:
 
 Notes:
 - Cutの真実はSnapPointIDのみ
+
+## 2026-01-19T20:31:45+0900
+Summary:
+- SnapPoint/PlaneBuilder 仕様で座標は派生情報と明記
+- ID主導の前提をドキュメントに反映
+
+Notes:
+- 実装の方針と文書の整合を再確認

@@ -56,12 +56,12 @@ interface SnapPoint {
     denominator: number;
   };
   face?: Face;                // type='face' の場合
-  position: THREE.Vector3;    // 座標
+  position?: THREE.Vector3;   // 派生座標（必要時のみ算出）
 }
 ```
 
 - Cutter や SelectionManager はこの構造を使う
-- SnapPointID から座標を算出可能
+- SnapPointID から座標を算出可能（派生情報）
 - 教育用ハイライト、解説生成で必須情報
 
 ---
@@ -98,8 +98,8 @@ interface SnapPoint {
 - Edge 型: `v1.position.lerp(v2.position, numerator/denominator)` で座標算出
 
 ### 7.2 座標 → SnapPointID（スナップ時）
-- Edge 上の座標を最も近いスナップ比率（有理数）に丸め
-- Vertex に近ければ Vertex 型 SnapPointID
+- 入力座標は UI からのみ受け取り、SnapPointID に正規化する
+- 以降の処理は SnapPointID を真実として扱う
 
 ---
 
