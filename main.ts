@@ -241,11 +241,12 @@ class App {
     }
 
     setInitialState() {
-        this.cutter.setTransparency(this.ui.isTransparencyChecked());
         const display = this.ui.getDisplayState();
         this.objectModelManager.setDisplay(display);
         this.objectModelManager.applyDisplayToView(display);
         this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
+        const modelDisplay = this.objectModelManager.getDisplayState();
+        this.cutter.setTransparency(modelDisplay.cubeTransparent);
     }
 
     createUserPresetStorage() {
@@ -314,10 +315,9 @@ class App {
             this.selection.reset();
             return;
         }
-        this.cutter.toggleSurface(this.ui.isCutSurfaceChecked());
-        this.cutter.togglePyramid(this.ui.isPyramidChecked());
-        this.cutter.setCutPointsVisible(this.ui.isCutPointsChecked());
-        this.cutter.setCutLineColorize(this.ui.isCutLineColorChecked());
+        this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
+        const modelDisplay = this.objectModelManager.getDisplayState();
+        this.cutter.setTransparency(modelDisplay.cubeTransparent);
         this.objectModelManager.syncCutState({
             intersections: this.cutter.getIntersectionRefs(),
             cutSegments: this.cutter.getCutSegments(),
@@ -843,12 +843,9 @@ class App {
             this.cameraTargetPosition = normal.clone().multiplyScalar(distance).add(offset.multiplyScalar(distance * 0.3));
             this.isCameraAnimating = true;
         }
-        this.cutter.toggleSurface(this.ui.isCutSurfaceChecked());
-        this.cutter.togglePyramid(this.ui.isPyramidChecked());
-        this.cutter.setTransparency(this.ui.isTransparencyChecked());
-        this.cutter.setCutPointsVisible(this.ui.isCutPointsChecked());
-        this.cutter.setCutLineColorize(this.ui.isCutLineColorChecked());
         const display = this.objectModelManager.getDisplayState();
+        this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
+        this.cutter.setTransparency(display.cubeTransparent);
         this.selection.toggleVertexLabels(display.showVertexLabels);
     }
 
@@ -1079,10 +1076,9 @@ class App {
                 this.cube.setVertexLabelMap(this.currentLabelMap);
                 this.resolver.setLabelMap(this.currentLabelMap);
             }
-            this.objectModelManager.applyDisplayToView(this.ui.getDisplayState());
-            const isTrans = this.ui.isTransparencyChecked();
-            this.cube.toggleTransparency(isTrans);
-            this.cutter.setTransparency(isTrans);
+            const display = this.objectModelManager.getDisplayState();
+            this.objectModelManager.applyDisplayToView(display);
+            this.cutter.setTransparency(display.cubeTransparent);
         }
     }
 
@@ -1098,10 +1094,9 @@ class App {
             this.cube.setVertexLabelMap(this.currentLabelMap);
             this.resolver.setLabelMap(this.currentLabelMap);
         }
-        this.objectModelManager.applyDisplayToView(this.ui.getDisplayState());
-        const isTrans = this.ui.isTransparencyChecked();
-        this.cube.toggleTransparency(isTrans);
-        this.cutter.setTransparency(isTrans);
+        const display = this.objectModelManager.getDisplayState();
+        this.objectModelManager.applyDisplayToView(display);
+        this.cutter.setTransparency(display.cubeTransparent);
     }
 
     configureVertexLabelsFromReact(labels: string[]) {
@@ -1123,7 +1118,9 @@ class App {
         this.cube.setVertexLabelMap(labelMap);
         this.resolver.setLabelMap(labelMap);
         this.objectModelManager.syncFromCube();
-        this.objectModelManager.applyDisplayToView(this.ui.getDisplayState());
+        const display = this.objectModelManager.getDisplayState();
+        this.objectModelManager.applyDisplayToView(display);
+        this.cutter.setTransparency(display.cubeTransparent);
     }
 
     handleCancelUserPresetEdit() {
@@ -1828,7 +1825,7 @@ class App {
                     }
                 }
             });
-            const colorize = this.ui.isCutLineColorChecked();
+            const colorize = !!display.colorizeCutLines;
             edgeHighlightMeta.forEach((meta, edgeId) => {
                 const resolved = this.resolver.resolveEdge(edgeId);
                 const edge = structure.edgeMap.get(edgeId);
@@ -1853,7 +1850,7 @@ class App {
             });
         }
 
-        const cutPointsVisible = this.ui.isCutPointsChecked();
+        const cutPointsVisible = !!display.showCutPoints;
         const intersectionRefs = this.objectModelManager.resolveCutIntersectionPositions();
         intersectionRefs.forEach(ref => {
             const position = ref ? (ref.position as THREE.Vector3 | undefined) : undefined;
@@ -2059,10 +2056,9 @@ class App {
 
     handleFlipCutClick() {
         this.cutter.flipCut();
-        this.cutter.toggleSurface(this.ui.isCutSurfaceChecked());
-        this.cutter.togglePyramid(this.ui.isPyramidChecked());
-        this.cutter.setCutPointsVisible(this.ui.isCutPointsChecked());
-        this.cutter.setCutLineColorize(this.ui.isCutLineColorChecked());
+        this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
+        const display = this.objectModelManager.getDisplayState();
+        this.cutter.setTransparency(display.cubeTransparent);
         this.objectModelManager.syncCutState({
             intersections: this.cutter.getIntersectionRefs(),
             cutSegments: this.cutter.getCutSegments(),
@@ -2165,8 +2161,9 @@ class App {
                 this.clearNetUnfoldGroup();
                 this.cube.setVisible(true);
                 this.cutter.setVisible(true);
-                this.cutter.toggleSurface(this.ui.isCutSurfaceChecked());
-                this.cutter.togglePyramid(this.ui.isPyramidChecked());
+                this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
+                const display = this.objectModelManager.getDisplayState();
+                this.cutter.setTransparency(display.cubeTransparent);
                 this.controls.update();
             }
             if (netState.state !== 'closed') {

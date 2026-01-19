@@ -333,6 +333,13 @@ Summary:
 Notes:
 - Issue #37 の成果物として更新
 
+## 2026-01-19T14:15:40+09:00
+Summary:
+- 立体メッシュの透明/表示切替を Model の display state 参照に統一
+
+Notes:
+- Issue #38 の成果物として更新
+
 ## 2026-01-19T09:28:53+09:00
 Summary:
 - UIManager の legacy DOM 参照をフラグで抑制し、React UI 前提に整理
