@@ -434,3 +434,11 @@ Summary:
 
 Notes:
 - 座標派生値は resolver で都度解決する方針
+
+## 2026-01-19T16:02:40+0900
+Summary:
+- CutFacePolygon の vertexIds を resolver で解決する経路を追加し、座標保持を削減
+- Face adjacency を vertexIds 優先で構築するよう更新
+
+Notes:
+- vertexIds 解決失敗時は vertices をフォールバック
