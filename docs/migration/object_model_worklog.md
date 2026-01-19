@@ -264,3 +264,10 @@ Summary:
 
 Notes:
 - React UI 時は legacy メソッドが無操作になるよう整理
+
+## 2026-01-19T09:47:05+09:00
+Summary:
+- UIManager の表示状態取得/適用を legacyControlsEnabled で分離
+
+Notes:
+- React UI 時は内部状態のみ参照し、DOMトグルを見ない
