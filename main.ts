@@ -2157,14 +2157,41 @@ class App {
                 if (Math.abs(netState.scaleTarget - nextScale) <= 0.001) {
                     if (!this.netUnfoldScaleReadyAt) {
                         this.netUnfoldScaleReadyAt = performance.now();
+                        this.logNetUnfoldEvent('prescale ready', {
+                            scale: netState.scale,
+                            scaleTarget: netState.scaleTarget,
+                            nextScale
+                        });
                     }
                     if (performance.now() - this.netUnfoldScaleReadyAt >= this.netUnfoldPreScaleDelay) {
                         this.netUnfoldScaleReadyAt = null;
+                        this.logNetUnfoldEvent('prescale -> opening', {
+                            scale: netState.scale,
+                            scaleTarget: netState.scaleTarget,
+                            nextScale,
+                            delay: this.netUnfoldPreScaleDelay
+                        });
                         this.setNetAnimationState({ state: 'opening', progress: 0, startAt: performance.now() });
                     }
                 } else {
+                    if (this.netUnfoldScaleReadyAt) {
+                        this.logNetUnfoldEvent('prescale reset', {
+                            scale: netState.scale,
+                            scaleTarget: netState.scaleTarget,
+                            nextScale
+                        });
+                    }
                     this.netUnfoldScaleReadyAt = null;
                 }
+            }
+            if (netState.state === 'prescale' && performance.now() - netState.startAt > this.netUnfoldPreScaleDelay * 5) {
+                this.logNetUnfoldInvalid('prescale timeout', {
+                    scale: netState.scale,
+                    scaleTarget: netState.scaleTarget,
+                    nextScale,
+                    startAt: netState.startAt,
+                    now: performance.now()
+                });
             }
             if (netState.state === 'postscale' && scaleReady && Math.abs(netState.scaleTarget - nextScale) <= 0.001) {
                 this.clearNetUnfoldGroup();
