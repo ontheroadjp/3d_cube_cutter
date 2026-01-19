@@ -184,10 +184,7 @@ export class NetManager {
         ctx.beginPath();
 
         // 面の法線と中心点（判定用）
-        // Cubeのサイズは可変なので、現在の頂点座標を使う
         if (!activeResolver) return;
-        const vertices = Array.from({ length: 8 }, (_, i) => activeResolver.resolveVertex(`V:${i}`));
-        if (vertices.some(v => !v)) return;
         if (!structure) return;
         const faceIndex = new Map(faceData.map(face => [face.faceId, face]));
 
@@ -215,42 +212,14 @@ export class NetManager {
         const resolveFaceForSegment = (segment) => {
             if (!segment || !segment.startId || !segment.endId) return null;
             if (segment.faceId) return segment.faceId;
-            if (segment.faceIds && segment.faceIds.length === 1) return segment.faceIds[0];
-            if (segment.faceIds && segment.faceIds.length > 1) {
-                const mid = segment.start.clone().add(segment.end).multiplyScalar(0.5);
-                let best = null;
-                let bestDist = Infinity;
-                segment.faceIds.forEach(faceId => {
-                    const resolved = activeResolver.resolveFace(faceId);
-                    if (!resolved) return;
-                    const origin = resolved.vertices[0];
-                    const dist = Math.abs(resolved.normal.dot(new THREE.Vector3().subVectors(mid, origin)));
-                    if (dist < bestDist) {
-                        bestDist = dist;
-                        best = faceId;
-                    }
-                });
-                return best;
-            }
+            if (segment.faceIds && segment.faceIds.length) return segment.faceIds[0];
             const startFaces = getFacesForSnapId(segment.startId);
             const endFaces = getFacesForSnapId(segment.endId);
             const shared = startFaces.filter(faceId => endFaces.includes(faceId));
             if (shared.length === 0) return null;
-            if (shared.length === 1) return shared[0];
-            const mid = segment.start.clone().add(segment.end).multiplyScalar(0.5);
-            let best = null;
-            let bestDist = Infinity;
-            shared.forEach(faceId => {
-                const resolved = activeResolver.resolveFace(faceId);
-                if (!resolved) return;
-                const origin = resolved.vertices[0];
-                const dist = Math.abs(resolved.normal.dot(new THREE.Vector3().subVectors(mid, origin)));
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    best = faceId;
-                }
-            });
-            return best;
+            const unique = Array.from(new Set(shared));
+            unique.sort();
+            return unique[0];
         };
 
         cutSegments.forEach(segment => {
@@ -258,8 +227,9 @@ export class NetManager {
             if (!faceId) return;
             const face = faceIndex.get(faceId);
             if (!face) return;
-            const uv1 = this.map3Dto2D(segment.start, face, vertices, activeResolver);
-            const uv2 = this.map3Dto2D(segment.end, face, vertices, activeResolver);
+            const uv1 = this.map3Dto2D(segment.start, face, activeResolver);
+            const uv2 = this.map3Dto2D(segment.end, face, activeResolver);
+            if (!uv1 || !uv2) return;
             const ox = L.offsetX + face.grid.x * s;
             const oy = L.offsetY + face.grid.y * s;
             ctx.moveTo(ox + uv1.x * s, oy + uv1.y * s);
@@ -272,10 +242,10 @@ export class NetManager {
     /**
      * @param {THREE.Vector3} p
      * @param {{ faceId: string, name: string, uvVertices?: string[] }} face
-     * @param {THREE.Vector3[]} vertices
      * @param {object | null} resolver
      */
-    map3Dto2D(p, face, vertices, resolver = null) {
+    map3Dto2D(p, face, resolver = null) {
+        if (!resolver) return null;
         if (resolver && face.uvVertices && face.uvVertices.length === 4) {
             const corners = face.uvVertices.map(id => resolver.resolveVertex(id));
             if (corners.every(v => v)) {
@@ -304,80 +274,6 @@ export class NetManager {
                 return { x: u, y: v };
             }
         }
-        // 面ごとの基準点（Canvasの左上になる点）と方向
-        // indices順序に依存
-        // Front[4,5,6,7] = E,F,G,H.
-        // Canvas上は 左上H, 右上G, 左下E, 右下F という向きにしたい。
-        // indicesはCCW: E->F->G->H.
-        // 左上は H(index 7) = indices[3].
-        // 右方向は H->G = indices[3]->indices[2].
-        // 下方向は H->E = indices[3]->indices[0].
-        
-        // Face定義ごとに「左上インデックス」「右インデックス」「下インデックス」を手動マッピングする。
-        // Front(E,F,G,H): TopLeft:H(7), Right:G(6), Down:E(4)
-        // Back(B,A,D,C): 展開図でBackはRightの右。
-        // ...これは複雑。
-        
-        // 簡易マッピング:
-        // 全ての面で「ローカルUV」を計算する。
-        // UVは [0,0]が左上, [1,1]が右下。
-        
-        // Front (z+): x(- to +), y(+ to -)  -> u=(x+w/2)/w, v=1-(y+h/2)/h
-        // Back (z-): ...
-        
-        // 3D座標から比率(0~1)を取り出す
-        // Cubeサイズが必要。verticesから計算。
-        const min = new THREE.Vector3(Infinity,Infinity,Infinity);
-        const max = new THREE.Vector3(-Infinity,-Infinity,-Infinity);
-        vertices.forEach(v => {
-            min.min(v); max.max(v);
-        });
-        const size = max.clone().sub(min); // w, h, d
-        
-        // 相対座標 (0~1)
-        const rel = p.clone().sub(min).divide(size); 
-        // rel.x, rel.y, rel.z は 0~1
-        
-        let u=0, v=0;
-        
-        switch(face.name) {
-            case 'Front': // z=max. x:0->1(Left->Right), y:1->0(Top->Bottom)
-                u = rel.x; v = 1 - rel.y; 
-                break;
-            case 'Back': // z=min. BackはRightの右にあるので、裏から見た図ではなく「展開して表」。
-                // Right(x+)の右 -> Back(z-).
-                // 展開図の並び: L-F-R-B.
-                // Front(z+) -> Right(x+) -> Back(z-).
-                // ぐるっと回る。
-                // Front: x増加方向。Right: z減少方向。Back: x減少方向。
-                u = 1 - rel.x; v = 1 - rel.y;
-                break;
-            case 'Left': // x=min. z:0->1(Back->Front)? No, L is left of Front.
-                // Frontの左はLeft. Frontの左辺はE-H(x=min, z=max).
-                // Leftの右辺はE-H.
-                // Leftは奥(z-)から手前(z+)へ展開？
-                // L-F-R-B の並びなら、円柱状に開いている。
-                // Left: z:0->1(Back->Front) が u:0->1. y:1->0.
-                u = rel.z; v = 1 - rel.y;
-                break;
-            case 'Right': // x=max. z:1->0(Front->Back).
-                u = 1 - rel.z; v = 1 - rel.y;
-                break;
-            case 'Top': // y=max. Frontの上。
-                // Frontの上辺はH-G(x:0->1, z=max).
-                // Topの下辺はH-G.
-                // Top: x:0->1, z:0->1(Back->Front) -> v:0->1 ??
-                // Front(z=max)が下。Back(z=0)が上。
-                u = rel.x; v = rel.z; // z=0(Back)がTop(v=0), z=1(Front)がBottom(v=1)
-                break;
-            case 'Bottom': // y=min. Frontの下。
-                // Frontの下辺はE-F(x:0->1, z=max).
-                // Bottomの上辺はE-F.
-                // Bottom: x:0->1. z:1->0(Front->Back).
-                // Front(z=max)が上(v=0).
-                u = rel.x; v = 1 - rel.z;
-                break;
-        }
-        return {x:u, y:v};
+        return null;
     }
 }

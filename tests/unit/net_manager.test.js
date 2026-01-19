@@ -97,4 +97,20 @@ describe('NetManager', () => {
       expect(value).toBeLessThanOrEqual(max);
     });
   });
+
+  it('should resolve segments with multiple faceIds using a deterministic rule', () => {
+    const segment = {
+      startId: 'E:01@1/2',
+      endId: 'E:04@1/2',
+      start: resolver.resolveSnapPoint('E:01@1/2'),
+      end: resolver.resolveSnapPoint('E:04@1/2'),
+      faceIds: ['F:0154', 'F:0321']
+    };
+
+    netManager.update([segment], cube, resolver);
+
+    const ctx = netManager.ctx;
+    expect(ctx.moveTo).toHaveBeenCalled();
+    expect(ctx.lineTo).toHaveBeenCalled();
+  });
 });

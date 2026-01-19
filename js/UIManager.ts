@@ -163,10 +163,6 @@ export class UIManager {
       if (visible) this.settingsPanels.classList.remove('d-none');
       else this.settingsPanels.classList.add('d-none');
     }
-    if (!visible) {
-      const reactToggle = /** @type {any} */ (globalThis).__setReactSettingsVisible;
-      if (typeof reactToggle === 'function') reactToggle(false);
-    }
   }
 
   showLearningPanels(visible) {
@@ -179,13 +175,8 @@ export class UIManager {
       if (this.displaySettingsPanel) this.displaySettingsPanel.classList.add('d-none');
       if (this.cuboidSettingsPanel) this.cuboidSettingsPanel.classList.add('d-none');
       if (this.userPresetsPanel) this.userPresetsPanel.classList.add('d-none');
-      const reactToggle = /** @type {any} */ (globalThis).__setReactSettingsVisible;
-      const hasReactSettings = typeof reactToggle === 'function';
-      if (hasReactSettings) {
-          reactToggle(panelName === 'display');
-      }
       if (panelName === 'display') {
-          if (!hasReactSettings && this.displaySettingsPanel) {
+          if (this.displaySettingsPanel) {
               this.displaySettingsPanel.classList.remove('d-none');
           }
       } else if (panelName === 'cuboid') {

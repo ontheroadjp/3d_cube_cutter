@@ -15,6 +15,7 @@ Face / Edge / IntersectionPoint の構造情報から安定的に描画する。
 - IntersectionPoint に `faceIds` が付与されている
 - Face は CCW 順で頂点を保持している
 - GeometryResolver が face の basisU / basisV を提供する
+- 展開図描画は GeometryResolver を前提とし、座標ベースのフォールバックは使用しない
 - 展開図の対象は「切断後の残立体」に含まれる面集合とする
 
 ---
@@ -27,6 +28,7 @@ Face / Edge / IntersectionPoint の構造情報から安定的に描画する。
 2. **点の面所属の確定**
    - `IntersectionPoint.faceIds` を使用
    - 1 つの線分は同じ Face に属する点どうしで描画
+   - `faceIds` が複数ある場合は順序に依存せず、決定規則を固定する
 
 3. **3D → 2D 変換**
    - face の `origin` を基準

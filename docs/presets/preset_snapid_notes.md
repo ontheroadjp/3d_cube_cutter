@@ -12,42 +12,14 @@ SnapPointID を使ったプリセット切断パターンを `PresetManager` / `
 ---
 
 ## 2. SnapPointID → 座標変換
-- Cube 内で SnapPointID を **自動的に座標に変換するメソッド** を必ず用意する
-- 例: `Cube.getSnapPointPosition(snapId: string): THREE.Vector3`
-
-```js
-// Cube.js 内
-getSnapPointPosition(snapId) {
-    if (snapId.startsWith("V:")) {
-        const label = snapId.slice(2);
-        return this.getVertexPosition(label);
-    } else if (snapId.startsWith("E:")) {
-        const [edgeLabel, ratioText] = snapId.slice(2).split("@");
-        const [v1, v2] = edgeLabel.split("");
-        const [numerator, denominator] = ratioText.split("/").map(Number);
-        const r = numerator / denominator;
-        const p1 = this.getVertexPosition(v1);
-        const p2 = this.getVertexPosition(v2);
-        return new THREE.Vector3().lerpVectors(p1, p2, r);
-    } else if (snapId.startsWith("F:")) {
-        const [faceLabel] = snapId.slice(2).split("@");
-        const verts = faceLabel.split("");
-        let center = new THREE.Vector3();
-        verts.forEach(v => center.add(this.getVertexPosition(v)));
-        center.divideScalar(4);
-        return center;
-    }
-    return null;
-}
-```
-
-- この変換があれば、プリセットは **座標依存ではなく構造依存** で定義可能
+- SnapPointID の解決は `GeometryResolver` を利用する
+- プリセットは **座標依存ではなく構造依存** で定義する
 
 ---
 
 ## 3. presetData.js での定義方法
-- `getPoints` は **THREE.Vector3 の配列を返すのではなく、SnapPointID の配列を返す**
-- SelectionManager が Cube から座標を取得するフローを前提とする
+- `snapIds` に SnapPointID の配列を定義する
+- PresetManager が `GeometryResolver` で座標を解決するフローを前提とする
 
 ```js
 export const PRESETS = [
@@ -65,12 +37,15 @@ export const PRESETS = [
 - PresetManager では以下のように処理
 
 ```js
-applyPreset(cube, presetName) {
+applyPreset(presetName) {
     const preset = PRESETS.find(p => p.name === presetName);
-    if (!preset) return;
+    if (!preset || !preset.snapIds) return;
 
     preset.snapIds.forEach(snapId => {
-        const pos = cube.getSnapPointPosition(snapId);
+        const parsed = normalizeSnapPointId(parseSnapPointId(snapId));
+        if (!parsed) return;
+        const pos = geometryResolver.resolveSnapPointRef(parsed);
+        if (!pos) return;
         selectionManager.addPoint({ point: pos, snapId });
     });
 }
@@ -89,7 +64,7 @@ applyPreset(cube, presetName) {
     - SnapPointID ベースで定義すれば、サイズ変更や向き変更してもそのまま利用可能
 4. **エラーハンドリング**
     - 無効な SnapPointID が渡された場合は警告を出す
-    - `cube.getSnapPointPosition` で `null` を返す場合の処理を PresetManager で確実に行う
+    - `GeometryResolver` が `null` を返す場合の処理を PresetManager で確実に行う
 5. **解説との連動**
     - SnapPointID に対応する説明テンプレートを用意すると、自動解説表示が可能
     - 例えば `V:0` → 「立方体の左上前の頂点」など

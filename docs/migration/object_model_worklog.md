@@ -193,3 +193,32 @@ Summary:
 
 Notes:
 - 次は Net 表示状態の UI テスト追加を検討
+
+## 2026-01-19T08:42:25+09:00
+Summary:
+- PresetManager の旧 getPoints フォールバックを削除し、SnapPointID のみを前提化
+- SelectionManager の交点投影フォールバックを削除し、構造化 IntersectionPoint に統一
+
+Notes:
+- プリセット仕様とサンプルを GeometryResolver 前提へ更新
+
+## 2026-01-19T08:54:42+09:00
+Summary:
+- UIManager の React 設定トグル用レガシーフックを撤去
+
+Notes:
+- React 側は __setReactMode/__refreshUserPresets のみ維持
+
+## 2026-01-19T09:02:14+09:00
+Summary:
+- NetManager の面同定で距離判定を撤去し、構造情報のみで決定する方式に統一
+
+Notes:
+- 複数 faceIds の場合は固定ルールで決定するよう仕様を更新
+
+## 2026-01-19T09:11:36+09:00
+Summary:
+- NetManager の 2D 投影で座標フォールバックを撤去し、Resolver 依存に統一
+
+Notes:
+- Resolver で解決できない場合は描画対象から除外する

@@ -54,4 +54,28 @@ describe('PresetManager', () => {
       expect(preset.snapIds.length).toBeGreaterThanOrEqual(3);
     });
   });
+
+  it('should skip presets without snapIds', () => {
+    const selectionManager = { addPoint: vi.fn() };
+    const cube = {
+      getVertexObjectById: () => null,
+      getVertexLabelByIndex: () => null,
+      getVertexObjectByName: () => null,
+      getEdgeObjectById: () => null,
+      getEdgeNameByIndex: () => null,
+      getEdgeObjectByName: () => null,
+    };
+    const resolver = {
+      resolveSnapPointRef: () => new THREE.Vector3(1, 2, 3),
+    };
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const manager = new PresetManager(selectionManager, cube, {}, resolver);
+    manager.presets = [{ name: 'LegacyPreset', category: 'triangle' }];
+    manager.applyPreset('LegacyPreset');
+
+    expect(selectionManager.addPoint).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith('Preset is missing snapIds: LegacyPreset');
+    warnSpy.mockRestore();
+  });
 });

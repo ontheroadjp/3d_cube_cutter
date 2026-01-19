@@ -93,14 +93,4 @@ describe('UIManager', () => {
     });
   });
 
-  it('showSettingsPanels should notify react settings toggle when hidden', () => {
-    createDocumentStub();
-    const ui = new UIManager();
-    const toggle = vi.fn();
-    global.__setReactSettingsVisible = toggle;
-
-    ui.showSettingsPanels(false);
-    expect(toggle).toHaveBeenCalledWith(false);
-    delete global.__setReactSettingsVisible;
-  });
 });

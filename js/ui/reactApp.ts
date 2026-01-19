@@ -8,9 +8,8 @@ declare global {
   var __engine: Engine | undefined;
   var __setExplanation: ((text: string) => void) | undefined;
   var __setDisplayState: ((display: DisplayState | null) => void) | undefined;
-  var __setReactSettingsVisible: ((visible: boolean) => void) | undefined; // Still needed for legacy UIManager fallback if it exists
-  var __setReactMode: ((mode: string) => void) | undefined; // Still needed for legacy UIManager fallback if it exists
-  var __refreshUserPresets: (() => void) | undefined; // Still needed for legacy UIManager fallback if it exists
+  var __setReactMode: ((mode: string) => void) | undefined;
+  var __refreshUserPresets: (() => void) | undefined;
 }
 
 // Minimal Engine type for globalThis.__engine in reactApp.ts if side_panel.ts is defining the comprehensive one

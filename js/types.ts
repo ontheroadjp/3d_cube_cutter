@@ -92,12 +92,6 @@ export type Preset = {
   category: 'triangle' | 'quad' | 'poly';
   description?: string;
   snapIds?: SnapPointID[];
-  getPoints?: (cube: unknown) => Array<{
-    point: unknown;
-    object: unknown;
-    isMidpoint?: boolean;
-    snapId?: string;
-  }>;
 };
 
 export type LearningProblem = {

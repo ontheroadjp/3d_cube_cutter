@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createLabel, createMarker } from './utils.js';
 import { parseSnapPointId, normalizeSnapPointId } from './geometry/snapPointId.js';
-import type { SnapPointID } from './types.js';
+import type { IntersectionPoint, SnapPointID } from './types.js';
 
 export class SelectionManager {
   scene: THREE.Scene;
@@ -39,67 +39,29 @@ export class SelectionManager {
   }
 
   // 外部(Cutter)から計算された交点を受け取り、その辺の長さを分割表示する
-  updateSplitLabels(intersections: any[]) {
+  updateSplitLabels(intersections: IntersectionPoint[]) {
       if (!intersections || intersections.length === 0) return;
       if (!this.resolver || !this.cube.getStructure) return;
       const structure = this.cube.getStructure();
       if (!structure || !structure.edges) return;
 
-      if (typeof intersections[0] === 'object' && intersections[0] && intersections[0].id) {
-          intersections
-              .filter(ref => ref && ref.id && ref.type === 'intersection')
-              .forEach(ref => {
-                  const edgeId = ref.edgeId || null;
-                  if (!edgeId) return;
-                  const point = ref.position
-                      ? ref.position
-                      : (this.resolver ? this.resolver.resolveSnapPoint(ref.id) : null);
-                  if (!point) return;
-                  const edgeIdx = this.cube.getEdgeMeshIndexById(edgeId);
-                  if (edgeIdx !== -1 && edgeIdx !== null) {
-                      const isHidden = this.hiddenEdgeLabels && this.hiddenEdgeLabels.includes(edgeIdx);
-                      if (!isHidden) {
-                          this._addSplitLabel(edgeId, point);
-                      }
+      intersections
+          .filter(ref => ref && ref.id && ref.type === 'intersection')
+          .forEach(ref => {
+              const edgeId = ref.edgeId || null;
+              if (!edgeId) return;
+              const point = ref.position
+                  ? ref.position
+                  : (this.resolver ? this.resolver.resolveSnapPoint(ref.id) : null);
+              if (!point) return;
+              const edgeIdx = this.cube.getEdgeMeshIndexById(edgeId);
+              if (edgeIdx !== -1 && edgeIdx !== null) {
+                  const isHidden = this.hiddenEdgeLabels && this.hiddenEdgeLabels.includes(edgeIdx);
+                  if (!isHidden) {
+                      this._addSplitLabel(edgeId, point);
                   }
-              });
-          return;
-      }
-      
-      // TODO: intersectionRefsが全経路で供給されるようになったら、この投影フォールバックを削除する
-      const projectWithResolver = (p: THREE.Vector3) => {
-          let best=null, min=Infinity, bestEdgeId = null;
-          structure.edges.forEach(edge => {
-              const resolved = this.resolver.resolveEdge(edge.id);
-              if (!resolved) return;
-              const a = resolved.start;
-              const b = resolved.end;
-              const ab = b.clone().sub(a);
-              const lenSq = ab.lengthSq();
-              if (lenSq < 1e-10) return;
-              let t = ab.dot(p.clone().sub(a)) / lenSq;
-              if (t < -0.01 || t > 1.01) return;
-              t = Math.max(0, Math.min(1, t));
-              const q = a.clone().add(ab.multiplyScalar(t));
-              const d = q.distanceTo(p);
-              if (d < min) { min = d; best = q; bestEdgeId = edge.id; }
-          });
-          if (min >= 1.0 || !bestEdgeId) return null;
-          return { point: best, edgeId: bestEdgeId };
-      };
-
-      intersections.forEach(p => {
-          const result = projectWithResolver(p);
-          if (!result) return;
-          const edgeIdx = this.cube.getEdgeMeshIndexById(result.edgeId);
-          
-          if (edgeIdx !== -1 && edgeIdx !== null) {
-              const isHidden = this.hiddenEdgeLabels && this.hiddenEdgeLabels.includes(edgeIdx);
-              if (!isHidden) {
-                  this._addSplitLabel(result.edgeId || edgeIdx, p);
               }
-          }
-      });
+          });
   }
 
   addPoint(selectionInfo: { point?: THREE.Vector3; object?: THREE.Object3D; isMidpoint?: boolean; snapId?: SnapPointID }) {
