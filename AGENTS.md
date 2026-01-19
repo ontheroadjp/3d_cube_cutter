@@ -20,39 +20,3 @@ docs/README.md を読んで
 ## 共通ワークフロー（プロジェクト横断）
 詳細は `docs/workflow.md` に従って作業する。
 `docs/DOCS_INDEX.md` を参照する前に `python3 scripts/generate_docs_index.py` を実行する。
-
-### Issue 駆動
-- すべての作業は Issue から開始する
-- Issue には「目的/完了条件/影響範囲/テスト観点/メモ」を明記する
-- 1 Issue = 1 ブランチ = 1 PR を基本とする
-- Issue ごとに専用ブランチを作成し、そのブランチで作業を進める
-- Issue タイトルは prefix 付きにする（例: `#9 [TASK] 座標依存の棚卸し`）
-
-#### Issue prefix 仕様
-- `[TASK]` 機能追加/改修の通常タスク
-- `[REF]` リファクタ/構造整理/移行作業
-- `[BUG]` 不具合修正
-- `[DOC]` ドキュメント更新/整合性整理
-- `[TEST]` テスト追加/改善
-- `[CHORE]` ツール/CI/環境整備
-- `[SPIKE]` 調査/検証/プロトタイプ
-
-#### Issue タイトルフォーマット
-- `#<issue番号> [<PREFIX>] <タイトル>`
-
-### GitHub Projects
-- Projects v2 を利用し、Backlog / Ready / In Progress / Done を運用する
-- Issue は原則 Project に登録し、進捗は Status で管理する
-
-### コミット運用
-- Conventional Commits + 詳細本文
-- 本文には変更理由/影響/テスト結果を記載する
-- Issue がある場合は `Refs #<issue>` を本文に入れる
-
-### PR 運用
-- PR には「変更点/理由/テスト/影響」を記載する
-- テスト結果を明記し、完了条件と一致していることを確認する
-
-### ドキュメント整合性
-- 仕様/設計/移行の整合性を常に維持する
-- 作業内容に応じてドキュメントを更新し、矛盾を残さない
