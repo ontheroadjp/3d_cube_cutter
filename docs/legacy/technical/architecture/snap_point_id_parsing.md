@@ -1,7 +1,8 @@
 # snap_point_id_parsing.md
 
-Status: Active
-Summary: SnapPointID を安全に扱うため、文字列 → 構造化データへの変換規則と正規化規則を定義する。
+Status: Superseded
+Summary: 置き換え先は docs/technical/specification/snap_point_id_spec.md
+
 
 # SnapPointID パース / 正規化仕様
 

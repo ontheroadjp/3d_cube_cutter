@@ -1,12 +1,13 @@
 # Cutter モジュール仕様書
 
-Status: Active
-Summary: Cutter を構成する各モジュールの役割と責務を整理する。
+Status: Superseded
+Summary: 置き換え先は docs/technical/specification/cutter/cutter_spec.md
+
 
 Cutter を構成する各モジュールの役割と責務を整理する。
 
 ## ファイル名
-docs/technical/specification/cutter/cutter_module_spec.md
+docs/technical/specification/cutter/cutter_spec.md
 
 ## 目的
 Cutter.ts / Cutter.js の機能を TypeScript に分割する際の各モジュールの責務、関数仕様、依存関係を明確化する。

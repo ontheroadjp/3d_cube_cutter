@@ -1,7 +1,8 @@
 # index_map_spec.md
 
-Status: Active
-Summary: 内部IDと座標の対応関係を定義する。
+Status: Superseded
+Summary: 置き換え先は docs/technical/specification/geometry/geometry_spec.md
+
 
 # IndexMap 実装仕様
 

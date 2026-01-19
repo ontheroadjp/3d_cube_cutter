@@ -1,12 +1,13 @@
 # CutResultBuilder モジュール仕様書
 
-Status: Active
-Summary: CSG の切断結果から CutResult を組み立てる仕様を定義する。
+Status: Superseded
+Summary: 置き換え先は docs/technical/specification/cutter/cutter_spec.md
+
 
 CSG の切断結果から CutResult を組み立てる仕様を定義する。
 
 ## ファイル名
-docs/technical/specification/cutter/cut_result_builder_spec.md
+docs/technical/specification/cutter/cutter_spec.md
 
 ## 目的
 - CSG 演算を行い、切断結果を Mesh / outline / vertexMarkers として生成

@@ -1,7 +1,8 @@
 # cut_result_schema.md
 
-Status: Active
-Summary: CutResult/IntersectionPointの構造仕様と再利用方針を定義する。
+Status: Superseded
+Summary: 置き換え先は docs/technical/specification/cutter/cutter_spec.md
+
 
 # CutResult / IntersectionPoint データ仕様
 

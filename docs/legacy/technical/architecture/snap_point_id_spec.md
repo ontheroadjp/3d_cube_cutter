@@ -1,7 +1,8 @@
 # 3D 立体切断シミュレーター: SnapPointID 仕様書
 
-Status: Active
-Summary: SnapPointID は、立方体・直方体上のすべての切断点（ユーザー選択点、交点、プリセット点）を一意に識別するためのIDです。
+Status: Superseded
+Summary: 置き換え先は docs/technical/specification/snap_point_id_spec.md
+
 
 ## 1. 概要
 SnapPointID は、立方体・直方体上のすべての切断点（ユーザー選択点、交点、プリセット点）を一意に識別するためのIDです。

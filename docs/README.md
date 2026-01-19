@@ -59,13 +59,14 @@ React UI 移行やオブジェクトモデル移行は継続中のため、`docs
 | `docs/technical/architecture/design_principles.md` | 構造主体アーキテクチャの設計原則 |
 | `docs/technical/architecture/structure_first_overview.md` | 構造主体モデルの概要 |
 | `docs/technical/architecture/structure_model_spec.md` | Vertex/Edge/Face/SnapPoint の構造モデル仕様 |
-| `docs/technical/architecture/snap_point_id_spec.md` | SnapPointID 仕様書 |
+| `docs/technical/specification/snap_point_id_spec.md` | SnapPointID 仕様書 |
 | `docs/technical/architecture/object_model_spec.md` | オブジェクトベースのモデル仕様 |
-| `docs/technical/specification/geometry/geometry_resolver_spec.md` | GeometryResolver 仕様 |
+| `docs/technical/specification/geometry/geometry_spec.md` | GeometryResolver 仕様 |
+| `docs/technical/specification/cutter/cutter_spec.md` | Cutter 仕様 |
 | `docs/technical/specification/net/net_mapping_spec.md` | 展開図の構造マッピング仕様 |
 | `docs/technical/specification/ui/ui_spec.md` | UI の現行仕様 |
 | `docs/technical/specification/storage/storage_adapter_spec.md` | 保存アダプタ仕様 |
-| `docs/technical/migration/architecture_migration_plan.md` | 移行計画（全体） |
+| `docs/technical/migration/structure_first_migration_plan.md` | 移行計画（全体） |
 | `docs/migration/object_model/object_model_worklog.md` | オブジェクトモデル移行の作業履歴（例外配置） |
 | `docs/technical/testing/verification_plan.md` | 検証計画 |
 
@@ -74,8 +75,8 @@ React UI 移行やオブジェクトモデル移行は継続中のため、`docs
 ## 4. 使い方の目安
 
 - 設計方針を理解する: `docs/technical/architecture/design_principles.md`
-- SnapPointID を理解する: `docs/technical/architecture/snap_point_id_spec.md`
-- 移行計画を確認する: `docs/technical/migration/architecture_migration_plan.md`
+- SnapPointID を理解する: `docs/technical/specification/snap_point_id_spec.md`
+- 移行計画を確認する: `docs/technical/migration/structure_first_migration_plan.md`
 - 実装設計を確認する: `docs/technical/specification/`
 
 ---

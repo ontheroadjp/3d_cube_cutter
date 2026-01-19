@@ -1,12 +1,13 @@
 # PlaneBuilder モジュール仕様書
 
-Status: Active
-Summary: SnapPoint から切断平面を生成する仕様を定義する。
+Status: Superseded
+Summary: 置き換え先は docs/technical/specification/geometry/geometry_spec.md
+
 
 SnapPoint から切断平面を生成する仕様を定義する。
 
 ## ファイル名
-docs/technical/specification/geometry/plane_builder_spec.md
+docs/technical/specification/geometry/geometry_spec.md
 
 ## 目的
 - 3 つ以上の SnapPoint から切断平面を安定的に生成する。

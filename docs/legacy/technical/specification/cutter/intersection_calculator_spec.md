@@ -1,12 +1,13 @@
 # IntersectionCalculator モジュール仕様書
 
-Status: Active
-Summary: 切断平面と辺の交点計算を安定化する仕様を定義する。
+Status: Superseded
+Summary: 置き換え先は docs/technical/specification/cutter/cutter_spec.md
+
 
 切断平面と辺の交点計算を安定化する仕様を定義する。
 
 ## ファイル名
-docs/technical/specification/cutter/intersection_calculator_spec.md
+docs/technical/specification/cutter/cutter_spec.md
 
 ## 目的
 - 切断平面と立方体の辺の交点を計算
