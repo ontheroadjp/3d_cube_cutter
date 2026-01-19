@@ -1238,6 +1238,7 @@ class App {
         const addFaceLabels = (mesh: THREE.Mesh, width: number, height: number, faceName: string, vertexIndices: number[]) => {
             const faceLabel = createLabel(faceName, this.cube.size / 10, 'rgba(0,0,0,0.6)');
             faceLabel.position.set(0, 0, 0.06);
+            faceLabel.userData.type = 'net-face-label';
             faceLabel.visible = !!display.showFaceLabels;
             mesh.add(faceLabel);
             const corners = [
@@ -1251,6 +1252,7 @@ class App {
                 if (!label) return;
                 const sprite = createLabel(label, this.cube.size / 14, 'rgba(0,0,0,0.75)');
                 sprite.position.copy(corners[idx] || corners[0]);
+                sprite.userData.type = 'net-vertex-label';
                 sprite.visible = !!display.showVertexLabels;
                 mesh.add(sprite);
             });
