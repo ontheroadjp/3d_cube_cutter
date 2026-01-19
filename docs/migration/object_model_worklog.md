@@ -418,3 +418,11 @@ Summary:
 
 Notes:
 - モデルは進行状態のみ保持し、座標派生値は保持しない
+
+## 2026-01-19T15:45:25+0900
+Summary:
+- 展開図生成で cutFace.vertices 依存を避け、SnapPointID から resolver で再計算するよう整理
+- CutFacePolygon に vertexIds を持たせ、ID 参照の描画経路を追加
+
+Notes:
+- vertexIds が解決できない場合は既存 vertices をフォールバック

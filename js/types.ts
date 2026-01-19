@@ -74,6 +74,7 @@ export type CutFacePolygon = {
   faceId: string;
   type: 'cut' | 'original';
   vertices: unknown[];
+  vertexIds?: SnapPointID[];
   normal?: unknown;
   sourceFaceId?: string;
 };
