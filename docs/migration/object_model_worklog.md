@@ -260,6 +260,14 @@ Summary:
 Notes:
 - Issue #9 の成果物として更新
 
+## 2026-01-19T11:28:51+09:00
+Summary:
+- Object Model の座標/法線/uvBasis/長さを派生情報として明記
+- Resolver 起点の生成方針をコード側に追記
+
+Notes:
+- Issue #10 の成果物として更新
+
 ## 2026-01-19T09:28:53+09:00
 Summary:
 - UIManager の legacy DOM 参照をフラグで抑制し、React UI 前提に整理

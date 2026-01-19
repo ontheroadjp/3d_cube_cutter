@@ -27,6 +27,7 @@ export type ObjectVertex = {
   id: string;
   index: number;
   label: string | null;
+  // Derived from GeometryResolver; not source of truth.
   position: THREE.Vector3;
   flags: ObjectVertexFlags;
 };
@@ -35,6 +36,7 @@ export type ObjectEdge = {
   id: string;
   vertices: [ObjectVertex, ObjectVertex];
   faces: string[];
+  // Derived from GeometryResolver; not source of truth.
   length: number;
   flags: ObjectEdgeFlags;
 };
@@ -43,7 +45,9 @@ export type ObjectFace = {
   id: string;
   vertices: ObjectVertex[];
   edges: ObjectEdge[];
+  // Derived from GeometryResolver; not source of truth.
   normal: THREE.Vector3;
+  // Derived from GeometryResolver; not source of truth.
   uvBasis: { origin: THREE.Vector3; u: THREE.Vector3; v: THREE.Vector3 };
   flags: ObjectFaceFlags;
   polygons: unknown[];
@@ -60,7 +64,9 @@ export type ObjectSolid = {
 export type ObjectCutSegment = {
   startId: SnapPointID;
   endId: SnapPointID;
+  // Derived from GeometryResolver; not source of truth.
   start: THREE.Vector3;
+  // Derived from GeometryResolver; not source of truth.
   end: THREE.Vector3;
   faceIds?: string[];
 };
@@ -68,6 +74,7 @@ export type ObjectCutSegment = {
 export type ObjectCutAdjacency = {
   a: string;
   b: string;
+  // Derived from GeometryResolver; not source of truth.
   sharedEdge: [THREE.Vector3, THREE.Vector3];
 };
 
@@ -100,7 +107,9 @@ export type ObjectNetState = {
   scale: number;
   scaleTarget: number;
   startAt: number;
+  // Derived from GeometryResolver; not source of truth.
   targetCenter?: THREE.Vector3 | null;
+  // Derived from GeometryResolver; not source of truth.
   positionTarget?: THREE.Vector3 | null;
   preScaleDelay: number;
   postScaleDelay: number;
