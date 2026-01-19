@@ -264,9 +264,7 @@ export class ObjectModelManager {
     return this.cutIntersections
       .map(ref => {
         if (!ref || !ref.id) return null;
-        const position = ref.position instanceof THREE.Vector3
-          ? (ref.position as THREE.Vector3).clone()
-          : this.resolver.resolveSnapPoint(ref.id);
+        const position = this.resolver.resolveSnapPoint(ref.id);
         if (!position) return null;
         return { ...ref, position };
       })

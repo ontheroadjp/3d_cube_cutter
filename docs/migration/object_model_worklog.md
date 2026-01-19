@@ -402,7 +402,7 @@ Summary:
 - cutSegments と faceAdjacency を ID ベースで正規化
 
 Notes:
-- IntersectionPoint の position や sharedEdge を保存せず、必要時に resolver で再計算
+- IntersectionPoint の position や sharedEdgeIds を保存せず、必要時に resolver で再計算
 
 ## 2026-01-19T15:19:45+0900
 Summary:
@@ -481,3 +481,19 @@ Summary:
 
 Notes:
 - CutはSnapPointIDのみを真実とする方針に統一
+
+## 2026-01-19T20:00:54+0900
+Summary:
+- Cut関連の派生座標フィールドを削除（IntersectionPoint.position / CutSegment start/end / sharedEdge）
+- resolver からの都度解決に統一
+
+Notes:
+- Cutの真実はSnapPointIDのみ
+
+## 2026-01-19T20:02:36+0900
+Summary:
+- CutFacePolygon から座標派生フィールドを削除（vertices/normal）
+- Cut/Intersection の派生座標依存を整理
+
+Notes:
+- Cutの真実はSnapPointIDのみ

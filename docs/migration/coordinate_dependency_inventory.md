@@ -37,11 +37,11 @@ Summary: 座標依存箇所を棚卸しし、SnapPointID/Resolver 起点への�
 
 ## 移行優先度（提案）
 1) Cut/交点/切断線の保持を SnapPointID 起点に整理
-   - `IntersectionPoint.position` や `cutSegments.start/end` を派生情報へ寄せる
+   - `IntersectionPoint.position` や `cutSegments.start/end` は廃止し、resolver で都度解決
 2) Net 展開の投影/面同定を Resolver 起点に統一
    - 面/辺の同定に座標フォールバックを持たない構成へ
 3) CutFacePolygon の頂点保持を SnapPointID 起点へ移行
-   - `CutFacePolygon.vertices` を削除できる状態へ寄せる
+   - `CutFacePolygon.vertices` は削除済み（IDのみを保持）
 
 ## 次のアクション
 - Issue #10/#11/#12/#13 の順に詳細移行計画へ落とし込む
