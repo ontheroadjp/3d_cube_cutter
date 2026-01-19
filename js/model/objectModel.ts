@@ -62,6 +62,8 @@ export type ObjectCutSegment = {
 export type ObjectCutAdjacency = {
   a: string;
   b: string;
+  sharedEdgeIds?: [SnapPointID, SnapPointID];
+  hingeType?: 'edge' | 'coplanar';
 };
 
 export type ObjectCut = {
