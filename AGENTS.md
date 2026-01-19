@@ -18,6 +18,7 @@ docs/README.md を読んで
 コミットメッセージは [Conventional Commits](https://www.conventionalcommits.org/) の規約に従い全て英語で表記します
 
 ## 共通ワークフロー（プロジェクト横断）
+詳細は `docs/workflow.md` に従って作業する。
 
 ### Issue 駆動
 - すべての作業は Issue から開始する
