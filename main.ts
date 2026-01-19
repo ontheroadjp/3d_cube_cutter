@@ -1918,6 +1918,7 @@ class App {
         this.cameraTargetPosition = null;
         this.clearNetUnfoldGroup();
         this.buildNetUnfoldGroup();
+        const nextState = this.objectModelManager.getNetState();
         this.netUnfoldFaces.forEach(face => face.pivot.quaternion.copy(face.startQuat));
         const startAt = performance.now();
         this.cube.setVisible(false);
@@ -1938,18 +1939,21 @@ class App {
         this.updateNetOverlayDisplay(display);
         this.updateNetLabelDisplay(display);
         this.updateNetUnfoldScale();
+        const duration = nextState.duration || this.netUnfoldDuration;
+        const faceDuration = nextState.faceDuration || this.netUnfoldFaceDuration;
+        const stagger = nextState.stagger || this.netUnfoldStagger;
         this.setNetAnimationState({
             state: 'prescale',
             progress: 0,
-            duration: this.netUnfoldDuration,
-            faceDuration: this.netUnfoldFaceDuration,
-            stagger: this.netUnfoldStagger,
+            duration,
+            faceDuration,
+            stagger,
             scale: 1,
-            scaleTarget: this.objectModelManager.getNetState().scaleTarget,
-            targetCenter: this.objectModelManager.getNetState().targetCenter,
-            positionTarget: this.objectModelManager.getNetState().positionTarget,
-            preScaleDelay: this.netUnfoldPreScaleDelay,
-            postScaleDelay: this.netUnfoldPostScaleDelay,
+            scaleTarget: nextState.scaleTarget,
+            targetCenter: nextState.targetCenter,
+            positionTarget: nextState.positionTarget,
+            preScaleDelay: nextState.preScaleDelay,
+            postScaleDelay: nextState.postScaleDelay,
             startAt,
             camera
         });
@@ -1979,8 +1983,8 @@ class App {
             scaleTarget: netState.scaleTarget,
             targetCenter: netState.targetCenter,
             positionTarget: netState.positionTarget,
-            preScaleDelay: this.netUnfoldPreScaleDelay,
-            postScaleDelay: this.netUnfoldPostScaleDelay,
+            preScaleDelay: netState.preScaleDelay,
+            postScaleDelay: netState.postScaleDelay,
             startAt,
             camera
         });
@@ -2036,7 +2040,7 @@ class App {
                 nextState = 'open';
             } else {
                 nextState = 'postscale';
-                this.setNetAnimationState({ startAt: performance.now() + this.netUnfoldPostScaleDelay });
+                this.setNetAnimationState({ startAt: performance.now() + netState.postScaleDelay });
             }
         }
         this.setNetAnimationState({
@@ -2049,8 +2053,8 @@ class App {
             scaleTarget: nextState === 'postscale' ? 1 : netState.scaleTarget,
             targetCenter: netState.targetCenter,
             positionTarget: netState.positionTarget,
-            preScaleDelay: this.netUnfoldPreScaleDelay,
-            postScaleDelay: this.netUnfoldPostScaleDelay
+            preScaleDelay: netState.preScaleDelay,
+            postScaleDelay: netState.postScaleDelay
         });
     }
 
@@ -2147,7 +2151,7 @@ class App {
                     if (!this.netUnfoldScaleReadyAt) {
                         this.netUnfoldScaleReadyAt = performance.now();
                     }
-                    if (performance.now() - this.netUnfoldScaleReadyAt >= this.netUnfoldPreScaleDelay) {
+                    if (performance.now() - this.netUnfoldScaleReadyAt >= netState.preScaleDelay) {
                         this.netUnfoldScaleReadyAt = null;
                         const startAt = performance.now();
                         this.setNetAnimationState({ state: 'opening', progress: 0, startAt });
@@ -2177,8 +2181,8 @@ class App {
                     scaleTarget: netState.scaleTarget,
                     targetCenter: netState.targetCenter,
                     positionTarget: netState.positionTarget,
-                    preScaleDelay: this.netUnfoldPreScaleDelay,
-                    postScaleDelay: this.netUnfoldPostScaleDelay
+                    preScaleDelay: netState.preScaleDelay,
+                    postScaleDelay: netState.postScaleDelay
                 });
             }
         }
