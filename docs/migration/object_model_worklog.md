@@ -319,6 +319,13 @@ Summary:
 Notes:
 - Issue #43 の成果物として更新
 
+## 2026-01-19T13:57:34+09:00
+Summary:
+- prescale から opening への遷移が上書きされる問題を修正
+
+Notes:
+- Issue #43 の成果物として更新
+
 ## 2026-01-19T09:28:53+09:00
 Summary:
 - UIManager の legacy DOM 参照をフラグで抑制し、React UI 前提に整理
