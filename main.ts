@@ -16,6 +16,7 @@ import type { CutFacePolygon, DisplayState, LearningProblem, UserPresetState } f
 import type { ObjectNetState } from './js/model/objectModel.js';
 import { normalizeSnapPointId, parseSnapPointId } from './js/geometry/snapPointId.js';
 import { createLabel, createMarker } from './js/utils.js';
+import { buildFaceNameMap } from './js/structure/structureModel.js';
 
 const DEBUG = false;
 
@@ -1649,15 +1650,10 @@ class App {
             ).normalize();
         };
 
-        const faceSpecs = [
-            { faceId: 'F:0154', name: 'Front' },
-            { faceId: 'F:1265', name: 'Right' },
-            { faceId: 'F:0473', name: 'Left' },
-            { faceId: 'F:4567', name: 'Top' },
-            { faceId: 'F:0321', name: 'Bottom' },
-            { faceId: 'F:2376', name: 'Back' }
-        ];
-        const cubeFaceNames = new Map(faceSpecs.map(spec => [spec.faceId, spec.name]));
+        const structure = this.cube.getStructure ? this.cube.getStructure() : null;
+        const indexMap = structure && structure.indexMap ? structure.indexMap : this.cube.getIndexMap();
+        const faceNameMap = structure ? buildFaceNameMap(structure.faces || [], indexMap || {}) : new Map();
+        const faceIdToName = new Map(Array.from(faceNameMap.entries()).map(([name, faceId]) => [faceId, name]));
         const computeFaceFrame = (faceId: string) => {
             const resolved = this.resolver.resolveFace(faceId);
             if (!resolved) return null;
@@ -1684,13 +1680,15 @@ class App {
                 height
             };
         };
-        const cubeFaceCandidates = faceSpecs
-            .map(spec => {
-                const frame = computeFaceFrame(spec.faceId);
+        const cubeFaceCandidates = (structure && Array.isArray(structure.faces) ? structure.faces : [])
+            .map(face => {
+                if (!face || !face.id) return null;
+                const frame = computeFaceFrame(face.id);
                 if (!frame) return null;
+                const name = faceIdToName.get(face.id) || face.id;
                 return {
-                    faceId: spec.faceId,
-                    name: spec.name,
+                    faceId: face.id,
+                    name,
                     normal: frame.normal,
                     center: frame.center,
                     basisU: frame.basisU,
@@ -1928,7 +1926,13 @@ class App {
         });
 
         const { lx, ly, lz } = this.cube.getSize();
-        const frontMesh = createFaceMesh('F:0154', faceColor());
+        const frontId = faceNameMap.get('Front') || null;
+        const rightId = faceNameMap.get('Right') || null;
+        const leftId = faceNameMap.get('Left') || null;
+        const topId = faceNameMap.get('Top') || null;
+        const bottomId = faceNameMap.get('Bottom') || null;
+        const backId = faceNameMap.get('Back') || null;
+        const frontMesh = frontId ? createFaceMesh(frontId, faceColor()) : null;
         if (frontMesh) {
             group.add(frontMesh);
             faces.push({
@@ -1937,45 +1941,55 @@ class App {
                 startQuat: new THREE.Quaternion(),
                 endQuat: new THREE.Quaternion(),
                 delayIndex: 0,
-                faceId: 'F:0154'
+                faceId: frontId
             });
         }
 
         const rightPivot = new THREE.Group();
         rightPivot.position.set(lx / 2, 0, 0);
-        const rightMesh = createFaceMesh('F:1265', faceColor());
+        const rightMesh = rightId ? createFaceMesh(rightId, faceColor()) : null;
         if (rightMesh) rightMesh.position.set(lz / 2, 0, 0);
-        addPivot('F:1265', rightPivot, rightMesh, new THREE.Euler(0, -Math.PI / 2, 0), new THREE.Euler(0, 0, 0), 1, group);
+        if (rightId) {
+            addPivot(rightId, rightPivot, rightMesh, new THREE.Euler(0, -Math.PI / 2, 0), new THREE.Euler(0, 0, 0), 1, group);
+        }
 
         const leftPivot = new THREE.Group();
         leftPivot.position.set(-lx / 2, 0, 0);
-        const leftMesh = createFaceMesh('F:0473', faceColor());
+        const leftMesh = leftId ? createFaceMesh(leftId, faceColor()) : null;
         if (leftMesh) leftMesh.position.set(-lz / 2, 0, 0);
-        addPivot('F:0473', leftPivot, leftMesh, new THREE.Euler(0, Math.PI / 2, 0), new THREE.Euler(0, 0, 0), 4, group);
+        if (leftId) {
+            addPivot(leftId, leftPivot, leftMesh, new THREE.Euler(0, Math.PI / 2, 0), new THREE.Euler(0, 0, 0), 4, group);
+        }
 
         const topPivot = new THREE.Group();
         topPivot.position.set(0, ly / 2, 0);
-        const topMesh = createFaceMesh('F:4567', faceColor());
+        const topMesh = topId ? createFaceMesh(topId, faceColor()) : null;
         if (topMesh) {
             topMesh.position.set(0, lz / 2, 0);
             topMesh.rotation.set(Math.PI, 0, 0);
         }
-        addPivot('F:4567', topPivot, topMesh, new THREE.Euler(Math.PI / 2, 0, 0), new THREE.Euler(0, 0, 0), 2, group);
+        if (topId) {
+            addPivot(topId, topPivot, topMesh, new THREE.Euler(Math.PI / 2, 0, 0), new THREE.Euler(0, 0, 0), 2, group);
+        }
 
         const bottomPivot = new THREE.Group();
         bottomPivot.position.set(0, -ly / 2, 0);
-        const bottomMesh = createFaceMesh('F:0321', faceColor());
+        const bottomMesh = bottomId ? createFaceMesh(bottomId, faceColor()) : null;
         if (bottomMesh) {
             bottomMesh.position.set(0, -lz / 2, 0);
             bottomMesh.rotation.set(Math.PI, 0, 0);
         }
-        addPivot('F:0321', bottomPivot, bottomMesh, new THREE.Euler(-Math.PI / 2, 0, 0), new THREE.Euler(0, 0, 0), 3, group);
+        if (bottomId) {
+            addPivot(bottomId, bottomPivot, bottomMesh, new THREE.Euler(-Math.PI / 2, 0, 0), new THREE.Euler(0, 0, 0), 3, group);
+        }
 
         const backPivot = new THREE.Group();
         backPivot.position.set(lz, 0, 0);
-        const backMesh = createFaceMesh('F:2376', faceColor());
+        const backMesh = backId ? createFaceMesh(backId, faceColor()) : null;
         if (backMesh) backMesh.position.set(lx / 2, 0, 0);
-        addPivot('F:2376', backPivot, backMesh, new THREE.Euler(0, -Math.PI / 2, 0), new THREE.Euler(0, 0, 0), 5, rightPivot);
+        if (backId) {
+            addPivot(backId, backPivot, backMesh, new THREE.Euler(0, -Math.PI / 2, 0), new THREE.Euler(0, 0, 0), 5, rightPivot);
+        }
 
         const cutFace = polygons.find(face => face.type === 'cut');
         if (cutFace) {
@@ -1996,7 +2010,7 @@ class App {
             let targetFaceId: string | null = null;
             let bestLength = -Infinity;
             edgeLengthsByFace.forEach((meta, faceId) => {
-                if (!cubeFaceNames.has(faceId)) return;
+                if (!faceIdToName.has(faceId)) return;
                 if (meta.length > bestLength) {
                     bestLength = meta.length;
                     targetFaceId = faceId;
@@ -2046,7 +2060,6 @@ class App {
             }
         }
 
-        const structure = this.cube.getStructure ? this.cube.getStructure() : null;
         const modelIntersections = this.objectModelManager.getCutIntersections();
         if (structure && structure.edgeMap) {
             const edgeHighlightMeta = new Map<string, { hasMidpoint: boolean }>();

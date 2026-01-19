@@ -52,6 +52,42 @@ export class Face {
   }
 }
 
+export type FaceName = 'Front' | 'Back' | 'Left' | 'Right' | 'Top' | 'Bottom';
+
+export function deriveFaceName(
+  face: Face,
+  indexMap: Record<string, { x: number; y: number; z: number }>
+): FaceName | null {
+  if (!face || !Array.isArray(face.vertices) || !indexMap) return null;
+  const signs = face.vertices
+    .map(id => id.split(':')[1])
+    .map(index => indexMap[index])
+    .filter(Boolean);
+  if (!signs.length) return null;
+  const allSame = (axis: 'x' | 'y' | 'z', value: number) =>
+    signs.every(sign => sign[axis] === value);
+  if (allSame('z', 1)) return 'Front';
+  if (allSame('z', -1)) return 'Back';
+  if (allSame('y', 1)) return 'Top';
+  if (allSame('y', -1)) return 'Bottom';
+  if (allSame('x', 1)) return 'Right';
+  if (allSame('x', -1)) return 'Left';
+  return null;
+}
+
+export function buildFaceNameMap(
+  faces: Face[],
+  indexMap: Record<string, { x: number; y: number; z: number }>
+) {
+  const map = new Map<FaceName, string>();
+  if (!Array.isArray(faces) || !indexMap) return map;
+  faces.forEach(face => {
+    const name = deriveFaceName(face, indexMap);
+    if (name) map.set(name, face.id);
+  });
+  return map;
+}
+
 const DEFAULT_EDGE_PAIRS = [
   [0, 1], [1, 2], [2, 3], [3, 0],
   [4, 5], [5, 6], [6, 7], [7, 4],
