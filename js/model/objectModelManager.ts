@@ -137,6 +137,11 @@ export class ObjectModelManager {
     this.cube.toggleTransparency(display.cubeTransparent);
   }
 
+  getDisplayState() {
+    return (this.model ? this.model.display : null)
+      || (this.ui ? this.ui.getDisplayState() : DEFAULT_DISPLAY);
+  }
+
   applyTransparencyToView(displayOverride?: DisplayState) {
     const display = displayOverride
       || (this.model ? this.model.display : null)
