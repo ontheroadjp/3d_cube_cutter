@@ -271,3 +271,10 @@ Summary:
 
 Notes:
 - React UI 時は内部状態のみ参照し、DOMトグルを見ない
+
+## 2026-01-19T09:51:33+09:00
+Summary:
+- UIManager の DOM 依存を null ガードで安全化
+
+Notes:
+- count/tooltip/alert が無い環境でも例外を出さない
