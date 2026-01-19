@@ -287,8 +287,6 @@ export class ObjectModelManager {
       scale: 1,
       scaleTarget: 1,
       startAt: 0,
-      targetCenter: null,
-      positionTarget: null,
       preScaleDelay: 0,
       postScaleDelay: 0,
       camera: {

@@ -63,7 +63,7 @@ Summary: アプリ全体を対象に、立体・切断・展開図の要素を�
 - `flattenedPolygons`: FaceID -> 2D polygon
 - `animationState`: { state, progress, timings }
 - `faces`: { faceId?, delayIndex }[]
-- `animation`: { state, progress, duration, faceDuration, stagger, scale, scaleTarget, startAt, targetCenter, positionTarget, preScaleDelay, postScaleDelay, camera }
+- `animation`: { state, progress, duration, faceDuration, stagger, scale, scaleTarget, startAt, preScaleDelay, postScaleDelay, camera }
 - `visible`: boolean (展開図UIの表示状態)
 
 ### DisplayState

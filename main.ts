@@ -88,6 +88,8 @@ class App {
         delayIndex: number;
         faceId?: string;
     }>;
+    netUnfoldTargetCenter: THREE.Vector3 | null;
+    netUnfoldPositionTarget: THREE.Vector3 | null;
     netUnfoldPreScaleDelay: number;
     netUnfoldPostScaleDelay: number;
     netUnfoldScaleReadyAt: number | null;
@@ -121,6 +123,8 @@ class App {
         this.defaultCameraPosition = new THREE.Vector3(10, 5, 3);
         this.defaultCameraTarget = new THREE.Vector3(0, 0, 0);
         this.netUnfoldFaces = [];
+        this.netUnfoldTargetCenter = null;
+        this.netUnfoldPositionTarget = null;
         this.netUnfoldPreScaleDelay = 320;
         this.netUnfoldPostScaleDelay = 220;
         this.netUnfoldScaleReadyAt = null;
@@ -780,12 +784,10 @@ class App {
             });
             return;
         }
-        const targetCenter = center;
-        const positionTarget = new THREE.Vector3(-center.x, -center.y, 0);
+        this.netUnfoldTargetCenter = center.clone();
+        this.netUnfoldPositionTarget = new THREE.Vector3(-center.x, -center.y, 0);
         this.setNetAnimationState({
-            scaleTarget,
-            targetCenter,
-            positionTarget
+            scaleTarget
         });
     }
 
@@ -1409,8 +1411,6 @@ class App {
         scale?: number;
         scaleTarget?: number;
         startAt?: number;
-        targetCenter?: THREE.Vector3 | null;
-        positionTarget?: THREE.Vector3 | null;
         preScaleDelay?: number;
         postScaleDelay?: number;
         camera?: {
@@ -1445,8 +1445,6 @@ class App {
             scale: current.scale,
             scaleTarget: current.scaleTarget,
             startAt: current.startAt,
-            targetCenter: current.targetCenter ? current.targetCenter.clone() : null,
-            positionTarget: current.positionTarget ? current.positionTarget.clone() : null,
             preScaleDelay: this.netUnfoldPreScaleDelay,
             postScaleDelay: this.netUnfoldPostScaleDelay,
             camera: current.camera
@@ -1904,8 +1902,6 @@ class App {
         this.setNetAnimationState({
             state: 'closed',
             progress: 0,
-            targetCenter: null,
-            positionTarget: null,
             camera: {
                 startPos: null,
                 startTarget: null,
@@ -1913,6 +1909,8 @@ class App {
                 endTarget: null
             }
         });
+        this.netUnfoldTargetCenter = null;
+        this.netUnfoldPositionTarget = null;
     }
 
     startNetUnfold() {
@@ -1954,8 +1952,6 @@ class App {
             stagger,
             scale: 1,
             scaleTarget: nextState.scaleTarget,
-            targetCenter: nextState.targetCenter,
-            positionTarget: nextState.positionTarget,
             preScaleDelay: nextState.preScaleDelay,
             postScaleDelay: nextState.postScaleDelay,
             startAt,
@@ -1985,8 +1981,6 @@ class App {
             stagger: netState.stagger || this.netUnfoldStagger,
             scale: netState.scale,
             scaleTarget: netState.scaleTarget,
-            targetCenter: netState.targetCenter,
-            positionTarget: netState.positionTarget,
             preScaleDelay: netState.preScaleDelay,
             postScaleDelay: netState.postScaleDelay,
             startAt,
@@ -2055,8 +2049,6 @@ class App {
             stagger,
             scale: netState.scale,
             scaleTarget: nextState === 'postscale' ? 1 : netState.scaleTarget,
-            targetCenter: netState.targetCenter,
-            positionTarget: netState.positionTarget,
             preScaleDelay: netState.preScaleDelay,
             postScaleDelay: netState.postScaleDelay
         });
@@ -2138,8 +2130,8 @@ class App {
             if (netState.state === 'prescale') {
                 this.netUnfoldFaces.forEach(face => face.pivot.quaternion.copy(face.startQuat));
             }
-            if (netState.positionTarget) {
-                const target = netState.positionTarget;
+            if (this.netUnfoldPositionTarget) {
+                const target = this.netUnfoldPositionTarget;
                 const scale = nextScale;
                 const scaledTarget = new THREE.Vector3(target.x * scale, target.y * scale, 0);
                 if (netState.state === 'postscale') {
@@ -2183,8 +2175,6 @@ class App {
             stagger: netState.stagger,
                     scale: nextScale,
                     scaleTarget: netState.scaleTarget,
-                    targetCenter: netState.targetCenter,
-                    positionTarget: netState.positionTarget,
                     preScaleDelay: netState.preScaleDelay,
                     postScaleDelay: netState.postScaleDelay
                 });

@@ -60,7 +60,7 @@ Summary: 現行実装の把握と構造主体移行のための実装メモを�
 - Net 展開中の表示判定も Model の state を参照する
 - Net の progress は Model 起点で参照し、ローカル保持を削減する
 - Net の scale は Model 起点で参照し、ローカル保持を削減する
-- Net の targetCenter/positionTarget は Model 起点で参照し、ローカル保持を削減する
+- Net の targetCenter/positionTarget は View 側で都度算出し、Model には保持しない
 - Net の startAt/カメラ遷移は Model に保持し、描画で参照する
 - Net の表示状態（visible）は Model 起点で管理する
 - Net の UI 反映は __setNetVisible を介して Model の visible に同期する
