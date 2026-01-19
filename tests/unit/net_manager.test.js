@@ -64,24 +64,23 @@ describe('NetManager', () => {
     const segment = {
       startId: 'E:01@1/2',
       endId: 'E:04@1/2',
-      start: resolver.resolveSnapPoint('E:01@1/2'),
-      end: resolver.resolveSnapPoint('E:04@1/2'),
       faceIds: ['F:0154']
     };
 
+    const resolveSpy = vi.spyOn(resolver, 'resolveSnapPoint');
     netManager.update([segment], cube, resolver);
 
     const ctx = netManager.ctx;
     expect(ctx.moveTo).toHaveBeenCalled();
     expect(ctx.lineTo).toHaveBeenCalled();
+    expect(resolveSpy).toHaveBeenCalledWith('E:01@1/2');
+    expect(resolveSpy).toHaveBeenCalledWith('E:04@1/2');
   });
 
   it('should draw segments inside the front face grid cell', () => {
     const segment = {
       startId: 'E:01@1/2',
       endId: 'E:04@1/2',
-      start: resolver.resolveSnapPoint('E:01@1/2'),
-      end: resolver.resolveSnapPoint('E:04@1/2'),
       faceIds: ['F:0154']
     };
 
@@ -102,8 +101,6 @@ describe('NetManager', () => {
     const segment = {
       startId: 'E:01@1/2',
       endId: 'E:04@1/2',
-      start: resolver.resolveSnapPoint('E:01@1/2'),
-      end: resolver.resolveSnapPoint('E:04@1/2'),
       faceIds: ['F:0154', 'F:0321']
     };
 

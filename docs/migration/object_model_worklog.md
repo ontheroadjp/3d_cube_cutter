@@ -291,6 +291,13 @@ Summary:
 Notes:
 - Issue #13 の成果物として更新
 
+## 2026-01-19T12:36:36+09:00
+Summary:
+- Resolver 起点のテストを追加し、座標保持削減の回帰を防止
+
+Notes:
+- Issue #14 の成果物として更新
+
 ## 2026-01-19T09:28:53+09:00
 Summary:
 - UIManager の legacy DOM 参照をフラグで抑制し、React UI 前提に整理
