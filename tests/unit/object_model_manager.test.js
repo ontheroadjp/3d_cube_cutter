@@ -81,6 +81,29 @@ describe('object model manager', () => {
     }
   });
 
+  it('resolves cut intersection positions via resolver only when needed', () => {
+    const scene = new THREE.Scene();
+    const cube = new Cube(scene, 10);
+    const resolver = new GeometryResolver({ size: cube.getSize(), indexMap: cube.getIndexMap() });
+    const manager = new ObjectModelManager({ cube, resolver, ui: null });
+    manager.build();
+
+    const resolveSpy = vi.spyOn(resolver, 'resolveSnapPoint');
+    manager.applyCutIntersections([
+      { id: 'V:0', type: 'intersection', position: new THREE.Vector3(1, 2, 3) },
+      { id: 'E:01@1/2', type: 'intersection' }
+    ]);
+
+    const resolved = manager.resolveCutIntersectionPositions();
+    const midpoint = resolved.find(ref => ref.id === 'E:01@1/2');
+    const vertexResolved = resolved.find(ref => ref.id === 'V:0');
+
+    expect(resolveSpy).toHaveBeenCalledWith('E:01@1/2');
+    expect(resolveSpy).not.toHaveBeenCalledWith('V:0');
+    expect(midpoint?.position).toBeInstanceOf(THREE.Vector3);
+    expect(vertexResolved?.position).toBeInstanceOf(THREE.Vector3);
+  });
+
   it('syncs cut segments and face polygons', () => {
     const scene = new THREE.Scene();
     const cube = new Cube(scene, 10);

@@ -193,6 +193,24 @@ describe('Cutter', () => {
             });
         });
 
+        it('should resolve cut segments via resolver when positions are not stored', () => {
+            const resolveSnapPoint = vi.fn((id) => {
+                if (id === 'V:0') return new THREE.Vector3(0, 0, 0);
+                if (id === 'V:1') return new THREE.Vector3(1, 0, 0);
+                return null;
+            });
+            cutter.lastResolver = { resolveSnapPoint };
+            cutter.cutSegments = [{ startId: 'V:0', endId: 'V:1' }];
+
+            const segments = cutter.getCutSegments();
+
+            expect(resolveSnapPoint).toHaveBeenCalledWith('V:0');
+            expect(resolveSnapPoint).toHaveBeenCalledWith('V:1');
+            expect(segments.length).toBe(1);
+            expect(segments[0].start).toBeInstanceOf(THREE.Vector3);
+            expect(segments[0].end).toBeInstanceOf(THREE.Vector3);
+        });
+
         it('should form a closed outline loop from cut segments', () => {
             const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
             const success = cutter.cut(cube, snapIds, resolver);
