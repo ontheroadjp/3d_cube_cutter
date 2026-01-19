@@ -347,6 +347,13 @@ Summary:
 Notes:
 - Issue #39 の成果物として更新
 
+## 2026-01-19T14:32:22+09:00
+Summary:
+- Net 展開アニメの遷移パラメータを Model 起点で参照するよう統一
+
+Notes:
+- Issue #40 の成果物として更新
+
 ## 2026-01-19T09:28:53+09:00
 Summary:
 - UIManager の legacy DOM 参照をフラグで抑制し、React UI 前提に整理
