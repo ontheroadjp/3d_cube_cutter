@@ -14,7 +14,7 @@ Summary: 座標依存箇所を棚卸しし、SnapPointID/Resolver 起点への�
   - `js/model/objectModel.ts`: `ObjectVertex.position`, `ObjectFace.normal/uvBasis`, `ObjectCutSegment.start/end` など
   - `js/model/objectModelBuilder.ts`: Resolver で座標を構築してモデルに保持
 - main
-  - `main.ts`: 展開図生成用の `cutFace.vertices` などが `THREE.Vector3` で保持される
+  - `main.ts`: 展開図生成は SnapPointID を resolver で解決し、座標保持への依存を減らす
 
 ### B. 描画時に Resolver で都度解決
 - Selection/Interaction

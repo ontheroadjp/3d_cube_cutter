@@ -1463,10 +1463,60 @@ class App {
         });
         if (!faceMap.size) return;
 
-        const computeNormal = (face: CutFacePolygon) => {
-            const normal = face.normal as THREE.Vector3 | undefined;
-            if (normal instanceof THREE.Vector3) return normal.clone().normalize();
+        const vertexMatchEpsilon = 1e-2;
+        const snapPointCandidates = new Map<string, THREE.Vector3>();
+        const addCandidate = (id: string | null | undefined) => {
+            if (!id || snapPointCandidates.has(id)) return;
+            const position = this.resolver.resolveSnapPoint(id);
+            if (position) snapPointCandidates.set(id, position);
+        };
+        this.objectModelManager.getCutIntersections().forEach(ref => addCandidate(ref.id));
+        const cubeStructureForIds = this.cube.getStructure();
+        if (cubeStructureForIds && Array.isArray(cubeStructureForIds.vertices)) {
+            cubeStructureForIds.vertices.forEach(vertex => addCandidate(vertex.id));
+        }
+
+        const getPolygonVertexIds = (face: CutFacePolygon) => {
+            const cached = (face as CutFacePolygon & { vertexIds?: string[] }).vertexIds;
+            if (Array.isArray(cached) && cached.length) return cached.slice();
             const verts = face.vertices as THREE.Vector3[];
+            if (!Array.isArray(verts) || !verts.length) return [];
+            const ids: string[] = [];
+            const epsilonSq = vertexMatchEpsilon * vertexMatchEpsilon;
+            for (const vertex of verts) {
+                if (!(vertex instanceof THREE.Vector3)) return [];
+                let bestId: string | null = null;
+                let bestDist = Infinity;
+                snapPointCandidates.forEach((candidate, id) => {
+                    const dist = vertex.distanceToSquared(candidate);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        bestId = id;
+                    }
+                });
+                if (!bestId || bestDist > epsilonSq) return [];
+                ids.push(bestId);
+            }
+            (face as CutFacePolygon & { vertexIds?: string[] }).vertexIds = ids.slice();
+            return ids;
+        };
+
+        const resolvePolygonVertices = (face: CutFacePolygon) => {
+            const ids = getPolygonVertexIds(face);
+            if (ids.length) {
+                const resolved = ids
+                    .map(id => this.resolver.resolveSnapPoint(id))
+                    .filter((pos): pos is THREE.Vector3 => pos instanceof THREE.Vector3);
+                if (resolved.length === ids.length) return resolved;
+            }
+            const verts = face.vertices as THREE.Vector3[];
+            return Array.isArray(verts)
+                ? verts.filter((pos): pos is THREE.Vector3 => pos instanceof THREE.Vector3).map(pos => pos.clone())
+                : [];
+        };
+
+        const computeNormal = (face: CutFacePolygon) => {
+            const verts = resolvePolygonVertices(face);
             if (!verts || verts.length < 3) return new THREE.Vector3(0, 0, 1);
             const v0 = verts[0];
             const v1 = verts[1];
@@ -1522,7 +1572,7 @@ class App {
 
         const matchSourceFaceId = (face: CutFacePolygon) => {
             if (face.type !== 'original') return null;
-            const verts = face.vertices as THREE.Vector3[];
+            const verts = resolvePolygonVertices(face);
             if (!verts || verts.length < 3) return null;
             const center = verts.reduce((acc, v) => acc.add(v), new THREE.Vector3()).divideScalar(verts.length);
             const normal = computeNormal(face);
@@ -1560,7 +1610,7 @@ class App {
         polygons.forEach(face => {
             const match = matchSourceFaceId(face);
             if (!match) return;
-            const verts = face.vertices as THREE.Vector3[];
+            const verts = resolvePolygonVertices(face);
             const area = computeAreaForFace(match.faceId, verts || []);
             const current = facePolygonsBySource.get(match.faceId);
             if (!current || area > current.area) {
@@ -1607,7 +1657,8 @@ class App {
             const polygon = entry ? entry.polygon : null;
             const frame = cubeFaceCandidates.find(candidate => candidate.faceId === faceId);
             if (!polygon || !frame) return null;
-            const verts = (polygon.vertices as THREE.Vector3[] || []).map(v => projectToFacePlane(v, faceId));
+            const worldVerts = resolvePolygonVertices(polygon);
+            const verts = worldVerts.map(v => projectToFacePlane(v, faceId));
             if (verts.length < 3) return null;
             const geometry = buildPolygonGeometry(verts);
             const material = new THREE.MeshBasicMaterial({
@@ -1645,7 +1696,7 @@ class App {
                 return null;
             };
             const usedLabels = new Set<string>();
-            (polygon.vertices as THREE.Vector3[] || []).forEach((world, i) => {
+            worldVerts.forEach((world, i) => {
                 const label = findVertexLabel(world);
                 if (!label || usedLabels.has(label)) return;
                 usedLabels.add(label);
