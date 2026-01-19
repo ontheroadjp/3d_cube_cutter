@@ -194,6 +194,20 @@ describe('Cutter', () => {
             });
         });
 
+        it('should return face polygons with vertexIds after cut', () => {
+            const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
+            const success = cutter.cut(cube, snapIds, resolver);
+
+            expect(success).toBe(true);
+            const polygons = cutter.getResultFacePolygons();
+            expect(polygons.length).toBeGreaterThan(0);
+            polygons.forEach(polygon => {
+                expect(Array.isArray(polygon.vertexIds)).toBe(true);
+                expect(polygon.vertexIds.length).toBeGreaterThan(2);
+                expect(polygon.vertices).toBeUndefined();
+            });
+        });
+
         it('should resolve cut segments via resolver when positions are not stored', () => {
             const resolveSnapPoint = vi.fn((id) => {
                 if (id === 'V:0') return new THREE.Vector3(0, 0, 0);
