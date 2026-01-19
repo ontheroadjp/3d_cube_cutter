@@ -244,6 +244,14 @@ Summary:
 Notes:
 - legacy DOM を前提とした UI 更新を段階的に縮退
 
+## 2026-01-19T10:26:30+09:00
+Summary:
+- SelectionManager の選択状態を SnapPointID 起点に整理し、座標保持を最小化
+- 既存の同一直線チェックは必要時に Resolver から座標を解決する方式へ変更
+
+Notes:
+- 座標は派生情報として扱い、今後も保持箇所を削減していく
+
 ## 2026-01-19T09:28:53+09:00
 Summary:
 - UIManager の legacy DOM 参照をフラグで抑制し、React UI 前提に整理
