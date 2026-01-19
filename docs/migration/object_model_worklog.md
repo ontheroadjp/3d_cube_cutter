@@ -305,6 +305,13 @@ Summary:
 Notes:
 - Issue #36 の成果物として更新
 
+## 2026-01-19T13:12:43+09:00
+Summary:
+- 展開図の生成が空になる場合は立方体の展開図にフォールバック
+
+Notes:
+- Issue #43 の成果物として更新
+
 ## 2026-01-19T09:28:53+09:00
 Summary:
 - UIManager の legacy DOM 参照をフラグで抑制し、React UI 前提に整理

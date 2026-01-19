@@ -1180,6 +1180,9 @@ class App {
         const cutFaces = this.isCutExecuted ? this.objectModelManager.getCutFacePolygons() : [];
         if (cutFaces.length) {
             this.buildCutNetUnfoldGroup(cutFaces, this.objectModelManager.getCutFaceAdjacency());
+            if (!this.netUnfoldGroup || this.netUnfoldFaces.length === 0) {
+                this.buildCubeNetUnfoldGroup();
+            }
             return;
         }
         this.buildCubeNetUnfoldGroup();
