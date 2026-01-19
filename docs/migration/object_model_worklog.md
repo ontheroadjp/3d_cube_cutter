@@ -222,3 +222,10 @@ Summary:
 
 Notes:
 - Resolver で解決できない場合は描画対象から除外する
+
+## 2026-01-19T09:15:51+09:00
+Summary:
+- React サイドパネル検出時は legacy UIManager のイベント連携を抑制
+
+Notes:
+- legacy DOM が無い環境でも挙動を統一できるよう整理

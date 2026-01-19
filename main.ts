@@ -194,8 +194,9 @@ class App {
     }
 
     init() {
-        this.useReactPresets = !!document.getElementById('react-topbar-root');
-        this.useReactUserPresets = !!document.getElementById('react-user-presets-root');
+        const hasReactSidePanel = !!document.getElementById('react-side-panel-root');
+        this.useReactPresets = hasReactSidePanel || !!document.getElementById('react-topbar-root');
+        this.useReactUserPresets = hasReactSidePanel || !!document.getElementById('react-user-presets-root');
         globalThis.__engine = {
             getDisplayState: () => this.ui.getDisplayState(),
             setDisplayState: (display) => this.applyDisplayState(display),
@@ -286,8 +287,10 @@ class App {
         this.controls.addEventListener('start', () => { this.isCameraAnimating = false; });
 
         // UI Manager Events (legacy fallback only)
-        this.ui.onPresetChange(this.handlePresetChange.bind(this));
-        this.ui.onConfigureClick(this.handleConfigureClick.bind(this));
+        if (!this.useReactPresets) {
+            this.ui.onPresetChange(this.handlePresetChange.bind(this));
+            this.ui.onConfigureClick(this.handleConfigureClick.bind(this));
+        }
         // this.ui.onConfigureVertexLabelsClick(this.handleConfigureVertexLabelsClick.bind(this)); // REMOVE
         if (!this.useReactUserPresets) {
             this.ui.onSaveUserPresetClick(this.handleSaveUserPreset.bind(this));
@@ -772,23 +775,31 @@ class App {
         if (mode !== 'settings') {
             this.resetScene();
         }
-        this.ui.showSettingsPanels(false);
-        this.ui.showLearningPanels(false);
+        if (!this.useReactPresets) {
+            this.ui.showSettingsPanels(false);
+            this.ui.showLearningPanels(false);
+        }
 
         if (mode === 'settings') {
-            this.ui.showSettingsPanels(true);
-            this.ui.showSettingsPanel('display');
+            if (!this.useReactPresets) {
+                this.ui.showSettingsPanels(true);
+                this.ui.showSettingsPanel('display');
+            }
         } else if (mode === 'learning') {
-            this.ui.showLearningPanels(true);
+            if (!this.useReactPresets) {
+                this.ui.showLearningPanels(true);
+            }
         }
     }
 
     handlePresetCategoryChange(category) {
-        if (category) this.ui.filterPresetButtons(category);
+        if (category && !this.useReactPresets) this.ui.filterPresetButtons(category);
     }
     
     handleSettingsCategoryChange(category) {
-        this.ui.showSettingsPanel(category);
+        if (!this.useReactPresets) {
+            this.ui.showSettingsPanel(category);
+        }
     }
 
     handlePresetChange(name) {
