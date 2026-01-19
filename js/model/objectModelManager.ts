@@ -174,7 +174,21 @@ export class ObjectModelManager {
   applyCutIntersections(intersections: IntersectionPoint[]) {
     if (!this.model) return;
     this.resetCutFlags();
-    this.cutIntersections = Array.isArray(intersections) ? intersections.slice() : [];
+    const normalized = Array.isArray(intersections)
+      ? intersections
+          .map(ref => {
+            if (!ref || !ref.id) return null;
+            return {
+              id: ref.id,
+              type: ref.type,
+              edgeId: ref.edgeId,
+              ratio: ref.ratio ? { ...ref.ratio } : undefined,
+              faceIds: Array.isArray(ref.faceIds) ? [...ref.faceIds] : undefined
+            };
+          })
+          .filter(Boolean)
+      : [];
+    this.cutIntersections = normalized;
     this.ensureCutModel();
     if (this.model && this.model.cut) {
       this.model.cut.intersections = this.cutIntersections.slice();
@@ -182,7 +196,7 @@ export class ObjectModelManager {
     const vertexMap = this.vertexMap || new Map(this.model.solid.vertices.map(vertex => [vertex.id, vertex]));
     const edgeMap = this.edgeMap || new Map(this.model.solid.edges.map(edge => [edge.id, edge]));
 
-    intersections.forEach(ref => {
+    this.cutIntersections.forEach(ref => {
       const parsed = ref && ref.id ? normalizeSnapPointId(parseSnapPointId(ref.id)) : null;
       if (!parsed) return;
 
@@ -321,7 +335,18 @@ export class ObjectModelManager {
 
   setCutSegments(segments: ObjectCutSegment[]) {
     this.ensureCutModel();
-    this.cutSegments = Array.isArray(segments) ? segments.slice() : [];
+    this.cutSegments = Array.isArray(segments)
+      ? segments
+          .map(seg => {
+            if (!seg || !seg.startId || !seg.endId) return null;
+            return {
+              startId: seg.startId,
+              endId: seg.endId,
+              faceIds: Array.isArray(seg.faceIds) ? [...seg.faceIds] : undefined
+            };
+          })
+          .filter(Boolean)
+      : [];
     if (this.model && this.model.cut) {
       this.model.cut.cutSegments = this.cutSegments.slice();
     }
@@ -330,7 +355,14 @@ export class ObjectModelManager {
   setCutFacePolygons(polygons: CutFacePolygon[], adjacency: ObjectCutAdjacency[] = []) {
     this.ensureCutModel();
     this.cutFacePolygons = Array.isArray(polygons) ? polygons.slice() : [];
-    this.cutFaceAdjacency = Array.isArray(adjacency) ? adjacency.slice() : [];
+    this.cutFaceAdjacency = Array.isArray(adjacency)
+      ? adjacency
+          .map(entry => {
+            if (!entry || !entry.a || !entry.b) return null;
+            return { a: entry.a, b: entry.b };
+          })
+          .filter(Boolean)
+      : [];
     if (this.model && this.model.cut) {
       this.model.cut.facePolygons = this.cutFacePolygons.slice();
       this.model.cut.faceAdjacency = this.cutFaceAdjacency.slice();

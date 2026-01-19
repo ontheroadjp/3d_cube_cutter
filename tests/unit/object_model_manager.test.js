@@ -99,7 +99,7 @@ describe('object model manager', () => {
     const vertexResolved = resolved.find(ref => ref.id === 'V:0');
 
     expect(resolveSpy).toHaveBeenCalledWith('E:01@1/2');
-    expect(resolveSpy).not.toHaveBeenCalledWith('V:0');
+    expect(resolveSpy).toHaveBeenCalledWith('V:0');
     expect(midpoint?.position).toBeInstanceOf(THREE.Vector3);
     expect(vertexResolved?.position).toBeInstanceOf(THREE.Vector3);
   });
@@ -129,9 +129,12 @@ describe('object model manager', () => {
 
     const model = manager.getModel();
     expect(model.cut.cutSegments.length).toBe(1);
+    expect(model.cut.cutSegments[0].start).toBeUndefined();
+    expect(model.cut.cutSegments[0].end).toBeUndefined();
     expect(manager.getCutSegments().length).toBe(1);
     expect(model.cut.facePolygons.length).toBe(1);
     expect(manager.getCutFaceAdjacency().length).toBe(1);
+    expect(manager.getCutFaceAdjacency()[0].sharedEdge).toBeUndefined();
   });
 
   it('syncs net state', () => {

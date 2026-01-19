@@ -395,3 +395,11 @@ Summary:
 
 Notes:
 - count/tooltip/alert が無い環境でも例外を出さない
+
+## 2026-01-19T15:01:25+0900
+Summary:
+- ObjectModelManager が保持する切断情報から座標派生データを除去
+- cutSegments と faceAdjacency を ID ベースで正規化
+
+Notes:
+- IntersectionPoint の position や sharedEdge を保存せず、必要時に resolver で再計算

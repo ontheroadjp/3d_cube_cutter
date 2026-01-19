@@ -65,9 +65,9 @@ export type ObjectCutSegment = {
   startId: SnapPointID;
   endId: SnapPointID;
   // Derived from GeometryResolver; not source of truth.
-  start: THREE.Vector3;
+  start?: THREE.Vector3;
   // Derived from GeometryResolver; not source of truth.
-  end: THREE.Vector3;
+  end?: THREE.Vector3;
   faceIds?: string[];
 };
 
@@ -75,7 +75,7 @@ export type ObjectCutAdjacency = {
   a: string;
   b: string;
   // Derived from GeometryResolver; not source of truth.
-  sharedEdge: [THREE.Vector3, THREE.Vector3];
+  sharedEdge?: [THREE.Vector3, THREE.Vector3];
 };
 
 export type ObjectCut = {
