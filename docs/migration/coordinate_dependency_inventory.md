@@ -10,8 +10,6 @@ Summary: 座標依存箇所を棚卸しし、SnapPointID/Resolver 起点への�
 
 ## 依存分類
 ### A. 状態として座標を保持している
-- Cut Result
-  - `js/cutter/cutFaceExtractor.ts`: メッシュから座標ベースでポリゴンを抽出
 - main
   - `main.ts`: 展開図生成は SnapPointID を resolver で解決し、座標保持への依存を減らす
 
@@ -21,7 +19,7 @@ Summary: 座標依存箇所を棚卸しし、SnapPointID/Resolver 起点への�
   - `js/SelectionManager.ts`: SnapPointID から `resolveEdge/resolveSnapPoint` を使いラベル位置を計算
 - Cutter
   - `js/Cutter.ts`: 交点/切断線は SnapPointID を保持し、座標は resolver で都度解決
-  - `js/Cutter.ts`: CutFacePolygon は vertexIds を保持し、座標は resolver で都度解決
+  - `js/Cutter.ts`: CutFacePolygon は構造モデル起点で vertexIds を構成し、座標は resolver で都度解決
 - Net
   - `js/net/NetManager.ts`: faceId から `resolver.resolveFace/resolveVertex` を使って投影
 
@@ -37,7 +35,7 @@ Summary: 座標依存箇所を棚卸しし、SnapPointID/Resolver 起点への�
 - `js/net/NetManager.ts`
   - 面投影で Resolver を利用しつつも座標配列を扱う
 - `js/cutter/cutFaceExtractor.ts`
-  - 切断後ポリゴン生成が座標ベース
+  - CSGメッシュ描画用の座標抽出のみ（構造モデルの状態には非依存）
 
 ## 移行優先度（提案）
 1) Cut/交点/切断線の保持を SnapPointID 起点に整理
