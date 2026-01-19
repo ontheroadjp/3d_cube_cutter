@@ -1239,6 +1239,7 @@ class App {
             const faceLabel = createLabel(faceName, this.cube.size / 10, 'rgba(0,0,0,0.6)');
             faceLabel.position.set(0, 0, 0.06);
             faceLabel.userData.type = 'net-face-label';
+            faceLabel.userData.baseScale = faceLabel.scale.clone();
             faceLabel.visible = !!display.showFaceLabels;
             mesh.add(faceLabel);
             const corners = [
@@ -1253,6 +1254,7 @@ class App {
                 const sprite = createLabel(label, this.cube.size / 14, 'rgba(0,0,0,0.75)');
                 sprite.position.copy(corners[idx] || corners[0]);
                 sprite.userData.type = 'net-vertex-label';
+                sprite.userData.baseScale = sprite.scale.clone();
                 sprite.visible = !!display.showVertexLabels;
                 mesh.add(sprite);
             });
@@ -1390,6 +1392,21 @@ class App {
             if (type === 'net-vertex-label') {
                 obj.visible = !!display.showVertexLabels;
             }
+        });
+    }
+
+    updateNetLabelScale() {
+        if (!this.netUnfoldGroup) return;
+        const scale = this.netUnfoldGroup.scale.x;
+        if (!Number.isFinite(scale) || scale <= 0) return;
+        const inverse = THREE.MathUtils.clamp(1 / scale, 1, 2.5);
+        this.netUnfoldGroup.traverse((obj) => {
+            const type = obj.userData && obj.userData.type;
+            if (type !== 'net-face-label' && type !== 'net-vertex-label') return;
+            if (!(obj instanceof THREE.Sprite)) return;
+            const baseScale = obj.userData.baseScale;
+            if (!(baseScale instanceof THREE.Vector3)) return;
+            obj.scale.copy(baseScale).multiplyScalar(inverse);
         });
     }
 
@@ -1680,6 +1697,7 @@ class App {
             label.position.copy(center);
             label.position.z += 0.06;
             label.userData.type = 'net-face-label';
+            label.userData.baseScale = label.scale.clone();
             label.visible = !!display.showFaceLabels;
             mesh.add(label);
             const vertexCandidates: Array<{ label: string; position: THREE.Vector3 }> = [];
@@ -1707,6 +1725,7 @@ class App {
                 sprite.position.copy(localPos);
                 sprite.position.z += 0.06;
                 sprite.userData.type = 'net-vertex-label';
+                sprite.userData.baseScale = sprite.scale.clone();
                 sprite.visible = !!display.showVertexLabels;
                 mesh.add(sprite);
             });
@@ -1851,6 +1870,7 @@ class App {
                         label.position.copy(center);
                         label.position.z += 0.06;
                         label.userData.type = 'net-face-label';
+                        label.userData.baseScale = label.scale.clone();
                         label.visible = !!display.showFaceLabels;
                         mesh.add(label);
                         pivot.add(mesh);
@@ -2180,6 +2200,7 @@ class App {
                 nextScale = netState.scaleTarget;
             }
             this.netUnfoldGroup.scale.setScalar(nextScale);
+            this.updateNetLabelScale();
             if (netState.state === 'prescale') {
                 this.netUnfoldFaces.forEach(face => face.pivot.quaternion.copy(face.startQuat));
             }
