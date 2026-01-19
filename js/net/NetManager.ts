@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { parseSnapPointId, normalizeSnapPointId } from '../geometry/snapPointId.js';
 import { buildFaceNameMap } from '../structure/structureModel.js';
+import { getCanonicalFaceBasis } from '../geometry/faceBasis.js';
 import type { SnapPointID } from '../types.js';
 
 // 展開図 (Development / Net) を管理するクラス
@@ -157,11 +158,32 @@ export class NetManager {
             const faceId = faceNameMap.get(face.name);
             if (!faceId) return null;
             if (structure && structure.faceMap && !structure.faceMap.has(faceId)) return null;
+            const resolved = activeResolver ? activeResolver.resolveFace(faceId) : null;
+            if (!resolved) return null;
+            const center = resolved.vertices
+                .reduce((acc, v) => acc.add(v), new THREE.Vector3())
+                .divideScalar(resolved.vertices.length);
+            const basis = getCanonicalFaceBasis(face.name as any);
+            const coords = resolved.vertices.map(v => {
+                const offset = v.clone().sub(center);
+                return {
+                    u: offset.dot(basis.basisU),
+                    v: offset.dot(basis.basisV)
+                };
+            });
+            const uValues = coords.map(c => c.u);
+            const vValues = coords.map(c => c.v);
+            const width = Math.max(...uValues) - Math.min(...uValues);
+            const height = Math.max(...vValues) - Math.min(...vValues);
             return {
                 name: face.name,
                 grid: face.grid,
                 faceId,
-                uvVertices: null
+                center,
+                basisU: basis.basisU,
+                basisV: basis.basisV,
+                width,
+                height
             };
         }).filter(Boolean);
         
@@ -247,38 +269,16 @@ export class NetManager {
     
     /**
      * @param {THREE.Vector3} p
-     * @param {{ faceId: string, name: string, uvVertices?: string[] }} face
+     * @param {{ faceId: string, name: string, center?: THREE.Vector3, basisU?: THREE.Vector3, basisV?: THREE.Vector3, width?: number, height?: number }} face
      * @param {object | null} resolver
      */
     map3Dto2D(p, face, resolver = null) {
         if (!resolver) return null;
-        if (resolver && face.uvVertices && face.uvVertices.length === 4) {
-            const corners = face.uvVertices.map(id => resolver.resolveVertex(id));
-            if (corners.every(v => v)) {
-                const [tl, tr, br, bl] = corners;
-                const uVec = new THREE.Vector3().subVectors(tr, tl);
-                const vVec = new THREE.Vector3().subVectors(bl, tl);
-                const uLen = uVec.length();
-                const vLen = vVec.length();
-                if (uLen > 0 && vLen > 0) {
-                    const vec = new THREE.Vector3().subVectors(p, tl);
-                    const u = vec.dot(uVec.clone().normalize()) / uLen;
-                    const v = vec.dot(vVec.clone().normalize()) / vLen;
-                    return { x: u, y: v };
-                }
-            }
-        }
-        if (resolver && face.faceId) {
-            const resolvedFace = resolver.resolveFace(face.faceId);
-            if (resolvedFace) {
-                const origin = resolvedFace.vertices[0];
-                const uLen = origin.distanceTo(resolvedFace.vertices[1]);
-                const vLen = origin.distanceTo(resolvedFace.vertices[3]);
-                const vec = new THREE.Vector3().subVectors(p, origin);
-                const u = vec.dot(resolvedFace.basisU) / uLen;
-                const v = vec.dot(resolvedFace.basisV) / vLen;
-                return { x: u, y: v };
-            }
+        if (face.center && face.basisU && face.basisV && face.width && face.height) {
+            const vec = new THREE.Vector3().subVectors(p, face.center);
+            const u = vec.dot(face.basisU) / face.width;
+            const v = vec.dot(face.basisV) / face.height;
+            return { x: u + 0.5, y: v + 0.5 };
         }
         return null;
     }

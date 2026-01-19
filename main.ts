@@ -17,6 +17,7 @@ import type { ObjectNetState } from './js/model/objectModel.js';
 import { normalizeSnapPointId, parseSnapPointId } from './js/geometry/snapPointId.js';
 import { createLabel, createMarker } from './js/utils.js';
 import { buildFaceNameMap } from './js/structure/structureModel.js';
+import { getCanonicalFaceBasis } from './js/geometry/faceBasis.js';
 
 const DEBUG = false;
 
@@ -1654,17 +1655,21 @@ class App {
         const indexMap = structure && structure.indexMap ? structure.indexMap : this.cube.getIndexMap();
         const faceNameMap = structure ? buildFaceNameMap(structure.faces || [], indexMap || {}) : new Map();
         const faceIdToName = new Map(Array.from(faceNameMap.entries()).map(([name, faceId]) => [faceId, name]));
-        const computeFaceFrame = (faceId: string) => {
+        const computeFaceFrame = (faceId: string, name: string | null) => {
             const resolved = this.resolver.resolveFace(faceId);
             if (!resolved) return null;
             const center = resolved.vertices
                 .reduce((acc, v) => acc.add(v), new THREE.Vector3())
                 .divideScalar(resolved.vertices.length);
+            const canonical = name && name !== faceId ? getCanonicalFaceBasis(name as any) : null;
+            const normal = canonical ? canonical.normal : resolved.normal;
+            const basisU = canonical ? canonical.basisU : resolved.basisU;
+            const basisV = canonical ? canonical.basisV : resolved.basisV;
             const coords = resolved.vertices.map(v => {
                 const offset = v.clone().sub(center);
                 return {
-                    u: offset.dot(resolved.basisU),
-                    v: offset.dot(resolved.basisV)
+                    u: offset.dot(basisU),
+                    v: offset.dot(basisV)
                 };
             });
             const uValues = coords.map(c => c.u);
@@ -1672,10 +1677,10 @@ class App {
             const width = Math.max(...uValues) - Math.min(...uValues);
             const height = Math.max(...vValues) - Math.min(...vValues);
             return {
-                normal: resolved.normal,
+                normal,
                 center,
-                basisU: resolved.basisU,
-                basisV: resolved.basisV,
+                basisU,
+                basisV,
                 width,
                 height
             };
@@ -1683,9 +1688,9 @@ class App {
         const cubeFaceCandidates = (structure && Array.isArray(structure.faces) ? structure.faces : [])
             .map(face => {
                 if (!face || !face.id) return null;
-                const frame = computeFaceFrame(face.id);
-                if (!frame) return null;
                 const name = faceIdToName.get(face.id) || face.id;
+                const frame = computeFaceFrame(face.id, name);
+                if (!frame) return null;
                 return {
                     faceId: face.id,
                     name,
