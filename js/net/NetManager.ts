@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { parseSnapPointId, normalizeSnapPointId } from '../geometry/snapPointId.js';
+import { buildFaceNameMap } from '../structure/structureModel.js';
+import { getCanonicalFaceBasis } from '../geometry/faceBasis.js';
 import type { SnapPointID } from '../types.js';
 
 // 展開図 (Development / Net) を管理するクラス
@@ -16,10 +18,8 @@ export class NetManager {
         offsetY: number;
         faces: Array<{
             name: string;
-            faceId: string;
             grid: { x: number; y: number };
             connectTo?: string;
-            uvVertices: string[];
         }>;
     };
 
@@ -93,12 +93,12 @@ export class NetManager {
             offsetX: 20,
             offsetY: 20,
             faces: [
-                { name: 'Front', faceId: 'F:0154', grid: {x:1, y:1}, uvVertices: ['V:4', 'V:5', 'V:1', 'V:0'] },
-                { name: 'Back',  faceId: 'F:2376', grid: {x:3, y:1}, uvVertices: ['V:6', 'V:7', 'V:3', 'V:2'] },
-                { name: 'Top',   faceId: 'F:4567', grid: {x:1, y:0}, connectTo: 'Front', uvVertices: ['V:7', 'V:6', 'V:5', 'V:4'] },
-                { name: 'Bottom', faceId: 'F:0321', grid: {x:1, y:2}, uvVertices: ['V:0', 'V:1', 'V:2', 'V:3'] },
-                { name: 'Left',   faceId: 'F:0473', grid: {x:0, y:1}, uvVertices: ['V:7', 'V:4', 'V:0', 'V:3'] },
-                { name: 'Right',  faceId: 'F:1265', grid: {x:2, y:1}, uvVertices: ['V:5', 'V:6', 'V:2', 'V:1'] },
+                { name: 'Front', grid: {x:1, y:1} },
+                { name: 'Back',  grid: {x:3, y:1} },
+                { name: 'Top',   grid: {x:1, y:0}, connectTo: 'Front' },
+                { name: 'Bottom', grid: {x:1, y:2} },
+                { name: 'Left',   grid: {x:0, y:1} },
+                { name: 'Right',  grid: {x:2, y:1} },
             ]
         };
     }
@@ -152,13 +152,38 @@ export class NetManager {
         const s = L.scale;
         const activeResolver = resolver || this.resolver;
         const structure = cube && cube.getStructure ? cube.getStructure() : null;
+        const indexMap = structure && structure.indexMap ? structure.indexMap : (cube && cube.getIndexMap ? cube.getIndexMap() : null);
+        const faceNameMap = structure ? buildFaceNameMap(structure.faces || [], indexMap || {}) : new Map();
         const faceData = L.faces.map(face => {
-            if (structure && structure.faceMap && !structure.faceMap.has(face.faceId)) return null;
+            const faceId = faceNameMap.get(face.name);
+            if (!faceId) return null;
+            if (structure && structure.faceMap && !structure.faceMap.has(faceId)) return null;
+            const resolved = activeResolver ? activeResolver.resolveFace(faceId) : null;
+            if (!resolved) return null;
+            const center = resolved.vertices
+                .reduce((acc, v) => acc.add(v), new THREE.Vector3())
+                .divideScalar(resolved.vertices.length);
+            const basis = getCanonicalFaceBasis(face.name as any);
+            const coords = resolved.vertices.map(v => {
+                const offset = v.clone().sub(center);
+                return {
+                    u: offset.dot(basis.basisU),
+                    v: offset.dot(basis.basisV)
+                };
+            });
+            const uValues = coords.map(c => c.u);
+            const vValues = coords.map(c => c.v);
+            const width = Math.max(...uValues) - Math.min(...uValues);
+            const height = Math.max(...vValues) - Math.min(...vValues);
             return {
                 name: face.name,
                 grid: face.grid,
-                faceId: face.faceId,
-                uvVertices: face.uvVertices || null,
+                faceId,
+                center,
+                basisU: basis.basisU,
+                basisV: basis.basisV,
+                width,
+                height
             };
         }).filter(Boolean);
         
@@ -244,38 +269,16 @@ export class NetManager {
     
     /**
      * @param {THREE.Vector3} p
-     * @param {{ faceId: string, name: string, uvVertices?: string[] }} face
+     * @param {{ faceId: string, name: string, center?: THREE.Vector3, basisU?: THREE.Vector3, basisV?: THREE.Vector3, width?: number, height?: number }} face
      * @param {object | null} resolver
      */
     map3Dto2D(p, face, resolver = null) {
         if (!resolver) return null;
-        if (resolver && face.uvVertices && face.uvVertices.length === 4) {
-            const corners = face.uvVertices.map(id => resolver.resolveVertex(id));
-            if (corners.every(v => v)) {
-                const [tl, tr, br, bl] = corners;
-                const uVec = new THREE.Vector3().subVectors(tr, tl);
-                const vVec = new THREE.Vector3().subVectors(bl, tl);
-                const uLen = uVec.length();
-                const vLen = vVec.length();
-                if (uLen > 0 && vLen > 0) {
-                    const vec = new THREE.Vector3().subVectors(p, tl);
-                    const u = vec.dot(uVec.clone().normalize()) / uLen;
-                    const v = vec.dot(vVec.clone().normalize()) / vLen;
-                    return { x: u, y: v };
-                }
-            }
-        }
-        if (resolver && face.faceId) {
-            const resolvedFace = resolver.resolveFace(face.faceId);
-            if (resolvedFace) {
-                const origin = resolvedFace.vertices[0];
-                const uLen = origin.distanceTo(resolvedFace.vertices[1]);
-                const vLen = origin.distanceTo(resolvedFace.vertices[3]);
-                const vec = new THREE.Vector3().subVectors(p, origin);
-                const u = vec.dot(resolvedFace.basisU) / uLen;
-                const v = vec.dot(resolvedFace.basisV) / vLen;
-                return { x: u, y: v };
-            }
+        if (face.center && face.basisU && face.basisV && face.width && face.height) {
+            const vec = new THREE.Vector3().subVectors(p, face.center);
+            const u = vec.dot(face.basisU) / face.width;
+            const v = vec.dot(face.basisV) / face.height;
+            return { x: u + 0.5, y: v + 0.5 };
         }
         return null;
     }
