@@ -465,3 +465,11 @@ Summary:
 
 Notes:
 - 切断後ポリゴンの座標抽出は描画用途に限定
+
+## 2026-01-19T19:38:22+0900
+Summary:
+- CSGメッシュ抽出（cutFaceExtractor）を廃止
+- CutFacePolygon は構造情報のみに統一
+
+Notes:
+- 過去Issueの移行が未完了だったため再作業として実施
