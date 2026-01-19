@@ -426,3 +426,11 @@ Summary:
 
 Notes:
 - vertexIds が解決できない場合は既存 vertices をフォールバック
+
+## 2026-01-19T15:52:12+0900
+Summary:
+- ObjectModel の solid から派生座標（position/normal/uvBasis/length）を削除
+- ObjectModelBuilder とテストを ID/構造参照のみへ更新
+
+Notes:
+- 座標派生値は resolver で都度解決する方針

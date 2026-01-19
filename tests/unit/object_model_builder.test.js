@@ -29,15 +29,15 @@ describe('object model builder', () => {
 
     const v0 = model.vertices.find(vertex => vertex.id === 'V:0');
     expect(v0).toBeTruthy();
-    expect(v0.position).toBeInstanceOf(THREE.Vector3);
+    expect(v0.position).toBeUndefined();
 
     const edge = model.edges.find(e => e.id === 'E:01');
     expect(edge).toBeTruthy();
-    expect(edge.length).toBeGreaterThan(0);
+    expect(edge.length).toBeUndefined();
 
     const face = model.faces.find(f => f.id === 'F:0154');
     expect(face).toBeTruthy();
     expect(face.vertices).toHaveLength(4);
-    expect(face.normal).toBeInstanceOf(THREE.Vector3);
+    expect(face.normal).toBeUndefined();
   });
 });

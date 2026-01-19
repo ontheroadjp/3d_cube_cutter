@@ -10,9 +10,9 @@ Summary: 座標依存箇所を棚卸しし、SnapPointID/Resolver 起点への�
 
 ## 依存分類
 ### A. 状態として座標を保持している
-- Object Model
-  - `js/model/objectModel.ts`: `ObjectVertex.position`, `ObjectFace.normal/uvBasis`, `ObjectCutSegment.start/end` など
-  - `js/model/objectModelBuilder.ts`: Resolver で座標を構築してモデルに保持
+- Cut Result
+  - `js/types.ts`: `CutFacePolygon.vertices` が座標配列を保持
+  - `js/cutter/cutFaceExtractor.ts`: メッシュから座標ベースでポリゴンを抽出
 - main
   - `main.ts`: 展開図生成は SnapPointID を resolver で解決し、座標保持への依存を減らす
 
@@ -36,16 +36,16 @@ Summary: 座標依存箇所を棚卸しし、SnapPointID/Resolver 起点への�
   - 交点/切断線の計算結果に座標が含まれる
 - `js/net/NetManager.ts`
   - 面投影で Resolver を利用しつつも座標配列を扱う
-- `js/model/*`
-  - モデルが座標を保持する設計
+- `js/cutter/cutFaceExtractor.ts`
+  - 切断後ポリゴン生成が座標ベース
 
 ## 移行優先度（提案）
 1) Cut/交点/切断線の保持を SnapPointID 起点に整理
    - `IntersectionPoint.position` や `cutSegments.start/end` を派生情報へ寄せる
 2) Net 展開の投影/面同定を Resolver 起点に統一
    - 面/辺の同定に座標フォールバックを持たない構成へ
-3) Object Model の座標保持を段階的に削減
-   - `ObjectVertex.position` などを派生情報扱いにして最終的に削除
+3) CutFacePolygon の頂点保持を SnapPointID 起点へ移行
+   - `CutFacePolygon.vertices` を削除できる状態へ寄せる
 
 ## 次のアクション
 - Issue #10/#11/#12/#13 の順に詳細移行計画へ落とし込む

@@ -15,13 +15,12 @@ Summary: アプリ全体を対象に、立体・切断・展開図の要素を�
 ## 派生情報の扱い
 - `position` / `normal` / `uvBasis` / `length` などの幾何値は派生情報として扱う。
 - 真実は SnapPointID と構造モデルに置き、派生情報は再計算可能であることを前提にする。
-- 移行完了後は派生情報をモデルから除去できる状態を目指す。
+- Solid から派生情報を排除し、必要時に resolver で解決する。
 
 ## モデル構成（最小）
 
 ### Vertex
 - `id`: VertexID (例: `V:0`)
-- `position`: THREE.Vector3 (派生情報としてのワールド座標)
 - `label`: string (表示ラベル)
 - `flags`: { selected, hovered, isCutPoint, isSnapPoint }
 
@@ -29,7 +28,6 @@ Summary: アプリ全体を対象に、立体・切断・展開図の要素を�
 - `id`: EdgeID (例: `E:01`)
 - `v1`, `v2`: Vertex 参照
 - `faces`: FaceID[]
-- `length`: number (派生情報)
 - `flags`: { selected, hovered, isCutEdge, hasCutPoint, isMidpointCut }
   - `hasCutPoint` / `isMidpointCut` は切断線の色分け判定に利用
 
@@ -37,8 +35,6 @@ Summary: アプリ全体を対象に、立体・切断・展開図の要素を�
 - `id`: FaceID (例: `F:0154`)
 - `vertices`: Vertex[]
 - `edges`: Edge[]
-- `normal`: THREE.Vector3 (派生情報)
-- `uvBasis`: { origin: THREE.Vector3, u: THREE.Vector3, v: THREE.Vector3 } (派生情報)
 - `flags`: { selected, hovered, isCutFace, isOriginalFace }
 - `polygons`: FacePolygon[] (切断後の分割面)
 
