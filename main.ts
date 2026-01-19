@@ -737,6 +737,10 @@ class App {
         console.error(`[net] ${context}`, detail);
     }
 
+    logNetUnfoldEvent(context: string, detail: Record<string, unknown> = {}) {
+        console.info(`[net] ${context}`, detail);
+    }
+
     updateNetUnfoldScale() {
         if (!this.netUnfoldGroup) return;
         const originalScale = this.netUnfoldGroup.scale.clone();
@@ -1914,6 +1918,12 @@ class App {
         this.cameraTargetPosition = null;
         this.clearNetUnfoldGroup();
         this.buildNetUnfoldGroup();
+        this.logNetUnfoldEvent('start unfold', {
+            isCutExecuted: this.isCutExecuted,
+            hasGroup: !!this.netUnfoldGroup,
+            faceCount: this.netUnfoldFaces.length,
+            groupChildren: this.netUnfoldGroup ? this.netUnfoldGroup.children.length : 0
+        });
         this.netUnfoldFaces.forEach(face => face.pivot.quaternion.copy(face.startQuat));
         const startAt = performance.now();
         this.cube.setVisible(false);
@@ -2070,6 +2080,11 @@ class App {
     handleToggleNetClick() {
         const wasVisible = this.objectModelManager.getNetVisible();
         const nextVisible = !wasVisible;
+        this.logNetUnfoldEvent('toggle net', {
+            wasVisible,
+            nextVisible,
+            state: this.objectModelManager.getNetState().state
+        });
         this.objectModelManager.setNetVisible(nextVisible);
         if (typeof globalThis.__setNetVisible === 'function') {
             globalThis.__setNetVisible(nextVisible);
