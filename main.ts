@@ -1451,7 +1451,7 @@ class App {
         this.applyNetStateFromModel();
     }
 
-    buildCutNetUnfoldGroup(polygons: CutFacePolygon[], adjacency: Array<{ a: string; b: string; sharedEdge: [THREE.Vector3, THREE.Vector3] }>) {
+    buildCutNetUnfoldGroup(polygons: CutFacePolygon[], adjacency: Array<{ a: string; b: string }>) {
         const group = new THREE.Group();
         const faces = [];
         const display = this.objectModelManager.getDisplayState();
