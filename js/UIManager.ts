@@ -154,19 +154,48 @@ export class UIManager {
 
   // --- Getters for UI State ---
   getEdgeLabelMode(): DisplayState['edgeLabelMode'] {
+    if (!this.legacyControlsEnabled) return this.displayState.edgeLabelMode;
     const value = this.edgeLabelSelect ? this.edgeLabelSelect.value : this.displayState.edgeLabelMode;
     if (value === 'visible' || value === 'popup' || value === 'hidden') {
       return value;
     }
     return 'visible';
   }
-  isVertexLabelsChecked() { return this.toggleVertexLabels ? this.toggleVertexLabels.checked : this.displayState.showVertexLabels; }
-  isCutSurfaceChecked() { return this.toggleCutSurface ? this.toggleCutSurface.checked : this.displayState.showCutSurface; }
-  isPyramidChecked() { return this.togglePyramid ? this.togglePyramid.checked : this.displayState.showPyramid; }
-  isTransparencyChecked() { return this.toggleCubeTransparency ? this.toggleCubeTransparency.checked : this.displayState.cubeTransparent; }
-  isFaceLabelsChecked() { return this.toggleFaceLabels ? this.toggleFaceLabels.checked : this.displayState.showFaceLabels; }
-  isCutPointsChecked() { return this.toggleCutPoints ? this.toggleCutPoints.checked : this.displayState.showCutPoints; }
-  isCutLineColorChecked() { return this.toggleCutLineColor ? this.toggleCutLineColor.checked : this.displayState.colorizeCutLines; }
+  isVertexLabelsChecked() {
+    return this.legacyControlsEnabled && this.toggleVertexLabels
+      ? this.toggleVertexLabels.checked
+      : this.displayState.showVertexLabels;
+  }
+  isCutSurfaceChecked() {
+    return this.legacyControlsEnabled && this.toggleCutSurface
+      ? this.toggleCutSurface.checked
+      : this.displayState.showCutSurface;
+  }
+  isPyramidChecked() {
+    return this.legacyControlsEnabled && this.togglePyramid
+      ? this.togglePyramid.checked
+      : this.displayState.showPyramid;
+  }
+  isTransparencyChecked() {
+    return this.legacyControlsEnabled && this.toggleCubeTransparency
+      ? this.toggleCubeTransparency.checked
+      : this.displayState.cubeTransparent;
+  }
+  isFaceLabelsChecked() {
+    return this.legacyControlsEnabled && this.toggleFaceLabels
+      ? this.toggleFaceLabels.checked
+      : this.displayState.showFaceLabels;
+  }
+  isCutPointsChecked() {
+    return this.legacyControlsEnabled && this.toggleCutPoints
+      ? this.toggleCutPoints.checked
+      : this.displayState.showCutPoints;
+  }
+  isCutLineColorChecked() {
+    return this.legacyControlsEnabled && this.toggleCutLineColor
+      ? this.toggleCutLineColor.checked
+      : this.displayState.colorizeCutLines;
+  }
   getDisplayState(): DisplayState {
     return {
       showVertexLabels: this.displayState.showVertexLabels,
@@ -182,6 +211,7 @@ export class UIManager {
 
   applyDisplayState(display: Partial<DisplayState> = {}) {
     this.displayState = { ...this.displayState, ...display };
+    if (!this.legacyControlsEnabled) return;
     if (display.edgeLabelMode && this.edgeLabelSelect) this.edgeLabelSelect.value = display.edgeLabelMode;
     if (typeof display.showVertexLabels === 'boolean' && this.toggleVertexLabels) this.toggleVertexLabels.checked = display.showVertexLabels;
     if (typeof display.showFaceLabels === 'boolean' && this.toggleFaceLabels) this.toggleFaceLabels.checked = display.showFaceLabels;
