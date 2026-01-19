@@ -1918,7 +1918,6 @@ class App {
         this.cameraTargetPosition = null;
         this.clearNetUnfoldGroup();
         this.buildNetUnfoldGroup();
-        const nextState = this.objectModelManager.getNetState();
         this.netUnfoldFaces.forEach(face => face.pivot.quaternion.copy(face.startQuat));
         const startAt = performance.now();
         this.cube.setVisible(false);
@@ -1939,6 +1938,7 @@ class App {
         this.updateNetOverlayDisplay(display);
         this.updateNetLabelDisplay(display);
         this.updateNetUnfoldScale();
+        const nextState = this.objectModelManager.getNetState();
         const duration = nextState.duration || this.netUnfoldDuration;
         const faceDuration = nextState.faceDuration || this.netUnfoldFaceDuration;
         const stagger = nextState.stagger || this.netUnfoldStagger;

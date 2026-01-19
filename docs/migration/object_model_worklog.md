@@ -354,6 +354,13 @@ Summary:
 Notes:
 - Issue #40 の成果物として更新
 
+## 2026-01-19T14:51:50+09:00
+Summary:
+- 展開図の縮小が効かない問題を修正し、scaleTarget を最新の Model から取得
+
+Notes:
+- Issue #52 の成果物として更新
+
 ## 2026-01-19T09:28:53+09:00
 Summary:
 - UIManager の legacy DOM 参照をフラグで抑制し、React UI 前提に整理
