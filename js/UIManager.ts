@@ -194,16 +194,19 @@ export class UIManager {
 
   // --- UI Visibility Controls ---
   showPresetControls(visible) {
+    if (!this.legacyControlsEnabled) return;
     if (!this.presetControls) return;
     if (visible) this.presetControls.classList.remove('d-none');
     else this.presetControls.classList.add('d-none');
   }
   showSettingsControls(visible) {
+    if (!this.legacyControlsEnabled) return;
     if (!this.settingsControls) return;
     if (visible) this.settingsControls.classList.remove('d-none');
     else this.settingsControls.classList.add('d-none');
   }
   showSettingsPanels(visible) {
+    if (!this.legacyControlsEnabled) return;
     if (this.settingsPanels) {
       if (visible) this.settingsPanels.classList.remove('d-none');
       else this.settingsPanels.classList.add('d-none');
@@ -211,12 +214,14 @@ export class UIManager {
   }
 
   showLearningPanels(visible) {
+    if (!this.legacyControlsEnabled) return;
     if (!this.learningPanels) return;
     if (visible) this.learningPanels.classList.remove('d-none');
     else this.learningPanels.classList.add('d-none');
   }
 
   showSettingsPanel(panelName) {
+      if (!this.legacyControlsEnabled) return;
       if (this.displaySettingsPanel) this.displaySettingsPanel.classList.add('d-none');
       if (this.cuboidSettingsPanel) this.cuboidSettingsPanel.classList.add('d-none');
       if (this.userPresetsPanel) this.userPresetsPanel.classList.add('d-none');
@@ -232,6 +237,7 @@ export class UIManager {
   }
 
   filterPresetButtons(category) {
+      if (!this.legacyControlsEnabled) return;
       const container = this.presetButtonsContainer;
       if (!container) return;
       const buttons = container.querySelectorAll('button[data-preset]');
@@ -242,6 +248,7 @@ export class UIManager {
   }
   
   populatePresets(presets) {
+      if (!this.legacyControlsEnabled) return;
       const container = this.presetButtonsContainer;
       if (!container) return;
       presets.forEach(preset => {
@@ -258,6 +265,7 @@ export class UIManager {
   // --- Event Listeners Setup ---
   /** @param {(mode: string) => void} callback */
   onModeChange(callback) {
+      if (!this.legacyControlsEnabled) return;
       if (!this.modeSelector) return;
       this.modeSelector.addEventListener('change', (e) => {
           const target = e.target as HTMLSelectElement;
@@ -266,6 +274,7 @@ export class UIManager {
   }
   /** @param {(category: string) => void} callback */
   onPresetCategoryChange(callback) {
+      if (!this.legacyControlsEnabled) return;
       if (!this.presetCategoryFilter) return;
       this.presetCategoryFilter.addEventListener('change', (e) => {
           const target = e.target as HTMLSelectElement;
@@ -274,6 +283,7 @@ export class UIManager {
   }
   /** @param {(category: string) => void} callback */
   onSettingsCategoryChange(callback) {
+      if (!this.legacyControlsEnabled) return;
       if (!this.settingsCategorySelector) return;
       this.settingsCategorySelector.addEventListener('change', (e) => {
           const target = e.target as HTMLSelectElement;
@@ -281,12 +291,19 @@ export class UIManager {
       });
   }
   /** @param {() => void} callback */
-  onSaveUserPresetClick(callback) { if (this.saveUserPresetBtn) this.saveUserPresetBtn.addEventListener('click', callback); }
+  onSaveUserPresetClick(callback) {
+      if (!this.legacyControlsEnabled) return;
+      if (this.saveUserPresetBtn) this.saveUserPresetBtn.addEventListener('click', callback);
+  }
   /** @param {() => void} callback */
-  onCancelUserPresetEdit(callback) { if (this.cancelUserPresetEditBtn) this.cancelUserPresetEditBtn.addEventListener('click', callback); }
+  onCancelUserPresetEdit(callback) {
+      if (!this.legacyControlsEnabled) return;
+      if (this.cancelUserPresetEditBtn) this.cancelUserPresetEditBtn.addEventListener('click', callback);
+  }
   
   /** @param {(presetName: string) => void} callback */
   onPresetChange(callback) {
+      if (!this.legacyControlsEnabled) return;
       const container = this.presetButtonsContainer;
       if (!container) return;
       container.addEventListener('click', (e) => {
@@ -305,15 +322,18 @@ export class UIManager {
   
   /** @param {(checked: boolean) => void} callback */
   onFaceLabelChange(callback) {
+      if (!this.legacyControlsEnabled) return;
       if (!this.toggleFaceLabels) return;
       this.toggleFaceLabels.addEventListener('change', (e) => { const target = e.target as HTMLInputElement; callback(target.checked); });
   }
   /** @param {(checked: boolean) => void} callback */
   onVertexLabelChange(callback) {
+      if (!this.legacyControlsEnabled) return;
       if (!this.toggleVertexLabels) return;
       this.toggleVertexLabels.addEventListener('change', (e) => { const target = e.target as HTMLInputElement; callback(target.checked); });
   }
   onEdgeLabelModeChange(callback: (mode: DisplayState['edgeLabelMode']) => void) {
+    if (!this.legacyControlsEnabled) return;
     if (!this.edgeLabelSelect) return;
     this.edgeLabelSelect.addEventListener('change', (e) => {
       const target = e.target as HTMLSelectElement;
@@ -322,38 +342,53 @@ export class UIManager {
     });
   }
   /** @param {() => void} callback */
-  onToggleNetClick(callback) { if (this.toggleNetBtn) this.toggleNetBtn.addEventListener('click', callback); }
+  onToggleNetClick(callback) {
+      if (!this.legacyControlsEnabled) return;
+      if (this.toggleNetBtn) this.toggleNetBtn.addEventListener('click', callback);
+  }
   /** @param {(checked: boolean) => void} callback */
   onCutSurfaceChange(callback) {
+      if (!this.legacyControlsEnabled) return;
       if (!this.toggleCutSurface) return;
       this.toggleCutSurface.addEventListener('change', (e) => { const target = e.target as HTMLInputElement; callback(target.checked); });
   }
   /** @param {(checked: boolean) => void} callback */
   onPyramidChange(callback) {
+      if (!this.legacyControlsEnabled) return;
       if (!this.togglePyramid) return;
       this.togglePyramid.addEventListener('change', (e) => { const target = e.target as HTMLInputElement; callback(target.checked); });
   }
   /** @param {(checked: boolean) => void} callback */
   onTransparencyChange(callback) {
+      if (!this.legacyControlsEnabled) return;
       if (!this.toggleCubeTransparency) return;
       this.toggleCubeTransparency.addEventListener('change', (e) => { const target = e.target as HTMLInputElement; callback(target.checked); });
   }
   /** @param {() => void} callback */
-  onFlipCutClick(callback) { if (this.flipCutBtn) this.flipCutBtn.addEventListener('click', callback); }
+  onFlipCutClick(callback) {
+      if (!this.legacyControlsEnabled) return;
+      if (this.flipCutBtn) this.flipCutBtn.addEventListener('click', callback);
+  }
   /** @param {() => void} callback */
-  onResetClick(callback) { if (this.resetBtn) this.resetBtn.onclick = () => { this.hideTooltip(); callback(); }; }
+  onResetClick(callback) {
+      if (!this.legacyControlsEnabled) return;
+      if (this.resetBtn) this.resetBtn.onclick = () => { this.hideTooltip(); callback(); };
+  }
   /** @param {() => void} callback */
   onConfigureClick(callback) {
+      if (!this.legacyControlsEnabled) return;
       if (!this.configureBtn) return;
       this.configureBtn.onclick = () => { this.hideTooltip(); callback(); };
   }
   onConfigureVertexLabelsClick(callback) {
+      if (!this.legacyControlsEnabled) return;
       if (this.configureVertexLabelsBtn) {
           this.configureVertexLabelsBtn.onclick = () => { this.hideTooltip(); callback(); };
       }
   }
 
   onUserPresetApply(callback) {
+      if (!this.legacyControlsEnabled) return;
       if (!this.userPresetList) return;
       this.userPresetList.addEventListener('click', (e) => {
           const target = e.target as HTMLElement;
@@ -364,6 +399,7 @@ export class UIManager {
   }
 
   onUserPresetDelete(callback) {
+      if (!this.legacyControlsEnabled) return;
       if (!this.userPresetList) return;
       this.userPresetList.addEventListener('click', (e) => {
           const target = e.target as HTMLElement;
@@ -374,6 +410,7 @@ export class UIManager {
   }
 
   onUserPresetEdit(callback) {
+      if (!this.legacyControlsEnabled) return;
       if (!this.userPresetList) return;
       this.userPresetList.addEventListener('click', (e) => {
           const target = e.target as HTMLElement;
@@ -385,6 +422,7 @@ export class UIManager {
 
   // --- UI State Updates ---
   resetToFreeSelectMode() {
+      if (!this.legacyControlsEnabled) return;
       if (this.modeSelector) {
           this.modeSelector.value = 'free';
           this.modeSelector.dispatchEvent(new Event('change', { bubbles: true }));
@@ -410,12 +448,14 @@ export class UIManager {
   }
 
   setUserPresetForm({ name = '', category = '', description = '' } = {}) {
+      if (!this.legacyControlsEnabled) return;
       if (this.userPresetName) this.userPresetName.value = name;
       if (this.userPresetCategory) this.userPresetCategory.value = category;
       if (this.userPresetDescription) this.userPresetDescription.value = description;
   }
 
   setUserPresetEditMode(isEditing) {
+      if (!this.legacyControlsEnabled) return;
       if (this.saveUserPresetBtn) {
           this.saveUserPresetBtn.textContent = isEditing ? '更新' : '保存';
       }
@@ -426,6 +466,7 @@ export class UIManager {
   }
 
   setUserPresetStorageEnabled(enabled) {
+      if (!this.legacyControlsEnabled) return;
       if (this.saveUserPresetBtn) this.saveUserPresetBtn.disabled = !enabled;
       if (this.userPresetStorageNote) {
           this.userPresetStorageNote.textContent = enabled ? 'ブラウザに保存します' : '保存機能は利用できません';
@@ -433,6 +474,7 @@ export class UIManager {
   }
 
   setUserPresetList(items: UserPresetState[] = []) {
+      if (!this.legacyControlsEnabled) return;
       if (!this.userPresetList || !this.userPresetEmpty) return;
       this.userPresetList.innerHTML = '';
       if (!items.length) {

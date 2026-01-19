@@ -257,3 +257,10 @@ Summary:
 
 Notes:
 - legacy DOM 非依存の動作を明文化
+
+## 2026-01-19T09:35:53+09:00
+Summary:
+- UIManager の legacy DOM 操作を legacyControlsEnabled で一括抑制
+
+Notes:
+- React UI 時は legacy メソッドが無操作になるよう整理
