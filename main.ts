@@ -511,7 +511,7 @@ class App {
     }
 
     applyDisplayState(display = {}) {
-        const current = this.ui.getDisplayState();
+        const current = this.objectModelManager.getDisplayState();
         const next = { ...current, ...display };
         this.ui.applyDisplayState(next);
         this.objectModelManager.setDisplay(next);

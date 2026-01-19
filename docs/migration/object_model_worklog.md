@@ -340,6 +340,13 @@ Summary:
 Notes:
 - Issue #38 の成果物として更新
 
+## 2026-01-19T14:21:30+09:00
+Summary:
+- Cutter 補助表示の参照元を Model の display state に統一
+
+Notes:
+- Issue #39 の成果物として更新
+
 ## 2026-01-19T09:28:53+09:00
 Summary:
 - UIManager の legacy DOM 参照をフラグで抑制し、React UI 前提に整理
