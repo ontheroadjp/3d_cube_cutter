@@ -518,8 +518,9 @@ class App {
         this.objectModelManager.applyDisplayToView(next);
         this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
         this.cutter.setTransparency(next.cubeTransparent);
-        this.updateNetOverlayDisplay(next);
-        this.updateNetLabelDisplay(next);
+        const modelDisplay = this.objectModelManager.getDisplayState();
+        this.updateNetOverlayDisplay(modelDisplay);
+        this.updateNetLabelDisplay(modelDisplay);
         if (this.objectModelManager.getNetState().state !== 'closed') {
             this.cube.setVisible(false);
             this.cutter.setVisible(false);
@@ -605,7 +606,8 @@ class App {
         if (this.selection.selected.length >= 3) return;
 
         this.selection.addPoint(this.snappedPointInfo);
-        this.selection.toggleVertexLabels(this.ui.isVertexLabelsChecked());
+        const display = this.objectModelManager.getDisplayState();
+        this.selection.toggleVertexLabels(display.showVertexLabels);
 
         if (this.selection.selected.length === 3) this.executeCut();
     }
@@ -846,7 +848,8 @@ class App {
         this.cutter.setTransparency(this.ui.isTransparencyChecked());
         this.cutter.setCutPointsVisible(this.ui.isCutPointsChecked());
         this.cutter.setCutLineColorize(this.ui.isCutLineColorChecked());
-        this.selection.toggleVertexLabels(this.ui.isVertexLabelsChecked());
+        const display = this.objectModelManager.getDisplayState();
+        this.selection.toggleVertexLabels(display.showVertexLabels);
     }
 
     previewLearningProblem(problem) {
@@ -1212,6 +1215,7 @@ class App {
 
     buildCubeNetUnfoldGroup() {
         const { lx, ly, lz } = this.cube.getSize();
+        const display = this.objectModelManager.getDisplayState();
         const group = new THREE.Group();
         const material = new THREE.MeshPhongMaterial({
             color: 0x66ccff,
@@ -1231,6 +1235,7 @@ class App {
         const addFaceLabels = (mesh: THREE.Mesh, width: number, height: number, faceName: string, vertexIndices: number[]) => {
             const faceLabel = createLabel(faceName, this.cube.size / 10, 'rgba(0,0,0,0.6)');
             faceLabel.position.set(0, 0, 0.06);
+            faceLabel.visible = !!display.showFaceLabels;
             mesh.add(faceLabel);
             const corners = [
                 new THREE.Vector3(-width / 2, -height / 2, 0.06),
@@ -1243,6 +1248,7 @@ class App {
                 if (!label) return;
                 const sprite = createLabel(label, this.cube.size / 14, 'rgba(0,0,0,0.75)');
                 sprite.position.copy(corners[idx] || corners[0]);
+                sprite.visible = !!display.showVertexLabels;
                 mesh.add(sprite);
             });
         };
@@ -1451,6 +1457,7 @@ class App {
     buildCutNetUnfoldGroup(polygons: CutFacePolygon[], adjacency: Array<{ a: string; b: string; sharedEdge: [THREE.Vector3, THREE.Vector3] }>) {
         const group = new THREE.Group();
         const faces = [];
+        const display = this.objectModelManager.getDisplayState();
         const faceMap = new Map<string, CutFacePolygon>();
         polygons.forEach(face => {
             if (face && face.faceId) faceMap.set(face.faceId, face);
@@ -1621,7 +1628,7 @@ class App {
             label.position.copy(center);
             label.position.z += 0.06;
             label.userData.type = 'net-face-label';
-            label.visible = this.ui.isFaceLabelsChecked();
+            label.visible = !!display.showFaceLabels;
             mesh.add(label);
             const vertexCandidates: Array<{ label: string; position: THREE.Vector3 }> = [];
             for (let i = 0; i < 8; i++) {
@@ -1648,7 +1655,7 @@ class App {
                 sprite.position.copy(localPos);
                 sprite.position.z += 0.06;
                 sprite.userData.type = 'net-vertex-label';
-                sprite.visible = this.ui.isVertexLabelsChecked();
+                sprite.visible = !!display.showVertexLabels;
                 mesh.add(sprite);
             });
             return mesh;
@@ -1792,7 +1799,7 @@ class App {
                         label.position.copy(center);
                         label.position.z += 0.06;
                         label.userData.type = 'net-face-label';
-                        label.visible = this.ui.isFaceLabelsChecked();
+                        label.visible = !!display.showFaceLabels;
                         mesh.add(label);
                         pivot.add(mesh);
                     }
@@ -1930,8 +1937,9 @@ class App {
         if (this.netUnfoldGroup) {
             this.netUnfoldGroup.position.set(0, 0, 0);
         }
-        this.updateNetOverlayDisplay(this.ui.getDisplayState());
-        this.updateNetLabelDisplay(this.ui.getDisplayState());
+        const display = this.objectModelManager.getDisplayState();
+        this.updateNetOverlayDisplay(display);
+        this.updateNetLabelDisplay(display);
         this.updateNetUnfoldScale();
         this.setNetAnimationState({
             state: 'prescale',
