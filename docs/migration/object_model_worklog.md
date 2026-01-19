@@ -284,6 +284,13 @@ Summary:
 Notes:
 - Issue #12 の成果物として更新
 
+## 2026-01-19T12:28:48+09:00
+Summary:
+- 展開図の切断面ヒンジ判定で SnapPointID 起点の座標解決に統一
+
+Notes:
+- Issue #13 の成果物として更新
+
 ## 2026-01-19T09:28:53+09:00
 Summary:
 - UIManager の legacy DOM 参照をフラグで抑制し、React UI 前提に整理

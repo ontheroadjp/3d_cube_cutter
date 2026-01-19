@@ -1715,10 +1715,13 @@ class App {
             const edgeLengthsByFace = new Map<string, { length: number; edge: { start: THREE.Vector3; end: THREE.Vector3 } }>();
             cutSegments.forEach(seg => {
                 if (!seg.faceIds || !seg.faceIds.length) return;
+                const start = this.resolver.resolveSnapPoint(seg.startId);
+                const end = this.resolver.resolveSnapPoint(seg.endId);
+                if (!start || !end) return;
                 seg.faceIds.forEach(faceId => {
-                    const length = seg.start.distanceTo(seg.end);
+                    const length = start.distanceTo(end);
                     if (!edgeLengthsByFace.has(faceId) || (edgeLengthsByFace.get(faceId)?.length || 0) < length) {
-                        edgeLengthsByFace.set(faceId, { length, edge: { start: seg.start.clone(), end: seg.end.clone() } });
+                        edgeLengthsByFace.set(faceId, { length, edge: { start: start.clone(), end: end.clone() } });
                     }
                 });
             });
