@@ -1614,6 +1614,7 @@ class App {
         const group = new THREE.Group();
         const faces = [];
         const display = this.objectModelManager.getDisplayState();
+        const debugNetMatch = !!(globalThis as { __DEBUG_NET_MATCH?: boolean }).__DEBUG_NET_MATCH;
         const faceMap = new Map<string, CutFacePolygon>();
         polygons.forEach(face => {
             if (face && face.faceId) faceMap.set(face.faceId, face);
@@ -1697,16 +1698,43 @@ class App {
             if (!verts || verts.length < 3) return null;
             const center = verts.reduce((acc, v) => acc.add(v), new THREE.Vector3()).divideScalar(verts.length);
             const normal = computeNormal(face);
+            const debugCandidates = debugNetMatch
+                ? ([] as Array<{ faceId: string; dot: number; dist: number; score: number }>)
+                : null;
             let best: { faceId: string; name: string; score: number } | null = null;
             cubeFaceCandidates.forEach(candidate => {
                 const dot = Math.abs(normal.dot(candidate.normal));
                 if (dot < 0.9) return;
                 const dist = center.distanceTo(candidate.center);
                 const score = dot * 10 - dist;
+                if (debugCandidates) {
+                    debugCandidates.push({
+                        faceId: candidate.faceId,
+                        dot: Number(dot.toFixed(4)),
+                        dist: Number(dist.toFixed(4)),
+                        score: Number(score.toFixed(4))
+                    });
+                }
                 if (!best || score > best.score) {
                     best = { faceId: candidate.faceId, name: candidate.name, score };
                 }
             });
+            if (debugNetMatch) {
+                const normalList = normal.toArray().map(val => Number(val.toFixed(4)));
+                const centerList = center.toArray().map(val => Number(val.toFixed(4)));
+                const ordered = debugCandidates
+                    ? debugCandidates.sort((a, b) => b.score - a.score)
+                    : [];
+                console.log('[net][match] polygon', {
+                    faceId: face.faceId,
+                    type: face.type,
+                    vertexCount: verts.length,
+                    normal: normalList,
+                    center: centerList,
+                    best: best ? { faceId: best.faceId, score: Number(best.score.toFixed(4)) } : null,
+                    candidates: ordered
+                });
+            }
             return best;
         };
 
@@ -1739,6 +1767,16 @@ class App {
                 facePolygonsBySource.set(match.faceId, { polygon: face, area });
             }
         });
+        if (debugNetMatch) {
+            const mapping = Array.from(facePolygonsBySource.entries()).map(([faceId, meta]) => ({
+                faceId,
+                polygonId: meta.polygon.faceId,
+                polygonType: meta.polygon.type,
+                vertexCount: getPolygonVertexIds(meta.polygon).length,
+                area: Number(meta.area.toFixed(4))
+            }));
+            console.log('[net][match] source mapping', mapping);
+        }
 
         const buildPolygonGeometry = (vertices: THREE.Vector3[]) => {
             const geometry = new THREE.BufferGeometry();
