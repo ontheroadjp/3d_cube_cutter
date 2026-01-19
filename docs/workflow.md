@@ -76,3 +76,7 @@ Summary: Issue/PR 駆動の作業手順と命名規則を定義する。
 - 変更に応じてドキュメントを更新する
 - 追加/更新時は `Status:` を付与する
 - `docs/DOCS_INDEX.md` は `scripts/generate_docs_index.py` で更新する
+
+## gh の本文改行
+- `gh issue create` / `gh pr create` の本文は `\n` では改行されない
+- 改行が必要な場合は `--body-file -` で標準入力を使う
