@@ -505,3 +505,11 @@ Summary:
 
 Notes:
 - 実装の方針と文書の整合を再確認
+
+## 2026-01-19T20:47:12+0900
+Summary:
+- CutFacePolygon の vertexIds を正規化し、面法線に合わせて winding を統一
+- 共有辺判定の前処理として ID の正規化を追加
+
+Notes:
+- 面グラフ構築の前処理を強化

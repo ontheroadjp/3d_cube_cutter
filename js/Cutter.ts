@@ -804,6 +804,33 @@ export class Cutter {
           return canonicalizeSnapPointId(snapId) || snapId;
       };
 
+      const canonicalizeVertexIds = (ids: SnapPointID[]) => ids
+          .map(id => {
+              const parsed = normalizeSnapPointId(parseSnapPointId(id));
+              const normalized = parsed ? stringifySnapPointId(parsed) : null;
+              if (!normalized) return id;
+              return canonicalizeSnapPointId(normalized) || normalized;
+          });
+
+      const orientVertexIds = (ids: SnapPointID[], targetNormal: THREE.Vector3 | null) => {
+          if (!targetNormal || ids.length < 3) return ids;
+          const points = ids
+              .map(id => resolver.resolveSnapPoint(id))
+              .filter((pos): pos is THREE.Vector3 => pos instanceof THREE.Vector3);
+          if (points.length !== ids.length) return ids;
+          const v0 = points[0];
+          const v1 = points[1];
+          const v2 = points[2];
+          const normal = new THREE.Vector3().crossVectors(
+              new THREE.Vector3().subVectors(v1, v0),
+              new THREE.Vector3().subVectors(v2, v0)
+          ).normalize();
+          if (normal.dot(targetNormal) < 0) {
+              return ids.slice().reverse();
+          }
+          return ids;
+      };
+
       const clipFace = (face) => {
           const faceVertices = face.vertices
               .map((vertexId: string) => {
@@ -866,8 +893,12 @@ export class Cutter {
       const polygons = [];
       structure.faces.forEach(face => {
           if (!face || !Array.isArray(face.vertices)) return;
-          const vertexIds = clipFace(face);
+          let vertexIds = clipFace(face);
           if (!vertexIds || vertexIds.length < 3) return;
+          vertexIds = canonicalizeVertexIds(vertexIds);
+          const faceInfo = resolver.resolveFace(face.id);
+          const targetNormal = faceInfo ? faceInfo.normal : null;
+          vertexIds = orientVertexIds(vertexIds, targetNormal);
           polygons.push({
               faceId: face.id,
               type: 'original',
@@ -879,10 +910,12 @@ export class Cutter {
           .map(ref => (ref && ref.id ? ref.id : null))
           .filter(Boolean);
       if (cutIds.length >= 3) {
+          let vertexIds = canonicalizeVertexIds(cutIds);
+          vertexIds = orientVertexIds(vertexIds, plane.normal);
           polygons.push({
               faceId: 'F:cut',
               type: 'cut',
-              vertexIds: cutIds
+              vertexIds
           });
       }
 
