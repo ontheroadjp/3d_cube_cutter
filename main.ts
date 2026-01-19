@@ -1220,19 +1220,23 @@ class App {
         faceIds: string[],
         adjacency: Array<{ a: string; b: string; hingeType?: 'edge' | 'coplanar'; sharedEdgeIds?: [string, string] }>,
         faceTypeMap: Map<string, CutFacePolygon['type']>,
-        rootId?: string
+        rootId?: string,
+        weights?: { cutEdgePenalty?: number; coplanarBonus?: number; missingEdgePenalty?: number }
     ) {
         if (!faceIds.length) return new Map<string, number>();
         const root = rootId && faceIds.includes(rootId) ? rootId : faceIds[0];
+        const cutEdgePenalty = weights && typeof weights.cutEdgePenalty === 'number' ? weights.cutEdgePenalty : 2;
+        const coplanarBonus = weights && typeof weights.coplanarBonus === 'number' ? weights.coplanarBonus : 0.5;
+        const missingEdgePenalty = weights && typeof weights.missingEdgePenalty === 'number' ? weights.missingEdgePenalty : 0.5;
         const edges = adjacency
             .filter(entry => faceIds.includes(entry.a) && faceIds.includes(entry.b))
             .map(entry => {
                 const typeA = faceTypeMap.get(entry.a) || 'original';
                 const typeB = faceTypeMap.get(entry.b) || 'original';
                 let weight = 1;
-                if (entry.hingeType === 'coplanar') weight -= 0.5;
-                if (!entry.sharedEdgeIds) weight += 0.5;
-                if (typeA === 'cut' || typeB === 'cut') weight += 2;
+                if (entry.hingeType === 'coplanar') weight -= coplanarBonus;
+                if (!entry.sharedEdgeIds) weight += missingEdgePenalty;
+                if (typeA === 'cut' || typeB === 'cut') weight += cutEdgePenalty;
                 return { a: entry.a, b: entry.b, weight };
             });
         const inTree = new Set([root]);
@@ -1279,6 +1283,40 @@ class App {
             depthById.set(faceId, maxDepth + 1);
         });
         return depthById;
+    }
+
+    analyzeCutAdjacency(
+        faceIds: string[],
+        adjacency: Array<{ a: string; b: string; hingeType?: 'edge' | 'coplanar' }>,
+        faceTypeMap: Map<string, CutFacePolygon['type']>
+    ) {
+        const originalFaceIds = faceIds.filter(id => faceTypeMap.get(id) === 'original');
+        const originalSet = new Set(originalFaceIds);
+        const neighbors = new Map<string, Set<string>>();
+        adjacency.forEach(entry => {
+            if (!originalSet.has(entry.a) || !originalSet.has(entry.b)) return;
+            if (!neighbors.has(entry.a)) neighbors.set(entry.a, new Set());
+            if (!neighbors.has(entry.b)) neighbors.set(entry.b, new Set());
+            neighbors.get(entry.a)!.add(entry.b);
+            neighbors.get(entry.b)!.add(entry.a);
+        });
+        let originalConnected = true;
+        if (originalFaceIds.length > 1) {
+            const visited = new Set<string>();
+            const queue = [originalFaceIds[0]];
+            visited.add(originalFaceIds[0]);
+            while (queue.length) {
+                const current = queue.shift() as string;
+                (neighbors.get(current) || new Set()).forEach(next => {
+                    if (visited.has(next)) return;
+                    visited.add(next);
+                    queue.push(next);
+                });
+            }
+            originalConnected = originalFaceIds.every(id => visited.has(id));
+        }
+        const hasCoplanar = adjacency.some(entry => entry.hingeType === 'coplanar');
+        return { originalConnected, hasCoplanar };
     }
 
     buildCubeNetUnfoldGroup() {
@@ -2019,7 +2057,13 @@ class App {
 
         const faceIds = faces.map(face => face.faceId).filter(Boolean);
         if (faceIds.length) {
-            const depthById = this.computeUnfoldDepths(faceIds, adjacency, faceTypeMap, 'F:0154');
+            const analysis = this.analyzeCutAdjacency(faceIds, adjacency, faceTypeMap);
+            // Favor original-face adjacency unless cut faces are needed to keep connectivity.
+            const coplanarBonus = analysis.hasCoplanar ? 0.6 : 0.3;
+            const weights = analysis.originalConnected
+                ? { cutEdgePenalty: 3, coplanarBonus, missingEdgePenalty: 0.5 }
+                : { cutEdgePenalty: 0.5, coplanarBonus, missingEdgePenalty: 0.2 };
+            const depthById = this.computeUnfoldDepths(faceIds, adjacency, faceTypeMap, 'F:0154', weights);
             faces.forEach(face => {
                 if (!face.faceId) return;
                 const depth = depthById.get(face.faceId);
