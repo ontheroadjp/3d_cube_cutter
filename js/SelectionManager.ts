@@ -8,7 +8,7 @@ export class SelectionManager {
   cube: any;
   ui: any;
   resolver: any;
-  selected: Array<{ snapId: SnapPointID; point: THREE.Vector3; object?: THREE.Object3D; isMidpoint?: boolean }>;
+  selected: Array<{ snapId: SnapPointID }>;
   markers: THREE.Object3D[];
   splitEdgeLabels: THREE.Object3D[];
   hiddenEdgeLabels: number[];
@@ -22,7 +22,7 @@ export class SelectionManager {
     this.cube = cube;
     this.ui = ui;
     this.resolver = resolver;
-    this.selected = []; // オブジェクトの配列 { snapId, point, object, isMidpoint }
+    this.selected = []; // オブジェクトの配列 { snapId }
     this.markers = []; // 赤丸、点ラベル、辺ラベル(分割分) 全て含むが、管理しやすくする
     this.splitEdgeLabels = []; // 分割辺の長さラベルだけ別途保持
     this.hiddenEdgeLabels = []; // 隠した元の辺ラベルのインデックス
@@ -90,7 +90,7 @@ export class SelectionManager {
         }
     }
 
-    this.selected.push({ snapId, point: resolvedPoint, object, isMidpoint: resolvedIsMidpoint });
+    this.selected.push({ snapId });
     if (object) this.selectedObjects.add(object.uuid);
     
     const li = this.selected.length - 1;
@@ -123,6 +123,13 @@ export class SelectionManager {
   addPointFromSnapId(snapId: SnapPointID, selectionInfo: Record<string, unknown> = {}) {
     if (!this.resolver) return;
     this.addPoint({ ...selectionInfo, snapId });
+  }
+
+  getSelectedPoint(index: number) {
+    if (!this.resolver) return null;
+    const target = this.selected[index];
+    if (!target) return null;
+    return this.resolver.resolveSnapPoint(target.snapId) || null;
   }
 
   getSelectedSnapIds() {

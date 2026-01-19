@@ -48,4 +48,4 @@
 | 42 | `docs/specs/storage/storage_adapter_spec.md` | Active | 保存機能の無料/有料切替を支えるStorageAdapter仕様を定義する。 | 2026-01-17T17:18:01+09:00 | 2026-01-18T02:42:11+09:00 |
 | 43 | `docs/specs/ui/ui_spec.md` | Active | 現行UIの仕様（サイドバー/ヘッダー/プリセット/設定/学習）を定義する。 | 2026-01-18T16:15:17+09:00 | 2026-01-19T08:21:11+09:00 |
 | 44 | `docs/testing/verification_plan.md` | Active | 構造主体移行後の正確性・教育機能・数値安定性の検証計画を定義する。 | 2026-01-17T17:18:01+09:00 | 2026-01-18T02:42:11+09:00 |
-| 45 | `docs/workflow.md` | Active | Issue/PR 駆動の作業手順と命名規則を定義する。 | - | - |
+| 45 | `docs/workflow.md` | Active | Issue/PR 駆動の作業手順と命名規則を定義する。 | 2026-01-19T11:06:02+09:00 | 2026-01-19T11:06:02+09:00 |

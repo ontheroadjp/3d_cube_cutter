@@ -10,12 +10,13 @@ Summary: アプリ全体を対象に、立体・切断・展開図の要素を�
 ## 前提
 - 既存の構造主体アーキテクチャ（Vertex/Edge/Face/SnapPoint）を拡張する。
 - 描画は View 層の責務とし、モデルは状態と関係性のみを持つ。
+- 座標は GeometryResolver により解決される派生情報であり、移行期間は参照を容易にするため一時的に保持する。
 
 ## モデル構成（最小）
 
 ### Vertex
 - `id`: VertexID (例: `V:0`)
-- `position`: THREE.Vector3 (ワールド座標)
+- `position`: THREE.Vector3 (派生情報としてのワールド座標)
 - `label`: string (表示ラベル)
 - `flags`: { selected, hovered, isCutPoint, isSnapPoint }
 

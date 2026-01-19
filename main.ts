@@ -590,14 +590,16 @@ class App {
         if (this.selection.isObjectSelected(this.snappedPointInfo.object)) return;
 
         if (this.selection.selected.length === 2) {
-            const p0 = this.selection.selected[0].point;
-            const p1 = this.selection.selected[1].point;
+            const p0 = this.selection.getSelectedPoint(0);
+            const p1 = this.selection.getSelectedPoint(1);
             const p2 = this.snappedPointInfo.point;
-            const v1 = new THREE.Vector3().subVectors(p1, p0);
-            const v2 = new THREE.Vector3().subVectors(p2, p0);
-            if (v1.cross(v2).lengthSq() < 1e-6) {
-                this.ui.showMessage("3つの点が同一直線上になるため、選択できません。", "warning");
-                return;
+            if (p0 && p1 && p2) {
+                const v1 = new THREE.Vector3().subVectors(p1, p0);
+                const v2 = new THREE.Vector3().subVectors(p2, p0);
+                if (v1.cross(v2).lengthSq() < 1e-6) {
+                    this.ui.showMessage("3つの点が同一直線上になるため、選択できません。", "warning");
+                    return;
+                }
             }
         }
         if (this.selection.selected.length >= 3) return;
