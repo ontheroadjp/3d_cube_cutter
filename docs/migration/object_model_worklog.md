@@ -473,3 +473,11 @@ Summary:
 
 Notes:
 - 過去Issueの移行が未完了だったため再作業として実施
+
+## 2026-01-19T19:49:16+0900
+Summary:
+- Cut座標派生API（getCutFacePolygon/getCutLines）を削除
+- Cutter仕様から座標起点APIの記述を除去
+
+Notes:
+- CutはSnapPointIDのみを真実とする方針に統一

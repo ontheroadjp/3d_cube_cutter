@@ -730,22 +730,6 @@ export class Cutter {
       return this.outlineRefs;
   }
 
-  /** @returns {CutFacePolygon | null} */
-  getCutFacePolygon() {
-      if (!this.outlineRefs || this.outlineRefs.length < 3) return null;
-      const vertices = this.outlineRefs
-          .map(ref => (ref ? this.resolveIntersectionPosition(ref) : null))
-          .filter((pos): pos is THREE.Vector3 => pos instanceof THREE.Vector3)
-          .map(pos => pos.clone());
-      if (vertices.length < 3) return null;
-      return {
-          faceId: 'F:cut',
-          type: 'cut',
-          vertices,
-          normal: this.cutPlane ? this.cutPlane.normal.clone() : undefined
-      };
-  }
-
   /** @returns {Array<{ startId: SnapPointID, endId: SnapPointID, faceIds?: string[] }>} */
   getCutSegments() {
       return this.cutSegments.slice();
@@ -986,29 +970,6 @@ export class Cutter {
           intersections: this.intersectionRefs.slice(),
           cutSegments: this.getCutSegments(),
       };
-  }
-
-  // 展開図描画用に切断線のリスト（Line3配列）を返す
-  getCutLines() {
-      if (!this.outline || !this.outline.geometry) return [];
-      
-      const points = [];
-      const position = this.outline.geometry.attributes.position;
-      for (let i = 0; i < position.count; i++) {
-          points.push(new THREE.Vector3().fromBufferAttribute(position, i));
-      }
-      
-      // outlineは LINE_STRIP 形式（Lineコンストラクタで作った場合）
-      // ただし points は [p0, p1, ..., pn, p0] のようにループしているはず（コード上の生成ロジック確認）
-      // this.outline = new THREE.Line(..., setFromPoints(linePoints))
-      // linePoints = [...intersections, intersections[0]]
-      // なので、i と i+1 を結べばよい。
-      
-      const lines = [];
-      for (let i = 0; i < points.length - 1; i++) {
-          lines.push(new THREE.Line3(points[i], points[i+1]));
-      }
-      return lines;
   }
 
   togglePyramid(visible) {
