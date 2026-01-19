@@ -67,7 +67,6 @@ Cutter モジュールは、3D立方体の切断処理を担当するコアコ�
     flipCut(): void
     reset(): void
     getIntersections(): IntersectionPoint[]
-    getCutLines(): Line3[]
     ```
 
 ---
