@@ -24,6 +24,19 @@ docs/README.md を読んで
 - Issue には「目的/完了条件/影響範囲/テスト観点/メモ」を明記する
 - 1 Issue = 1 ブランチ = 1 PR を基本とする
 - Issue ごとに専用ブランチを作成し、そのブランチで作業を進める
+- Issue タイトルは prefix 付きにする（例: `#9 [TASK] 座標依存の棚卸し`）
+
+#### Issue prefix 仕様
+- `[TASK]` 機能追加/改修の通常タスク
+- `[REF]` リファクタ/構造整理/移行作業
+- `[BUG]` 不具合修正
+- `[DOC]` ドキュメント更新/整合性整理
+- `[TEST]` テスト追加/改善
+- `[CHORE]` ツール/CI/環境整備
+- `[SPIKE]` 調査/検証/プロトタイプ
+
+#### Issue タイトルフォーマット
+- `#<issue番号> [<PREFIX>] <タイトル>`
 
 ### GitHub Projects
 - Projects v2 を利用し、Backlog / Ready / In Progress / Done を運用する
