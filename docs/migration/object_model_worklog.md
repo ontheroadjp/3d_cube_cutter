@@ -403,3 +403,11 @@ Summary:
 
 Notes:
 - IntersectionPoint の position や sharedEdge を保存せず、必要時に resolver で再計算
+
+## 2026-01-19T15:19:45+0900
+Summary:
+- Cutter の cut 結果から座標保持を除去し、ID ベースへ寄せた
+- 学習用の切断線も SnapPointID から都度座標解決するよう変更
+
+Notes:
+- 交点/切断線は resolver で再計算し、保持データは ID のみに統一

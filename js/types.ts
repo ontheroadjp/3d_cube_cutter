@@ -63,9 +63,9 @@ export type CutResult = {
     startId: SnapPointID;
     endId: SnapPointID;
     // Derived via GeometryResolver; not source of truth.
-    start: unknown;
+    start?: unknown;
     // Derived via GeometryResolver; not source of truth.
-    end: unknown;
+    end?: unknown;
     faceIds?: string[];
   }>;
 };
