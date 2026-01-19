@@ -2059,9 +2059,10 @@ class App {
         if (faceIds.length) {
             const analysis = this.analyzeCutAdjacency(faceIds, adjacency, faceTypeMap);
             // Favor original-face adjacency unless cut faces are needed to keep connectivity.
+            const coplanarBonus = analysis.hasCoplanar ? 0.6 : 0.3;
             const weights = analysis.originalConnected
-                ? { cutEdgePenalty: 3, coplanarBonus: 0.4, missingEdgePenalty: 0.5 }
-                : { cutEdgePenalty: 0.5, coplanarBonus: 0.4, missingEdgePenalty: 0.2 };
+                ? { cutEdgePenalty: 3, coplanarBonus, missingEdgePenalty: 0.5 }
+                : { cutEdgePenalty: 0.5, coplanarBonus, missingEdgePenalty: 0.2 };
             const depthById = this.computeUnfoldDepths(faceIds, adjacency, faceTypeMap, 'F:0154', weights);
             faces.forEach(face => {
                 if (!face.faceId) return;
