@@ -1091,8 +1091,10 @@ class App {
 
     handleCancelUserPresetEdit() {
         this.editingUserPresetId = null;
-        this.ui.setUserPresetForm({ name: '', category: '', description: '' });
-        this.ui.setUserPresetEditMode(false);
+        if (!this.useReactUserPresets) {
+            this.ui.setUserPresetForm({ name: '', category: '', description: '' });
+            this.ui.setUserPresetEditMode(false);
+        }
     }
 
     async handleSaveUserPreset(formOverride = null) {
@@ -1119,8 +1121,10 @@ class App {
         if (!state) return;
         await this.userPresetStorage.save(state);
         await this.loadUserPresets();
-        this.ui.setUserPresetEditMode(false);
-        this.ui.setUserPresetForm({ name: '', category: '', description: '' });
+        if (!this.useReactUserPresets) {
+            this.ui.setUserPresetEditMode(false);
+            this.ui.setUserPresetForm({ name: '', category: '', description: '' });
+        }
         this.editingUserPresetId = null;
         this.ui.showMessage(existing ? 'ユーザープリセットを更新しました。' : 'ユーザープリセットを保存しました。', 'success');
     }
@@ -1136,12 +1140,14 @@ class App {
         const state = this.userPresets.find(p => p.id === id);
         if (!state) return;
         this.editingUserPresetId = state.id;
-        this.ui.setUserPresetForm({
-            name: state.name || '',
-            category: state.category || '',
-            description: state.description || ''
-        });
-        this.ui.setUserPresetEditMode(true);
+        if (!this.useReactUserPresets) {
+            this.ui.setUserPresetForm({
+                name: state.name || '',
+                category: state.category || '',
+                description: state.description || ''
+            });
+            this.ui.setUserPresetEditMode(true);
+        }
     }
 
     async handleUserPresetDelete(id) {
@@ -1153,8 +1159,10 @@ class App {
         await this.loadUserPresets();
         if (this.editingUserPresetId === id) {
             this.editingUserPresetId = null;
-            this.ui.setUserPresetForm({ name: '', category: '', description: '' });
-            this.ui.setUserPresetEditMode(false);
+            if (!this.useReactUserPresets) {
+                this.ui.setUserPresetForm({ name: '', category: '', description: '' });
+                this.ui.setUserPresetEditMode(false);
+            }
         }
         this.ui.showMessage('ユーザープリセットを削除しました。', 'success');
     }

@@ -229,3 +229,10 @@ Summary:
 
 Notes:
 - legacy DOM が無い環境でも挙動を統一できるよう整理
+
+## 2026-01-19T09:19:57+09:00
+Summary:
+- ユーザープリセット操作の legacy UI 更新を React モードでは抑制
+
+Notes:
+- React UI の状態管理と重複しないように整理
