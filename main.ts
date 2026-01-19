@@ -1026,7 +1026,9 @@ class App {
 
     handleResetClick() {
         this.handleModeChange('free');
-        this.ui.resetToFreeSelectMode();
+        if (!this.useReactPresets) {
+            this.ui.resetToFreeSelectMode();
+        }
     }
 
 
@@ -1036,7 +1038,9 @@ class App {
         const lz = parseFloat(prompt("辺AEの長さ(cm)", "10"));
         if (!isNaN(lx) && !isNaN(ly) && !isNaN(lz)) {
             this.resetScene();
-            this.ui.resetToFreeSelectMode();
+            if (!this.useReactPresets) {
+                this.ui.resetToFreeSelectMode();
+            }
             this.cube.createCube([lx, ly, lz]);
             this.resolver.setSize(this.cube.getSize());
             this.objectModelManager.syncFromCube();
@@ -1053,7 +1057,9 @@ class App {
 
     configureCubeFromDimensions(lx: number, ly: number, lz: number) {
         this.resetScene();
-        this.ui.resetToFreeSelectMode();
+        if (!this.useReactPresets) {
+            this.ui.resetToFreeSelectMode();
+        }
         this.cube.createCube([lx, ly, lz]);
         this.resolver.setSize(this.cube.getSize());
         this.objectModelManager.syncFromCube();

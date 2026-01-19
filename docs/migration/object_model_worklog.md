@@ -236,3 +236,10 @@ Summary:
 
 Notes:
 - React UI の状態管理と重複しないように整理
+
+## 2026-01-19T09:23:47+09:00
+Summary:
+- React UI 使用時は resetToFreeSelectMode の legacy 操作を抑制
+
+Notes:
+- legacy DOM を前提とした UI 更新を段階的に縮退
