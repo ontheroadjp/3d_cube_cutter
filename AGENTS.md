@@ -19,6 +19,7 @@ docs/README.md を読んで
 
 ## 共通ワークフロー（プロジェクト横断）
 詳細は `docs/workflow.md` に従って作業する。
+`docs/DOCS_INDEX.md` を参照する前に `python3 scripts/generate_docs_index.py` を実行する。
 
 ### Issue 駆動
 - すべての作業は Issue から開始する
