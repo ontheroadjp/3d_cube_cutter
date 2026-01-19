@@ -1529,16 +1529,12 @@ class App {
 
         const resolvePolygonVertices = (face: CutFacePolygon) => {
             const ids = getPolygonVertexIds(face);
-            if (ids.length) {
-                const resolved = ids
-                    .map(id => this.resolver.resolveSnapPoint(id))
-                    .filter((pos): pos is THREE.Vector3 => pos instanceof THREE.Vector3);
-                if (resolved.length === ids.length) return resolved;
-            }
-            const verts = face.vertices as THREE.Vector3[];
-            return Array.isArray(verts)
-                ? verts.filter((pos): pos is THREE.Vector3 => pos instanceof THREE.Vector3).map(pos => pos.clone())
-                : [];
+            if (!ids.length) return [];
+            const resolved = ids
+                .map(id => this.resolver.resolveSnapPoint(id))
+                .filter((pos): pos is THREE.Vector3 => pos instanceof THREE.Vector3);
+            if (resolved.length === ids.length) return resolved;
+            return [];
         };
 
         const computeNormal = (face: CutFacePolygon) => {

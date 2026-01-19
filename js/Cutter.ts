@@ -846,18 +846,15 @@ export class Cutter {
                   vertexCount: vertices.length,
                   resolved: vertexIds.length
               });
-              return {
-                  ...polygon,
-                  vertexIds: vertexIds.length ? vertexIds : undefined
-              };
+              return null;
           }
           return {
               ...polygon,
-              vertices: [],
+              vertices: undefined,
               vertexIds,
               normal: undefined
           };
-      });
+      }).filter(Boolean);
   }
 
   /** @returns {Array<{ a: string; b: string; sharedEdge: [THREE.Vector3, THREE.Vector3] }>} */

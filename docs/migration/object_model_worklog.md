@@ -442,3 +442,11 @@ Summary:
 
 Notes:
 - vertexIds 解決失敗時は vertices をフォールバック
+
+## 2026-01-19T17:43:00+0900
+Summary:
+- CutFacePolygon の vertices フォールバックを排除し、vertexIds のみを保持
+- Face adjacency も vertexIds 前提に統一
+
+Notes:
+- vertexIds を解決できないポリゴンは除外し、座標保持を禁止
