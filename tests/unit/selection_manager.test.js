@@ -22,4 +22,21 @@ describe('SelectionManager', () => {
     expect(manager.markers.length).toBe(2);
     expect(ui.updateSelectionCount).toHaveBeenCalledWith(1);
   });
+
+  it('should resolve selected point via resolver', () => {
+    const scene = new THREE.Scene();
+    const cube = { size: 10 };
+    const ui = { updateSelectionCount: vi.fn() };
+    const resolver = {
+      resolveSnapPoint: () => new THREE.Vector3(1, 2, 3)
+    };
+
+    const manager = new SelectionManager(scene, cube, ui, resolver);
+    manager.addPoint({ snapId: 'V:0' });
+
+    const point = manager.getSelectedPoint(0);
+    expect(point?.x).toBe(1);
+    expect(point?.y).toBe(2);
+    expect(point?.z).toBe(3);
+  });
 });
