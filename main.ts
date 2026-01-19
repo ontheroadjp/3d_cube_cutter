@@ -1216,6 +1216,71 @@ class App {
         this.buildCubeNetUnfoldGroup();
     }
 
+    computeUnfoldDepths(
+        faceIds: string[],
+        adjacency: Array<{ a: string; b: string; hingeType?: 'edge' | 'coplanar'; sharedEdgeIds?: [string, string] }>,
+        faceTypeMap: Map<string, CutFacePolygon['type']>,
+        rootId?: string
+    ) {
+        if (!faceIds.length) return new Map<string, number>();
+        const root = rootId && faceIds.includes(rootId) ? rootId : faceIds[0];
+        const edges = adjacency
+            .filter(entry => faceIds.includes(entry.a) && faceIds.includes(entry.b))
+            .map(entry => {
+                const typeA = faceTypeMap.get(entry.a) || 'original';
+                const typeB = faceTypeMap.get(entry.b) || 'original';
+                let weight = 1;
+                if (entry.hingeType === 'coplanar') weight -= 0.5;
+                if (!entry.sharedEdgeIds) weight += 0.5;
+                if (typeA === 'cut' || typeB === 'cut') weight += 2;
+                return { a: entry.a, b: entry.b, weight };
+            });
+        const inTree = new Set([root]);
+        const parentMap = new Map<string, string | null>([[root, null]]);
+        const remaining = new Set(faceIds.filter(id => id !== root));
+        while (remaining.size) {
+            let best: { a: string; b: string; weight: number } | null = null;
+            edges.forEach(edge => {
+                const aIn = inTree.has(edge.a);
+                const bIn = inTree.has(edge.b);
+                if (aIn === bIn) return;
+                if (!best || edge.weight < best.weight) {
+                    best = edge;
+                }
+            });
+            if (!best) break;
+            const next = inTree.has(best.a) ? best.b : best.a;
+            const parentId = inTree.has(best.a) ? best.a : best.b;
+            if (!inTree.has(next)) {
+                inTree.add(next);
+                parentMap.set(next, parentId);
+                remaining.delete(next);
+            }
+        }
+        remaining.forEach(id => parentMap.set(id, null));
+        const depthById = new Map<string, number>();
+        const computeDepth = (id: string): number => {
+            if (depthById.has(id)) return depthById.get(id) as number;
+            const parent = parentMap.get(id) || null;
+            if (!parent) {
+                const depth = id === root ? 0 : -1;
+                depthById.set(id, depth);
+                return depth;
+            }
+            const depth = computeDepth(parent) + 1;
+            depthById.set(id, depth);
+            return depth;
+        };
+        faceIds.forEach(faceId => computeDepth(faceId));
+        const maxDepth = Math.max(...Array.from(depthById.values()).filter(depth => depth >= 0));
+        faceIds.forEach(faceId => {
+            const depth = depthById.get(faceId);
+            if (typeof depth === 'number' && depth >= 0) return;
+            depthById.set(faceId, maxDepth + 1);
+        });
+        return depthById;
+    }
+
     buildCubeNetUnfoldGroup() {
         const { lx, ly, lz } = this.cube.getSize();
         const display = this.objectModelManager.getDisplayState();
@@ -1350,6 +1415,31 @@ class App {
             delayIndex: 4,
             faceId: 'F:2376'
         });
+
+        const structure = this.cube.getStructure ? this.cube.getStructure() : null;
+        if (structure && Array.isArray(structure.faces)) {
+            const seen = new Set<string>();
+            const adjacency = [];
+            structure.faces.forEach(face => {
+                if (!face || !face.id || !Array.isArray(face.adjacentFaces)) return;
+                face.adjacentFaces.forEach(adjacentId => {
+                    const key = face.id < adjacentId ? `${face.id}|${adjacentId}` : `${adjacentId}|${face.id}`;
+                    if (seen.has(key)) return;
+                    seen.add(key);
+                    adjacency.push({ a: face.id, b: adjacentId, hingeType: 'edge' as const });
+                });
+            });
+            const faceIds = faces.map(face => face.faceId).filter(Boolean);
+            const faceTypeMap = new Map(faceIds.map(faceId => [faceId, 'original' as const]));
+            const depthById = this.computeUnfoldDepths(faceIds, adjacency, faceTypeMap, 'F:0154');
+            faces.forEach(face => {
+                if (!face.faceId) return;
+                const depth = depthById.get(face.faceId);
+                if (typeof depth === 'number') {
+                    face.delayIndex = depth;
+                }
+            });
+        }
 
         this.netUnfoldGroup = group;
         this.netUnfoldFaces = faces;
@@ -1742,44 +1832,6 @@ class App {
         polygons.forEach(face => {
             if (face && face.faceId) faceTypeMap.set(face.faceId, face.type);
         });
-        const buildUnfoldTree = (faceIds: string[]) => {
-            const root = faceIds.includes('F:0154') ? 'F:0154' : faceIds[0];
-            const edges = adjacency
-                .filter(entry => faceIds.includes(entry.a) && faceIds.includes(entry.b))
-                .map(entry => {
-                    const typeA = faceTypeMap.get(entry.a);
-                    const typeB = faceTypeMap.get(entry.b);
-                    let weight = 1;
-                    if (entry.hingeType === 'coplanar') weight -= 0.5;
-                    if (!entry.sharedEdgeIds) weight += 0.5;
-                    if (typeA === 'cut' || typeB === 'cut') weight += 2;
-                    return { a: entry.a, b: entry.b, weight };
-                });
-            const inTree = new Set([root]);
-            const parentMap = new Map<string, string | null>([[root, null]]);
-            const remaining = new Set(faceIds.filter(id => id !== root));
-            while (remaining.size) {
-                let best: { a: string; b: string; weight: number } | null = null;
-                edges.forEach(edge => {
-                    const aIn = inTree.has(edge.a);
-                    const bIn = inTree.has(edge.b);
-                    if (aIn === bIn) return;
-                    if (!best || edge.weight < best.weight) {
-                        best = edge;
-                    }
-                });
-                if (!best) break;
-                const next = inTree.has(best.a) ? best.b : best.a;
-                const parentId = inTree.has(best.a) ? best.a : best.b;
-                if (!inTree.has(next)) {
-                    inTree.add(next);
-                    parentMap.set(next, parentId);
-                    remaining.delete(next);
-                }
-            }
-            remaining.forEach(id => parentMap.set(id, null));
-            return { parentMap, root };
-        };
 
         const frontMesh = createFaceMesh('F:0154', faceColor());
         if (frontMesh) {
@@ -1967,30 +2019,13 @@ class App {
 
         const faceIds = faces.map(face => face.faceId).filter(Boolean);
         if (faceIds.length) {
-            const { parentMap, root } = buildUnfoldTree(faceIds);
-            const depthById = new Map<string, number>();
-            const computeDepth = (id: string): number => {
-                if (depthById.has(id)) return depthById.get(id) as number;
-                const parent = parentMap.get(id) || null;
-                if (!parent) {
-                    const depth = id === root ? 0 : -1;
-                    depthById.set(id, depth);
-                    return depth;
-                }
-                const depth = computeDepth(parent) + 1;
-                depthById.set(id, depth);
-                return depth;
-            };
-            faceIds.forEach(faceId => computeDepth(faceId));
-            const maxDepth = Math.max(...Array.from(depthById.values()).filter(depth => depth >= 0));
-            faceIds.forEach(faceId => {
-                const depth = depthById.get(faceId);
-                if (typeof depth === 'number' && depth >= 0) return;
-                depthById.set(faceId, maxDepth + 1);
-            });
+            const depthById = this.computeUnfoldDepths(faceIds, adjacency, faceTypeMap, 'F:0154');
             faces.forEach(face => {
                 if (!face.faceId) return;
-                face.delayIndex = depthById.get(face.faceId) ?? face.delayIndex;
+                const depth = depthById.get(face.faceId);
+                if (typeof depth === 'number') {
+                    face.delayIndex = depth;
+                }
             });
         }
 
