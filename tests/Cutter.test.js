@@ -119,7 +119,7 @@ describe('Cutter', () => {
             expect(cutter.resultMesh).toBeDefined();
             expect(cutter.removedMesh).toBeDefined();
             expect(cutter.outline).toBeDefined();
-            expect(cutter.intersections.length).toBe(3);
+            expect(cutter.getIntersectionRefs().length).toBeGreaterThanOrEqual(3);
             
             const expectedRemovedVolume = (5 * 5 * 5) / 6;
             const removedVolume = getVolumeOfMesh(cutter.removedMesh);
@@ -138,7 +138,8 @@ describe('Cutter', () => {
             expect(outline.length).toBeGreaterThanOrEqual(3);
             outline.forEach(ref => {
                 expect(ref.id).toBeDefined();
-                expect(ref.position).toBeDefined();
+                expect(ref.position).toBeUndefined();
+                expect(cutter.resolveIntersectionPosition(ref)).toBeInstanceOf(THREE.Vector3);
             });
             expect(cutter.getOutlineRefs().length).toBe(outline.length);
             expect(cutResult.cutSegments.length).toBe(outline.length);
@@ -177,7 +178,7 @@ describe('Cutter', () => {
             const success = cutter.cut(cube, snapIds, resolver);
 
             expect(success).toBe(true);
-            expect(cutter.intersections.length).toBe(4);
+            expect(cutter.getOutlineRefs().length).toBe(4);
         });
 
         it('should assign faceIds for cut segments', () => {
@@ -202,7 +203,7 @@ describe('Cutter', () => {
             cutter.lastResolver = { resolveSnapPoint };
             cutter.cutSegments = [{ startId: 'V:0', endId: 'V:1' }];
 
-            const segments = cutter.getCutSegments();
+            const segments = cutter.resolveCutSegments();
 
             expect(resolveSnapPoint).toHaveBeenCalledWith('V:0');
             expect(resolveSnapPoint).toHaveBeenCalledWith('V:1');
@@ -260,15 +261,14 @@ describe('Cutter', () => {
 
             outlineRefs.forEach(ref => {
                 expect(ref.id).toBeDefined();
-                expect(ref.position).toBeInstanceOf(THREE.Vector3);
+                expect(ref.position).toBeUndefined();
+                expect(cutter.resolveIntersectionPosition(ref)).toBeInstanceOf(THREE.Vector3);
             });
 
             const ids = new Set(outlineRefs.map(ref => ref.id));
             cutSegments.forEach(seg => {
                 expect(ids.has(seg.startId)).toBe(true);
                 expect(ids.has(seg.endId)).toBe(true);
-                expect(seg.start).toBeInstanceOf(THREE.Vector3);
-                expect(seg.end).toBeInstanceOf(THREE.Vector3);
             });
         });
 

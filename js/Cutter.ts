@@ -19,7 +19,6 @@ export class Cutter {
   lastSnapIds: SnapPointID[] | null;
   lastResolver: any;
   lastCube: any;
-  intersections: THREE.Vector3[];
   intersectionRefs: IntersectionPoint[];
   outlineRefs: IntersectionPoint[];
   cutSegments: CutSegmentMeta[];
@@ -53,7 +52,6 @@ export class Cutter {
     this.lastSnapIds = null;
     this.lastResolver = null;
     this.lastCube = null;
-    this.intersections = []; // 交点を保持
     this.intersectionRefs = []; // 交点の構造情報
     this.outlineRefs = []; // 断面ポリゴンの構造情報（順序付き）
     this.cutSegments = []; // 展開図用の切断線セグメント（IDのみ保持）
@@ -332,8 +330,7 @@ export class Cutter {
             if (!normalizedId) return;
             intersectionRefs.push({
                 id: canonicalizeSnapPointId(normalizedId) || normalizedId,
-                type: 'snap',
-                position: this.lastResolver.resolveSnapPoint(normalizedId)
+                type: 'snap'
             });
         });
     }
@@ -409,8 +406,7 @@ export class Cutter {
                                 id,
                                 type: 'intersection',
                                 edgeId,
-                                ratio: parsedEdge ? parsedEdge.ratio : undefined,
-                                position: target.clone()
+                                ratio: parsedEdge ? parsedEdge.ratio : undefined
                             });
                         }
                     }
@@ -424,7 +420,6 @@ export class Cutter {
             }
         }
     });
-    this.intersections = intersections; // 交点をクラスプロパティに保存
     const resolveFaceIdsForRef = (ref) => {
         if (!ref || !structure) return null;
         if (ref.edgeId && structure.edgeMap) {
@@ -510,7 +505,7 @@ export class Cutter {
     }
     if (this.debug) {
         console.log("--- DEBUG: Final intersections (after edge intersections) ---");
-        this.intersections.forEach((p, i) => console.log(`  [${i}] Point: (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`));
+        intersections.forEach((p, i) => console.log(`  [${i}] Point: (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`));
     }
 
     if(intersections.length >= 3){
@@ -723,11 +718,6 @@ export class Cutter {
     }
   }
 
-  /** @returns {THREE.Vector3[]} */
-  getIntersections() {
-      return this.intersections;
-  }
-
   /** @returns {IntersectionPoint[]} */
   getIntersectionRefs() {
       return this.intersectionRefs;
@@ -754,14 +744,20 @@ export class Cutter {
       };
   }
 
-  /** @returns {Array<{ startId: SnapPointID, endId: SnapPointID, start: THREE.Vector3, end: THREE.Vector3, faceIds?: string[] }>} */
+  /** @returns {Array<{ startId: SnapPointID, endId: SnapPointID, faceIds?: string[] }>} */
   getCutSegments() {
+      return this.cutSegments.slice();
+  }
+
+  /** @returns {Array<{ startId: SnapPointID, endId: SnapPointID, start: THREE.Vector3, end: THREE.Vector3, faceIds?: string[] }>} */
+  resolveCutSegments(resolverOverride: any = null) {
       const resolver = this.lastResolver;
-      if (!resolver) return [];
+      const activeResolver = resolverOverride || resolver;
+      if (!activeResolver) return [];
       return this.cutSegments
           .map(seg => {
-              const start = resolver.resolveSnapPoint(seg.startId);
-              const end = resolver.resolveSnapPoint(seg.endId);
+              const start = activeResolver.resolveSnapPoint(seg.startId);
+              const end = activeResolver.resolveSnapPoint(seg.endId);
               if (!start || !end) return null;
               return {
                   startId: seg.startId,
@@ -810,8 +806,7 @@ export class Cutter {
                   type: /** @type {'snap' | 'intersection'} */ (ref.type || 'intersection'),
                   edgeId: ref.edgeId,
                   ratio: ref.ratio ? { ...ref.ratio } : undefined,
-                  faceIds: Array.isArray(ref.faceIds) ? [...ref.faceIds] : undefined,
-                  position
+                  faceIds: Array.isArray(ref.faceIds) ? [...ref.faceIds] : undefined
               };
           }).filter(Boolean)
           : [];
@@ -823,7 +818,7 @@ export class Cutter {
               if (byId.has(id)) return byId.get(id);
               const position = resolver.resolveSnapPoint(id);
               if (!position) return null;
-              return /** @type {IntersectionPoint} */ ({ id, type: 'intersection', position });
+              return /** @type {IntersectionPoint} */ ({ id, type: 'intersection' });
           }).filter(Boolean)
           : [];
       /** @type {CutSegmentMeta[]} */
@@ -841,9 +836,6 @@ export class Cutter {
       this.intersectionRefs = intersectionRefs;
       this.outlineRefs = outlineRefs;
       this.cutSegments = cutSegments;
-      this.intersections = intersectionRefs
-          .map(ref => this.resolveIntersectionPosition(ref, resolver))
-          .filter((pos): pos is THREE.Vector3 => pos instanceof THREE.Vector3);
 
       if (this.outline && this.outline.geometry && outlineRefs.length >= 3) {
           const points = outlineRefs

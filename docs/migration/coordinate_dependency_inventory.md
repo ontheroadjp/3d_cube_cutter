@@ -13,8 +13,6 @@ Summary: 座標依存箇所を棚卸しし、SnapPointID/Resolver 起点への�
 - Object Model
   - `js/model/objectModel.ts`: `ObjectVertex.position`, `ObjectFace.normal/uvBasis`, `ObjectCutSegment.start/end`, `ObjectNetState.targetCenter/positionTarget` など
   - `js/model/objectModelBuilder.ts`: Resolver で座標を構築してモデルに保持
-- Cutter
-  - `js/Cutter.ts`: `IntersectionPoint.position` や `cutSegments` に `start/end` を保持
 - main
   - `main.ts`: 展開図生成用の `cutFace.vertices` などが `THREE.Vector3` で保持される
 
@@ -22,6 +20,8 @@ Summary: 座標依存箇所を棚卸しし、SnapPointID/Resolver 起点への�
 - Selection/Interaction
   - `main.ts`: SnapPointID から `resolver.resolveVertex/resolveEdge/resolveSnapPoint` を使い選択座標を取得
   - `js/SelectionManager.ts`: SnapPointID から `resolveEdge/resolveSnapPoint` を使いラベル位置を計算
+- Cutter
+  - `js/Cutter.ts`: 交点/切断線は SnapPointID を保持し、座標は resolver で都度解決
 - Net
   - `js/net/NetManager.ts`: faceId から `resolver.resolveFace/resolveVertex` を使って投影
 

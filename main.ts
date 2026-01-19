@@ -39,7 +39,7 @@ class App {
     learningAnimationToken: { cancelled: boolean } | null;
     learningPlane: THREE.Mesh | null;
     learningHintLines: THREE.Line[];
-    learningCutSegments: Array<{ start: THREE.Vector3; end: THREE.Vector3 }>;
+    learningCutSegments: Array<{ startId: string; endId: string }>;
     learningSteps: Array<{
         instruction: string;
         reason?: string;
@@ -883,8 +883,8 @@ class App {
             return { totalSteps: 0 };
         }
         this.learningCutSegments = segments.map(segment => ({
-            start: segment.start.clone(),
-            end: segment.end.clone()
+            startId: segment.startId,
+            endId: segment.endId
         }));
 
         const baseIntro = [{
@@ -1016,8 +1016,12 @@ class App {
 
     animateLearningSegment(segment, token) {
         return new Promise((resolve) => {
-            const start = segment.start.clone();
-            const end = segment.end.clone();
+            const start = this.resolver.resolveSnapPoint(segment.startId);
+            const end = this.resolver.resolveSnapPoint(segment.endId);
+            if (!start || !end) {
+                resolve(null);
+                return;
+            }
             const positions = new Float32Array([
                 start.x, start.y, start.z,
                 start.x, start.y, start.z
