@@ -733,6 +733,10 @@ class App {
         this.updateNetUnfoldScale();
     }
 
+    logNetUnfoldInvalid(context: string, detail: Record<string, unknown>) {
+        console.error(`[net] ${context}`, detail);
+    }
+
     updateNetUnfoldScale() {
         if (!this.netUnfoldGroup) return;
         const originalScale = this.netUnfoldGroup.scale.clone();
@@ -745,6 +749,17 @@ class App {
         box.getCenter(center);
         const size = new THREE.Vector3();
         box.getSize(size);
+        if (!Number.isFinite(size.x) || !Number.isFinite(size.y) || !Number.isFinite(size.z) || size.x <= 0 || size.y <= 0) {
+            this.logNetUnfoldInvalid('invalid net bounds', {
+                size: { x: size.x, y: size.y, z: size.z },
+                faceCount: this.netUnfoldFaces.length,
+                groupChildren: this.netUnfoldGroup.children.length
+            });
+            this.netUnfoldFaces.forEach((face, idx) => face.pivot.quaternion.copy(originalQuats[idx]));
+            this.netUnfoldGroup.scale.copy(originalScale);
+            this.netUnfoldGroup.updateMatrixWorld(true);
+            return;
+        }
         this.netUnfoldFaces.forEach((face, idx) => face.pivot.quaternion.copy(originalQuats[idx]));
         this.netUnfoldGroup.scale.copy(originalScale);
         this.netUnfoldGroup.updateMatrixWorld(true);
@@ -753,6 +768,16 @@ class App {
         if (size.x <= 0 || size.y <= 0) return;
         const scale = Math.min(viewWidth / size.x, viewHeight / size.y) * 0.85;
         const scaleTarget = Math.min(1, scale);
+        if (!Number.isFinite(scaleTarget)) {
+            this.logNetUnfoldInvalid('invalid net scale target', {
+                scaleTarget,
+                scale,
+                viewWidth,
+                viewHeight,
+                size: { x: size.x, y: size.y, z: size.z }
+            });
+            return;
+        }
         const targetCenter = center;
         const positionTarget = new THREE.Vector3(-center.x, -center.y, 0);
         this.setNetAnimationState({
@@ -1180,9 +1205,6 @@ class App {
         const cutFaces = this.isCutExecuted ? this.objectModelManager.getCutFacePolygons() : [];
         if (cutFaces.length) {
             this.buildCutNetUnfoldGroup(cutFaces, this.objectModelManager.getCutFaceAdjacency());
-            if (!this.netUnfoldGroup || this.netUnfoldFaces.length === 0) {
-                this.buildCubeNetUnfoldGroup();
-            }
             return;
         }
         this.buildCubeNetUnfoldGroup();
@@ -2082,6 +2104,14 @@ class App {
         if (this.netUnfoldGroup) {
             this.applyNetStateFromModel();
             const netState = this.objectModelManager.getNetState();
+            if (!Number.isFinite(netState.scaleTarget) || !Number.isFinite(netState.scale)) {
+                this.logNetUnfoldInvalid('invalid net animation state', {
+                    state: netState.state,
+                    scale: netState.scale,
+                    scaleTarget: netState.scaleTarget
+                });
+                return;
+            }
             const scaleReady = netState.state !== 'postscale' || (performance.now() - netState.startAt) >= 0;
             let nextScale = netState.scale;
             if (Math.abs(netState.scaleTarget - netState.scale) > 0.001) {
