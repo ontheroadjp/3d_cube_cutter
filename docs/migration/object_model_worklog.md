@@ -268,6 +268,14 @@ Summary:
 Notes:
 - Issue #10 の成果物として更新
 
+## 2026-01-19T11:36:20+09:00
+Summary:
+- Cutter の交点/切断線を SnapPointID 起点で扱い、座標を派生情報として整理
+- CutResult/Intersection 仕様に派生座標の扱いを追記
+
+Notes:
+- Issue #11 の成果物として更新
+
 ## 2026-01-19T09:28:53+09:00
 Summary:
 - UIManager の legacy DOM 参照をフラグで抑制し、React UI 前提に整理

@@ -34,6 +34,7 @@ export type IntersectionPoint = {
   edgeId?: string;
   ratio?: Ratio;
   faceIds?: string[];
+  // Derived via GeometryResolver; not source of truth.
   position?: unknown;
 };
 
@@ -61,7 +62,9 @@ export type CutResult = {
   cutSegments: Array<{
     startId: SnapPointID;
     endId: SnapPointID;
+    // Derived via GeometryResolver; not source of truth.
     start: unknown;
+    // Derived via GeometryResolver; not source of truth.
     end: unknown;
     faceIds?: string[];
   }>;

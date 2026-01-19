@@ -20,16 +20,31 @@ interface IntersectionPoint {
   edgeId?: string;            // 交点が所属する EdgeID
   ratio?: { numerator: number; denominator: number };
   faceIds?: string[];         // 交点が属する面 (1-2 面)
-  position: THREE.Vector3;    // 描画用座標
+  position?: THREE.Vector3;   // 描画用座標（派生情報）
 }
 ```
 
 - `type='snap'` は入力点そのもの
 - `type='intersection'` は Edge と Plane の交点
+- `position` は SnapPointID から Resolver で再計算可能な派生情報
 
 ---
 
-## 3. Outline
+## 3. CutSegment
+
+```
+interface CutSegment {
+  startId: string;            // SnapPointID
+  endId: string;              // SnapPointID
+  faceIds?: string[];         // 共有面ID（展開図用）
+  start?: THREE.Vector3;      // 描画用座標（派生情報）
+  end?: THREE.Vector3;        // 描画用座標（派生情報）
+}
+```
+
+---
+
+## 4. Outline
 
 ```
 interface Outline {
@@ -39,7 +54,7 @@ interface Outline {
 
 ---
 
-## 4. CutResult
+## 5. CutResult
 
 ```
 interface CutResult {
@@ -47,26 +62,27 @@ interface CutResult {
   removedMesh: THREE.Mesh;     // 切り取られた部分
   outline: Outline;            // 切断面の輪郭
   intersections: IntersectionPoint[];
+  cutSegments: CutSegment[];
   markers: THREE.Mesh[];       // 教育用マーカー
 }
 ```
 
 ---
 
-## 5. 生成ルール
+## 6. 生成ルール
 - `intersections` には入力 SnapPoint も含める
 - `outline.points` は平面上の角度順でソート
 - `edgeId` と `ratio` は構造情報から決定
 
 ---
 
-## 6. 利用先
+## 7. 利用先
 - NetManager: faceIds に基づき 2D 投影
 - Explanation: id と ratio に基づき説明文生成
 - Verification: outline の点数と順序で形状判定
 
 ---
 
-## 7. まとめ
+## 8. まとめ
 - CutResult は構造情報を含む結果オブジェクト
 - 交点・輪郭線は再利用可能な教育資産となる

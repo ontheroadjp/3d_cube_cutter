@@ -46,7 +46,7 @@ Cutter.ts / Cutter.js の機能を TypeScript に分割する際の各モジュ�
 **主な関数 / メソッド**
 - `computeEdgeIntersections(plane: Plane, cube: Cube): IntersectionPoint[]`
     - 入力: Plane, Cube
-    - 出力: IntersectionPoint 配列（座標 + SnapPointID + 辺比率 + 所属面ID）
+    - 出力: IntersectionPoint 配列（SnapPointID + 辺比率 + 所属面ID + 派生座標）
 - `isPointOnSegment(p: Vector3, start: Vector3, end: Vector3, threshold?: number): boolean`
     - 距離ベースの線分判定（デフォルト threshold: 1e-5）
 
@@ -113,7 +113,7 @@ Cutter.ts / Cutter.js の機能を TypeScript に分割する際の各モジュ�
 
     interface SnapPoint {
         id: string; // SnapPointID
-        position: THREE.Vector3;
+        position?: THREE.Vector3; // 派生情報
         type: 'vertex' | 'edge' | 'face';
         edgeRatio?: { numerator: number; denominator: number }; // type='edge' の場合
         faceId?: string;    // 所属面ID
