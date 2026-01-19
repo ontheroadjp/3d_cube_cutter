@@ -76,6 +76,7 @@ Cutter モジュールは、3D立方体の切断処理を担当するコアコ�
 
 - Cutter 内部では座標（THREE.Vector3）ではなく **SnapPointID を基準** に処理を行う
 - Cube クラスに SnapPointID → THREE.Vector3 変換関数を用意
+- IntersectionPoint の座標は派生情報として Resolver 経由で再計算可能な扱いにする
 
     ```ts
     getSnapPointPosition(snapId: string): THREE.Vector3

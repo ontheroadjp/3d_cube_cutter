@@ -19,7 +19,7 @@ docs/specs/cutter/intersection_calculator_spec.md
 
     computeEdgeIntersections(plane: THREE.Plane, cube: Cube): IntersectionPoint[]
     - 入力: Plane, Cube
-    - 出力: IntersectionPoint 配列（座標 + SnapPointID + 辺比率 + 所属面ID）
+    - 出力: IntersectionPoint 配列（SnapPointID + 辺比率 + 所属面ID + 派生座標）
 
     isPointOnSegment(p: THREE.Vector3, start: THREE.Vector3, end: THREE.Vector3, threshold?: number): boolean
     - 入力: 点 p、線分 start–end
@@ -40,6 +40,7 @@ docs/specs/cutter/intersection_calculator_spec.md
     interface IntersectionPoint extends SnapPoint {
         edgeRatio: { numerator: number; denominator: number };  // 線分上の比率
         faceId?: string;    // 所属面ID
+        position?: THREE.Vector3; // 派生情報
     }
 
 ---
