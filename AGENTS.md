@@ -23,6 +23,7 @@ docs/README.md を読んで
 - すべての作業は Issue から開始する
 - Issue には「目的/完了条件/影響範囲/テスト観点/メモ」を明記する
 - 1 Issue = 1 ブランチ = 1 PR を基本とする
+- Issue ごとに専用ブランチを作成し、そのブランチで作業を進める
 
 ### GitHub Projects
 - Projects v2 を利用し、Backlog / Ready / In Progress / Done を運用する
