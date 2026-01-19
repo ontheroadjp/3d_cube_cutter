@@ -34,8 +34,6 @@ Summary: 座標依存箇所を棚卸しし、SnapPointID/Resolver 起点への�
   - 交点/切断線の計算結果に座標が含まれる
 - `js/net/NetManager.ts`
   - 面投影で Resolver を利用しつつも座標配列を扱う
-- `js/cutter/cutFaceExtractor.ts`
-  - CSGメッシュ描画用の座標抽出のみ（構造モデルの状態には非依存）
 
 ## 移行優先度（提案）
 1) Cut/交点/切断線の保持を SnapPointID 起点に整理
