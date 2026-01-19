@@ -84,8 +84,8 @@ Summary: アプリ全体を対象に、立体・切断・展開図の要素を�
 - uvBasis は Face の投影に一貫して利用する
 
 ## 既存仕様との関係
-- `docs/architecture/structure_model_spec.md` を拡張する位置づけ
-- `docs/specs/net/net_mapping_spec.md` にある投影/面同定ロジックを Model 側に集約する
+- `docs/technical/architecture/structure_model_spec.md` を拡張する位置づけ
+- `docs/technical/specification/net/net_mapping_spec.md` にある投影/面同定ロジックを Model 側に集約する
 
 ## 次の作業
 - Object Model の型定義（TypeScript）

@@ -1,9 +1,9 @@
 # 構造主体アーキテクチャ移行 作業手順書
 
 Status: Superseded
-Summary: 置き換え先: docs/migration/implementationchecklist.md。
+Summary: 置き換え先: docs/technical/migration/implementationchecklist.md。
 
-置き換え先: `docs/migration/implementation_checklist.md`
+置き換え先: `docs/technical/migration/implementation_checklist.md`
 
 本ドキュメントは、立体切断シミュレーターを
 座標主導アーキテクチャから構造主体アーキテクチャへ移行するための

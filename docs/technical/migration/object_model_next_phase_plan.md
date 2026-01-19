@@ -42,6 +42,6 @@ Summary: Object Model 参照を展開図以外の描画へ段階拡張するた�
 - 変更は常に後方互換を優先する
 
 ## 関連ドキュメント
-- `docs/architecture/object_model_spec.md`
-- `docs/migration/object_model_migration_plan.md`
-- `docs/specs/ui/ui_spec.md`
+- `docs/technical/architecture/object_model_spec.md`
+- `docs/technical/migration/object_model_migration_plan.md`
+- `docs/technical/specification/ui/ui_spec.md`

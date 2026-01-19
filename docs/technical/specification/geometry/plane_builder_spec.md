@@ -6,7 +6,7 @@ Summary: SnapPoint から切断平面を生成する仕様を定義する。
 SnapPoint から切断平面を生成する仕様を定義する。
 
 ## ファイル名
-docs/specs/geometry/plane_builder_spec.md
+docs/technical/specification/geometry/plane_builder_spec.md
 
 ## 目的
 - 3 つ以上の SnapPoint から切断平面を安定的に生成する。

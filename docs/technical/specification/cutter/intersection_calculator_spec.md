@@ -6,7 +6,7 @@ Summary: 切断平面と辺の交点計算を安定化する仕様を定義す�
 切断平面と辺の交点計算を安定化する仕様を定義する。
 
 ## ファイル名
-docs/specs/cutter/intersection_calculator_spec.md
+docs/technical/specification/cutter/intersection_calculator_spec.md
 
 ## 目的
 - 切断平面と立方体の辺の交点を計算

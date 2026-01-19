@@ -52,9 +52,9 @@ Summary: 立体/切断/展開図の全要素をオブジェクト化するため
 - 表示状態が二重管理になる
 
 ## 関連ドキュメント
-- `docs/architecture/object_model_spec.md`
-- `docs/architecture/structure_model_spec.md`
-- `docs/specs/net/net_mapping_spec.md`
+- `docs/technical/architecture/object_model_spec.md`
+- `docs/technical/architecture/structure_model_spec.md`
+- `docs/technical/specification/net/net_mapping_spec.md`
 
 ## 作業履歴
-- 進行ログは `docs/migration/object_model_worklog.md` に記載する
+- 進行ログは `docs/migration/object_model/object_model_worklog.md` に記載する
