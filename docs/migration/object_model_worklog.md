@@ -298,6 +298,13 @@ Summary:
 Notes:
 - Issue #14 の成果物として更新
 
+## 2026-01-19T13:02:11+09:00
+Summary:
+- Model/Resolver 依存のテストを追加し、派生座標の回帰を検知
+
+Notes:
+- Issue #36 の成果物として更新
+
 ## 2026-01-19T09:28:53+09:00
 Summary:
 - UIManager の legacy DOM 参照をフラグで抑制し、React UI 前提に整理
