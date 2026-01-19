@@ -1240,6 +1240,7 @@ class App {
             faceLabel.position.set(0, 0, 0.06);
             faceLabel.userData.type = 'net-face-label';
             faceLabel.userData.baseScale = faceLabel.scale.clone();
+            faceLabel.userData.basePosition = faceLabel.position.clone();
             faceLabel.visible = !!display.showFaceLabels;
             mesh.add(faceLabel);
             const corners = [
@@ -1255,6 +1256,7 @@ class App {
                 sprite.position.copy(corners[idx] || corners[0]);
                 sprite.userData.type = 'net-vertex-label';
                 sprite.userData.baseScale = sprite.scale.clone();
+                sprite.userData.basePosition = sprite.position.clone();
                 sprite.visible = !!display.showVertexLabels;
                 mesh.add(sprite);
             });
@@ -1405,8 +1407,13 @@ class App {
             if (type !== 'net-face-label' && type !== 'net-vertex-label') return;
             if (!(obj instanceof THREE.Sprite)) return;
             const baseScale = obj.userData.baseScale;
+            const basePosition = obj.userData.basePosition;
             if (!(baseScale instanceof THREE.Vector3)) return;
             obj.scale.copy(baseScale).multiplyScalar(inverse);
+            if (type === 'net-vertex-label' && basePosition instanceof THREE.Vector3) {
+                obj.position.copy(basePosition);
+                obj.position.z += 0.04 * inverse;
+            }
         });
     }
 
@@ -1698,6 +1705,7 @@ class App {
             label.position.z += 0.06;
             label.userData.type = 'net-face-label';
             label.userData.baseScale = label.scale.clone();
+            label.userData.basePosition = label.position.clone();
             label.visible = !!display.showFaceLabels;
             mesh.add(label);
             const vertexCandidates: Array<{ label: string; position: THREE.Vector3 }> = [];
@@ -1726,6 +1734,7 @@ class App {
                 sprite.position.z += 0.06;
                 sprite.userData.type = 'net-vertex-label';
                 sprite.userData.baseScale = sprite.scale.clone();
+                sprite.userData.basePosition = sprite.position.clone();
                 sprite.visible = !!display.showVertexLabels;
                 mesh.add(sprite);
             });
@@ -1871,6 +1880,7 @@ class App {
                         label.position.z += 0.06;
                         label.userData.type = 'net-face-label';
                         label.userData.baseScale = label.scale.clone();
+                        label.userData.basePosition = label.position.clone();
                         label.visible = !!display.showFaceLabels;
                         mesh.add(label);
                         pivot.add(mesh);
