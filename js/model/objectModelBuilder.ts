@@ -10,6 +10,7 @@ import {
   type ObjectVertex
 } from './objectModel.js';
 
+// Derived geometry fields are resolved through GeometryResolver.
 const buildVertex = (vertex: StructureVertex, resolver: GeometryResolver): ObjectVertex | null => {
   const position = resolver.resolveVertex(vertex.id);
   if (!position) return null;
