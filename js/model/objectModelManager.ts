@@ -1,4 +1,4 @@
-import type { CutFacePolygon, DisplayState, IntersectionPoint } from '../types.js';
+import type { CutFacePolygon, DisplayState, IntersectionPoint, SnapPointID } from '../types.js';
 import * as THREE from 'three';
 import type { Cube } from '../Cube.js';
 import type { GeometryResolver } from '../geometry/GeometryResolver.js';
@@ -355,7 +355,12 @@ export class ObjectModelManager {
       ? adjacency
           .map(entry => {
             if (!entry || !entry.a || !entry.b) return null;
-            return { a: entry.a, b: entry.b };
+            return {
+              a: entry.a,
+              b: entry.b,
+              sharedEdgeIds: entry.sharedEdgeIds ? [...entry.sharedEdgeIds] as [SnapPointID, SnapPointID] : undefined,
+              hingeType: entry.hingeType
+            };
           })
           .filter(Boolean)
       : [];

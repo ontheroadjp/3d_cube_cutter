@@ -922,10 +922,50 @@ export class Cutter {
       return polygons;
   }
 
-  /** @returns {Array<{ a: string; b: string; sharedEdgeIds?: [SnapPointID, SnapPointID] }>} */
+  /** @returns {Array<{ a: string; b: string; sharedEdgeIds?: [SnapPointID, SnapPointID]; hingeType?: 'edge' | 'coplanar' }>} */
   getResultFaceAdjacency() {
       const polygons = this.getResultFacePolygons();
-      return buildFaceAdjacency(polygons);
+      const adjacency = buildFaceAdjacency(polygons);
+      const resolver = this.lastResolver;
+      const cube = this.lastCube;
+      if (!resolver || !cube) return adjacency;
+      const cubeSize = typeof cube.getSize === 'function' ? cube.getSize() : null;
+      const sizeScalar = (() => {
+          if (typeof cubeSize === 'number') return cubeSize;
+          if (cubeSize && typeof cubeSize === 'object') {
+              const lx = typeof cubeSize.lx === 'number' ? cubeSize.lx : 1;
+              const ly = typeof cubeSize.ly === 'number' ? cubeSize.ly : 1;
+              const lz = typeof cubeSize.lz === 'number' ? cubeSize.lz : 1;
+              return Math.max(lx, ly, lz);
+          }
+          if (typeof cube.size === 'number') return cube.size;
+          return 1;
+      })();
+      const planeEpsilon = Math.max(1e-6, sizeScalar * 1e-5);
+
+      const facePlanes = new Map();
+      polygons.forEach(face => {
+          if (!face || !face.faceId || !Array.isArray(face.vertexIds) || face.vertexIds.length < 3) return;
+          const points = face.vertexIds
+              .map(id => resolver.resolveSnapPoint(id))
+              .filter((pos): pos is THREE.Vector3 => pos instanceof THREE.Vector3);
+          if (points.length < 3) return;
+          const plane = new THREE.Plane().setFromCoplanarPoints(points[0], points[1], points[2]);
+          if (plane.normal.lengthSq() <= 0) return;
+          facePlanes.set(face.faceId, { plane, points });
+      });
+
+      return adjacency.map(entry => {
+          const faceA = facePlanes.get(entry.a);
+          const faceB = facePlanes.get(entry.b);
+          if (!faceA || !faceB) return entry;
+          const dot = Math.abs(faceA.plane.normal.dot(faceB.plane.normal));
+          if (dot < 0.999) return { ...entry, hingeType: 'edge' };
+          const isCoplanar = faceB.points.every((point: THREE.Vector3) =>
+              Math.abs(faceA.plane.distanceToPoint(point)) <= planeEpsilon
+          );
+          return { ...entry, hingeType: isCoplanar ? 'coplanar' : 'edge' };
+      });
   }
 
   /**
