@@ -545,3 +545,11 @@ Summary:
 
 Notes:
 - 切断前の展開処理は維持
+
+## 2026-01-19T21:59:50+0900
+Summary:
+- 切断後の面同定で resolver の face 情報を基準に参照し、Front/Back の入れ替わりを防止
+- 面ごとの基準平面の算出を resolver に統一
+
+Notes:
+- __DEBUG_NET_MATCH の調査結果を反映

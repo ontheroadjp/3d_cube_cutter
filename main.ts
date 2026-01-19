@@ -1649,36 +1649,54 @@ class App {
             ).normalize();
         };
 
-        const { lx, ly, lz } = this.cube.getSize();
         const faceSpecs = [
-            { faceId: 'F:0154', name: 'Front', corners: [4, 5, 6, 7], width: lx, height: ly },
-            { faceId: 'F:1265', name: 'Right', corners: [1, 2, 6, 5], width: lz, height: ly },
-            { faceId: 'F:0473', name: 'Left', corners: [4, 7, 3, 0], width: lz, height: ly },
-            { faceId: 'F:4567', name: 'Top', corners: [3, 2, 6, 7], width: lx, height: lz },
-            { faceId: 'F:0321', name: 'Bottom', corners: [0, 1, 5, 4], width: lx, height: lz },
-            { faceId: 'F:2376', name: 'Back', corners: [1, 0, 3, 2], width: lx, height: ly }
+            { faceId: 'F:0154', name: 'Front' },
+            { faceId: 'F:1265', name: 'Right' },
+            { faceId: 'F:0473', name: 'Left' },
+            { faceId: 'F:4567', name: 'Top' },
+            { faceId: 'F:0321', name: 'Bottom' },
+            { faceId: 'F:2376', name: 'Back' }
         ];
         const cubeFaceNames = new Map(faceSpecs.map(spec => [spec.faceId, spec.name]));
+        const computeFaceFrame = (faceId: string) => {
+            const resolved = this.resolver.resolveFace(faceId);
+            if (!resolved) return null;
+            const center = resolved.vertices
+                .reduce((acc, v) => acc.add(v), new THREE.Vector3())
+                .divideScalar(resolved.vertices.length);
+            const coords = resolved.vertices.map(v => {
+                const offset = v.clone().sub(center);
+                return {
+                    u: offset.dot(resolved.basisU),
+                    v: offset.dot(resolved.basisV)
+                };
+            });
+            const uValues = coords.map(c => c.u);
+            const vValues = coords.map(c => c.v);
+            const width = Math.max(...uValues) - Math.min(...uValues);
+            const height = Math.max(...vValues) - Math.min(...vValues);
+            return {
+                normal: resolved.normal,
+                center,
+                basisU: resolved.basisU,
+                basisV: resolved.basisV,
+                width,
+                height
+            };
+        };
         const cubeFaceCandidates = faceSpecs
             .map(spec => {
-                const cornerPositions = spec.corners
-                    .map(index => this.resolver.resolveVertex(`V:${index}`))
-                    .filter((pos): pos is THREE.Vector3 => pos instanceof THREE.Vector3);
-                if (cornerPositions.length !== 4) return null;
-                const center = cornerPositions.reduce((acc, v) => acc.add(v), new THREE.Vector3())
-                    .divideScalar(cornerPositions.length);
-                const basisU = cornerPositions[1].clone().sub(cornerPositions[0]).normalize();
-                const basisV = cornerPositions[3].clone().sub(cornerPositions[0]).normalize();
-                const normal = new THREE.Vector3().crossVectors(basisU, basisV).normalize();
+                const frame = computeFaceFrame(spec.faceId);
+                if (!frame) return null;
                 return {
                     faceId: spec.faceId,
                     name: spec.name,
-                    normal,
-                    center,
-                    basisU,
-                    basisV,
-                    width: spec.width,
-                    height: spec.height
+                    normal: frame.normal,
+                    center: frame.center,
+                    basisU: frame.basisU,
+                    basisV: frame.basisV,
+                    width: frame.width,
+                    height: frame.height
                 };
             })
             .filter(Boolean) as Array<{
@@ -1909,6 +1927,7 @@ class App {
             if (face && face.faceId) faceTypeMap.set(face.faceId, face.type);
         });
 
+        const { lx, ly, lz } = this.cube.getSize();
         const frontMesh = createFaceMesh('F:0154', faceColor());
         if (frontMesh) {
             group.add(frontMesh);
