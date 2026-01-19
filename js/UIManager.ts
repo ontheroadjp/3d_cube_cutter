@@ -1,9 +1,9 @@
 import type { DisplayState, UserPresetState } from './types.js';
 
 export class UIManager {
-  tooltip: HTMLElement;
-  countSpan: HTMLElement;
-  alertContainer: HTMLElement;
+  tooltip: HTMLElement | null;
+  countSpan: HTMLElement | null;
+  alertContainer: HTMLElement | null;
   explanationPanel: HTMLElement | null;
   explanationText: HTMLElement | null;
   modeSelector: HTMLSelectElement | null;
@@ -46,9 +46,9 @@ export class UIManager {
 
   constructor(options: { legacyControls?: boolean } = {}){
     this.legacyControlsEnabled = options.legacyControls !== false;
-    this.tooltip = document.getElementById('tooltip') as HTMLElement;
-    this.countSpan = document.getElementById('count') as HTMLElement;
-    this.alertContainer = document.getElementById('alert-container') as HTMLElement;
+    this.tooltip = document.getElementById('tooltip') as HTMLElement | null;
+    this.countSpan = document.getElementById('count') as HTMLElement | null;
+    this.alertContainer = document.getElementById('alert-container') as HTMLElement | null;
     this.explanationPanel = document.getElementById('explanation-panel');
     this.explanationText = document.getElementById('explanation-text');
 
@@ -467,7 +467,10 @@ export class UIManager {
       }
   }
   
-  updateSelectionCount(count) { this.countSpan.textContent = String(count); }
+  updateSelectionCount(count) {
+      if (!this.countSpan) return;
+      this.countSpan.textContent = String(count);
+  }
 
   getUserPresetForm() {
       return {
@@ -554,6 +557,7 @@ export class UIManager {
   }
 
   showMessage(message, type = 'warning', duration = 5000) {
+      if (!this.alertContainer) return;
       const alertEl = document.createElement('div');
       alertEl.className = `alert alert-${type} alert-dismissible fade show m-0`;
       alertEl.role = 'alert';
@@ -586,11 +590,15 @@ export class UIManager {
   }
 
   showTooltip(text, x, y) {
+    if (!this.tooltip) return;
     this.tooltip.innerText = text;
     this.tooltip.style.display = 'block';
     this.tooltip.style.left = (x + 10) + 'px';
     this.tooltip.style.top = (y + 10) + 'px';
   }
-
-  hideTooltip() { this.tooltip.style.display = 'none'; }
+  
+  hideTooltip() {
+    if (!this.tooltip) return;
+    this.tooltip.style.display = 'none';
+  }
 }

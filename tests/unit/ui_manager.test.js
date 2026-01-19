@@ -21,6 +21,25 @@ const createDocumentStub = () => {
   return elements;
 };
 
+const createDocumentStubWithoutCount = () => {
+  const elements = new Map();
+  const createEl = (id) => {
+    const el = { id, style: {}, classList: { add() {}, remove() {} }, textContent: '' };
+    return el;
+  };
+  [
+    'tooltip',
+    'alert-container',
+    'explanation-panel',
+    'explanation-text'
+  ].forEach(id => elements.set(id, createEl(id)));
+
+  global.document = /** @type {any} */ ({
+    getElementById: (id) => elements.get(id) || null
+  });
+  return elements;
+};
+
 describe('UIManager', () => {
   it('setExplanation should toggle panel visibility', () => {
     const elements = createDocumentStub();
@@ -111,6 +130,14 @@ describe('UIManager', () => {
       showCutPoints: true,
       colorizeCutLines: false
     });
+  });
+
+  it('should not throw when selection count element is missing', () => {
+    createDocumentStubWithoutCount();
+    const ui = new UIManager();
+
+    ui.updateSelectionCount(2);
+    expect(ui.getDisplayState().showVertexLabels).toBe(true);
   });
 
 });
