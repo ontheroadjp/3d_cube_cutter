@@ -411,3 +411,10 @@ Summary:
 
 Notes:
 - 交点/切断線は resolver で再計算し、保持データは ID のみに統一
+
+## 2026-01-19T15:37:41+0900
+Summary:
+- Net state から targetCenter/positionTarget を削除し、View 側で都度計算するよう整理
+
+Notes:
+- モデルは進行状態のみ保持し、座標派生値は保持しない

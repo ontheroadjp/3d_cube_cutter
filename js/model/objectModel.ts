@@ -107,10 +107,6 @@ export type ObjectNetState = {
   scale: number;
   scaleTarget: number;
   startAt: number;
-  // Derived from GeometryResolver; not source of truth.
-  targetCenter?: THREE.Vector3 | null;
-  // Derived from GeometryResolver; not source of truth.
-  positionTarget?: THREE.Vector3 | null;
   preScaleDelay: number;
   postScaleDelay: number;
   camera?: {

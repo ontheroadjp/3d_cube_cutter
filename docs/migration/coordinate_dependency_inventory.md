@@ -11,7 +11,7 @@ Summary: 座標依存箇所を棚卸しし、SnapPointID/Resolver 起点への�
 ## 依存分類
 ### A. 状態として座標を保持している
 - Object Model
-  - `js/model/objectModel.ts`: `ObjectVertex.position`, `ObjectFace.normal/uvBasis`, `ObjectCutSegment.start/end`, `ObjectNetState.targetCenter/positionTarget` など
+  - `js/model/objectModel.ts`: `ObjectVertex.position`, `ObjectFace.normal/uvBasis`, `ObjectCutSegment.start/end` など
   - `js/model/objectModelBuilder.ts`: Resolver で座標を構築してモデルに保持
 - main
   - `main.ts`: 展開図生成用の `cutFace.vertices` などが `THREE.Vector3` で保持される
