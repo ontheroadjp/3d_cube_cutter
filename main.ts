@@ -1221,7 +1221,19 @@ class App {
         adjacency: Array<{ a: string; b: string; hingeType?: 'edge' | 'coplanar'; sharedEdgeIds?: [string, string] }>,
         faceTypeMap: Map<string, CutFacePolygon['type']>,
         rootId?: string,
-        weights?: { cutEdgePenalty?: number; coplanarBonus?: number; missingEdgePenalty?: number }
+        weights?: { cutEdgePenalty?: number; coplanarBonus?: number; missingEdgePenalty?: number },
+        debugOut?: {
+            parentMap?: Map<string, string | null>;
+            edges?: Array<{
+                a: string;
+                b: string;
+                weight: number;
+                hingeType?: 'edge' | 'coplanar';
+                sharedEdgeIds?: [string, string];
+                typeA?: CutFacePolygon['type'];
+                typeB?: CutFacePolygon['type'];
+            }>;
+        }
     ) {
         if (!faceIds.length) return new Map<string, number>();
         const root = rootId && faceIds.includes(rootId) ? rootId : faceIds[0];
@@ -1237,7 +1249,15 @@ class App {
                 if (entry.hingeType === 'coplanar') weight -= coplanarBonus;
                 if (!entry.sharedEdgeIds) weight += missingEdgePenalty;
                 if (typeA === 'cut' || typeB === 'cut') weight += cutEdgePenalty;
-                return { a: entry.a, b: entry.b, weight };
+                return {
+                    a: entry.a,
+                    b: entry.b,
+                    weight,
+                    hingeType: entry.hingeType,
+                    sharedEdgeIds: entry.sharedEdgeIds,
+                    typeA,
+                    typeB
+                };
             });
         const inTree = new Set([root]);
         const parentMap = new Map<string, string | null>([[root, null]]);
@@ -1262,6 +1282,10 @@ class App {
             }
         }
         remaining.forEach(id => parentMap.set(id, null));
+        if (debugOut) {
+            debugOut.parentMap = parentMap;
+            debugOut.edges = edges;
+        }
         const depthById = new Map<string, number>();
         const computeDepth = (id: string): number => {
             if (depthById.has(id)) return depthById.get(id) as number;
@@ -2120,7 +2144,9 @@ class App {
             const weights = analysis.originalConnected
                 ? { cutEdgePenalty: 3, coplanarBonus, missingEdgePenalty: 0.5 }
                 : { cutEdgePenalty: 0.5, coplanarBonus, missingEdgePenalty: 0.2 };
-            const depthById = this.computeUnfoldDepths(faceIds, adjacency, faceTypeMap, 'F:0154', weights);
+            const debugHinge = !!(globalThis as { __DEBUG_NET_HINGE?: boolean }).__DEBUG_NET_HINGE;
+            const debugOut = debugHinge ? { parentMap: undefined, edges: undefined } : undefined;
+            const depthById = this.computeUnfoldDepths(faceIds, adjacency, faceTypeMap, 'F:0154', weights, debugOut);
             faces.forEach(face => {
                 if (!face.faceId) return;
                 const depth = depthById.get(face.faceId);
@@ -2128,6 +2154,39 @@ class App {
                     face.delayIndex = depth;
                 }
             });
+            if (debugHinge && debugOut && debugOut.parentMap && debugOut.edges) {
+                const edgeIndex = new Map<string, typeof debugOut.edges[number]>();
+                debugOut.edges.forEach(edge => {
+                    const key = edge.a < edge.b ? `${edge.a}|${edge.b}` : `${edge.b}|${edge.a}`;
+                    edgeIndex.set(key, edge);
+                });
+                const normals = new Map<string, THREE.Vector3>();
+                polygons.forEach(face => {
+                    if (!face.faceId) return;
+                    normals.set(face.faceId, computeNormal(face));
+                });
+                const hingeLogs = [];
+                debugOut.parentMap.forEach((parentId, childId) => {
+                    if (!parentId) return;
+                    const key = parentId < childId ? `${parentId}|${childId}` : `${childId}|${parentId}`;
+                    const edge = edgeIndex.get(key);
+                    hingeLogs.push({
+                        parentId,
+                        childId,
+                        hingeType: edge ? edge.hingeType : null,
+                        sharedEdgeIds: edge ? edge.sharedEdgeIds || null : null,
+                        parentType: faceTypeMap.get(parentId) || 'original',
+                        childType: faceTypeMap.get(childId) || 'original',
+                        parentNormal: normals.get(parentId)?.toArray().map(val => Number(val.toFixed(4))) || null,
+                        childNormal: normals.get(childId)?.toArray().map(val => Number(val.toFixed(4))) || null,
+                        weight: edge ? Number(edge.weight.toFixed(4)) : null
+                    });
+                });
+                console.log('[net][hinge] cut unfold tree', {
+                    root: faceIds.includes('F:0154') ? 'F:0154' : faceIds[0],
+                    hinges: hingeLogs
+                });
+            }
         }
 
         this.netUnfoldGroup = group;

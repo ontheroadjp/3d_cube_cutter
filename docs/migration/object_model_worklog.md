@@ -553,3 +553,11 @@ Summary:
 
 Notes:
 - __DEBUG_NET_MATCH の調査結果を反映
+
+## 2026-01-19T22:54:49+0900
+Summary:
+- 切断後展開のヒンジ選定と面法線をログ化し、向きズレの原因を追跡可能にした
+- 展開木の親子関係と sharedEdgeIds をデバッグ出力するよう整理
+
+Notes:
+- __DEBUG_NET_HINGE でログを有効化
