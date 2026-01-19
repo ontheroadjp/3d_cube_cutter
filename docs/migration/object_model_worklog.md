@@ -250,3 +250,10 @@ Summary:
 
 Notes:
 - React サイドパネルがある場合は legacy DOM を初期化しない
+
+## 2026-01-19T09:30:56+09:00
+Summary:
+- UIManager の legacyControls 動作をテストで担保
+
+Notes:
+- legacy DOM 非依存の動作を明文化

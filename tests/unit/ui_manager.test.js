@@ -93,4 +93,24 @@ describe('UIManager', () => {
     });
   });
 
+  it('should allow disabling legacy controls without accessing legacy DOM', () => {
+    createDocumentStub();
+    const ui = new UIManager({ legacyControls: false });
+
+    ui.showSettingsPanels(false);
+    ui.showSettingsPanel('display');
+    ui.resetToFreeSelectMode();
+
+    expect(ui.getDisplayState()).toEqual({
+      showVertexLabels: true,
+      showFaceLabels: true,
+      edgeLabelMode: 'visible',
+      showCutSurface: true,
+      showPyramid: false,
+      cubeTransparent: true,
+      showCutPoints: true,
+      colorizeCutLines: false
+    });
+  });
+
 });
