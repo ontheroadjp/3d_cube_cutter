@@ -2,6 +2,7 @@
 
 Status: Superseded
 Summary: 置き換え先は docs/technical/implementation/expansion_of_structural_solid_objects/expansion_of_structural_solid_objects_plan.md
+Replaced-by: docs/technical/implementation/expansion_of_structural_solid_objects/expansion_of_structural_solid_objects_plan.md
 
 # 3D 立体切断シミュレーター: 構造主体アーキテクチャへの移行計画
 

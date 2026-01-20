@@ -1,11 +1,18 @@
 # explanation_templates.md
 
 Status: Active
-Summary: 本テンプレートの上位方針は docs/technical/architecture/edu_engine_boundary.md に準拠する。
+Summary: 教育テンプレート（出力文の型/出し方）を定義する。実装契約は technical spec を参照する。
 
 # 3D 立体切断シミュレーター: 自動解説テンプレート
 
-本テンプレートの上位方針は `docs/technical/architecture/edu_engine_boundary.md` に準拠する。
+上位方針（教育）:
+- docs/education/philosophy.md
+- docs/education/content_guidelines.md
+- docs/education/cut_patterns.md
+
+実装契約（技術）:
+- docs/technical/specification/learning/explanation_generation_spec.md
+- docs/technical/specification/snap_point_id_spec.md
 
 ## 1. 概要
 本テンプレートは、SnapPointID に基づき、切断操作に対して自動的に解説文を生成するための指針をまとめます。
@@ -24,8 +31,12 @@ Summary: 本テンプレートの上位方針は docs/technical/architecture/edu
 
 ## 3. SnapPointID 別の解説テンプレート
 
+注意:
+- SnapPointID の正は `docs/technical/specification/snap_point_id_spec.md` を参照する（例: `V:<index>`）。
+- 学習者に提示する表示（{label} 等）は UI 側で置換し、SnapPointID を露出させない。
+
 ### 3.1 Vertex 型
-- **形式**: `V:<ラベル>`
+- **形式**: `V:<index>`
 - **解説文例**:
   ```
   選択した頂点 {label} は立方体の角です。
@@ -77,23 +88,9 @@ Summary: 本テンプレートの上位方針は docs/technical/architecture/edu
 
 ---
 
-## 5. 解説生成フロー（擬似コード）
-```ts
-function generateExplanation(snapPoints: SnapPoint[]): string {
-  let explanation = '';
-  for (const sp of snapPoints) {
-    if (sp.type === 'vertex') {
-      explanation += `頂点 ${sp.id} を通る切断面です。\n`;
-    } else if (sp.type === 'edge') {
-      explanation += `辺 ${sp.edge.startLabel}-${sp.edge.endLabel} 上の比率 ${sp.ratio.numerator}/${sp.ratio.denominator} にある点を通ります。\n`;
-    } else if (sp.type === 'face') {
-      explanation += `面 ${sp.face.vertices.join('-')} の中心点を通ります。\n`;
-    }
-  }
-  explanation += 'この切断面を基に面積や形状を計算してください。';
-  return explanation;
-}
-```
+## 5. 実装側フロー（参照）
+実装側の入出力契約・不変条件・ハイライト指示は以下を正とする。
+- docs/technical/specification/learning/explanation_generation_spec.md
 
 ---
 

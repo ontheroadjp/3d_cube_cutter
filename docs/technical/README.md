@@ -16,3 +16,4 @@ Summary: 技術的な設計・仕様・移行計画をまとめる入口。
 - docs/technical/architecture/structure_first_principles.md
 - docs/technical/specification/
 - docs/technical/implementation/expansion_of_structural_solid_objects/expansion_of_structural_solid_objects_plan.md
+- 関連（教育）: docs/education/README.md

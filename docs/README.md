@@ -10,9 +10,12 @@ Summary: このディレクトリはプロジェクトのドキュメント入�
 
 - どう進める？（Issue / PR / ブランチ運用）
   - docs/workflow.md
+  - docs/issue_pr_policy.md
 
 - 書き方・置き場所
   - docs/documentation_policy.md
+- 用語（表記の正）
+  - docs/glossary.md
 
 ## Documentation axes
 

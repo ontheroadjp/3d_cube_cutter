@@ -1,7 +1,7 @@
 # TypeScript 移行プラン（完了）
 
-Status: Superseded
-Summary: 移行は完了済み。本ドキュメントは記録用。
+Status: Legacy
+Summary: TypeScript 移行の記録（完了）。現行の正ではない。
 
 移行は完了済み。本ドキュメントは記録用。
 

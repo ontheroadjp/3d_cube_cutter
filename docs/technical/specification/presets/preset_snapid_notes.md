@@ -1,15 +1,29 @@
 # docs/technical/specification/presets/preset_snapid_notes.md
 
 Status: Active
-Summary: 仕様補助（usage）。SnapPointID を使ったプリセット切断パターンを PresetManager / presetData.js で扱う際の注意点とベストプラクティスを整理する。
+Summary: SnapPointID を使ったプリセット（presetData.ts / PresetManager.ts）のデータ契約と、適用フローの注意点を定義する。
 
 # PresetManager / presetData.js 実装上の注意点 (SnapPointID版)
 
 ## 1. 目的
-SnapPointID を使ったプリセット切断パターンを `PresetManager` / `presetData.js` で扱う際の注意点とベストプラクティスを整理します。
-これにより、構造主導アーキテクチャに沿った安定したプリセット管理が可能になります。
+SnapPointID を使ったプリセット切断パターンを `js/presets/presetData.ts` / `js/presets/PresetManager.ts` で扱う際の契約と注意点を整理する。
+これにより、構造主導アーキテクチャに沿った安定したプリセット適用が可能になる。
 
 ---
+
+## 2. データ契約（Preset）
+型の正は `js/types.ts` を参照する。
+
+```
+Preset = {
+  name: string;
+  category: 'triangle' | 'quad' | 'poly';
+  description?: string;
+  snapIds?: SnapPointID[];
+}
+```
+
+プリセット一覧は `js/presets/presetData.ts` の `PRESETS` を正とする。
 
 ## 2. SnapPointID → 座標変換
 - SnapPointID の解決は `GeometryResolver` を利用する
@@ -19,37 +33,12 @@ SnapPointID を使ったプリセット切断パターンを `PresetManager` / `
 
 ## 3. presetData.js での定義方法
 - `snapIds` に SnapPointID の配列を定義する
-- PresetManager が `GeometryResolver` で座標を解決するフローを前提とする
+- 正規化は `parseSnapPointId` / `normalizeSnapPointId` の組を通す
+- 適用は `PresetManager.applyPreset(name)` を正とする
 
-```js
-export const PRESETS = [
-    {
-        name: "TriangleCut_SnapID",
-        snapIds: ["V:0", "V:1", "V:2"]
-    },
-    {
-        name: "TriangleWithEdgePoints",
-        snapIds: ["V:0", "E:12@1/2", "E:34@1/2"]
-    }
-];
-```
-
-- PresetManager では以下のように処理
-
-```js
-applyPreset(presetName) {
-    const preset = PRESETS.find(p => p.name === presetName);
-    if (!preset || !preset.snapIds) return;
-
-    preset.snapIds.forEach(snapId => {
-        const parsed = normalizeSnapPointId(parseSnapPointId(snapId));
-        if (!parsed) return;
-        const pos = geometryResolver.resolveSnapPointRef(parsed);
-        if (!pos) return;
-        selectionManager.addPoint({ point: pos, snapId });
-    });
-}
-```
+実装参照:
+- `js/presets/presetData.ts`
+- `js/presets/PresetManager.ts`
 
 ---
 
@@ -65,13 +54,11 @@ applyPreset(presetName) {
 4. **エラーハンドリング**
     - 無効な SnapPointID が渡された場合は警告を出す
     - `GeometryResolver` が `null` を返す場合の処理を PresetManager で確実に行う
-5. **解説との連動**
-    - SnapPointID に対応する説明テンプレートを用意すると、自動解説表示が可能
-    - 例えば `V:0` → 「立方体の左上前の頂点」など
+5. **関連機能との連動**
+    - SnapPointID を保持しているため、切断後の `outline` や学習コンテンツ（LearningProblem）と同じ ID 軸で接続できる
 
 ---
 
-## 5. 教育的観点
-- SnapPointID の導入により、プリセットは **構造的に意味のある単位** で管理される
-- 面積計算や辺比率の解説を簡単に紐付けられる
-- 学習者にとって「座標」ではなく「立体の構造」として理解させることが可能
+## References
+- SnapPointID 仕様: docs/technical/specification/snap_point_id_spec.md
+- 典型パターン一覧（参照）: docs/technical/patterns/frequent_patterns.md

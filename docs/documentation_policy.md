@@ -58,6 +58,8 @@ docs 直下は、tech/edu のいずれにも属さない横断ドキュメント
 任意:
 - docs/DOCS_INDEX.md
   - 機械生成の一覧（棚卸し用途）。入口としては docs/README.md を正とする
+  - 生成コマンド: `python3 scripts/generate_docs_index.py`
+  - 運用: `docs/DOCS_INDEX.md` は生成物であり、コミット対象外（`.gitignore`）とする
 
 ---
 
@@ -205,6 +207,34 @@ Work Memo（必須だが任意記述）:
 - 追加ドキュメントは必ず Status / Summary を持つ
 - ドキュメントの役割が変わる場合は、移動（配置変更）を優先し、内容を混在させない
 - Superseded / Legacy は docs/legacy または technical/implementation/_history に退避して明示する
+
+### 9.1 一本化（Canonical）のルール
+
+同一トピックについて、参照上の「正（canonical）」は原則 1 つに絞る。
+
+- 原則:
+  - 現行の正は `Status: Active`（または作業中なら `Status: Draft`）の 1 本のみとする
+  - 似た内容のドキュメントを増やす場合は、先に「どれを正にするか」を決める
+- 置き換え:
+  - 正でなくなったドキュメントは `Status: Superseded` とし、必ず `Replaced-by:` を付与する
+  - 置き換え後は、参照リンク（README/他doc）を正のドキュメントへ張り替える
+- 退避先:
+  - Superseded / Legacy は `docs/legacy/` 配下へ移動し、現行と混同されないようにする
+  - `docs/legacy/` 側の README で「現行の正ではない」ことを明示する
+
+### 9.2 Draft の運用ルール
+
+Draft は「作業中で未固定」を表す。
+AI 駆動での認識ズレを避けるため、Draft の扱いを次で固定する。
+
+- Draft に書いてよいこと:
+  - 未確定の設計案、検討事項、今後の TODO（ただし作業ログは Issue/PR に残す）
+- Draft に書かないこと:
+  - 「実装が必ず満たすべき契約（L3）」の断定
+  - 現行判断の正として参照させたい結論（確定したら Active に上げる）
+- Draft を参照する場合:
+  - 参照元に「Draft 参照である」ことを明記する
+  - 参照は “暫定” として扱い、Active 化したタイミングで参照先を更新する
 
 ---
 

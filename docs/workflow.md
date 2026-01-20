@@ -13,6 +13,39 @@ Summary: Issue/PR 駆動の作業手順と命名規則を定義する。
 - 仕様/設計/移行の整合性を維持する
 - 変更に応じてドキュメントとテストを更新する
 
+## タイミング規約（いつ何をするか）
+
+### Issue を作るタイミング
+- 非 trivial な実装/リファクタ/ドキュメント整理に着手する前
+- 既存 Issue のスコープを超えた追加依頼が出たとき（軽微を除く）
+
+### Issue のタスクリストを追加/更新するタイミング
+- Issue 作成時: 最初に「完了条件」と「タスクリスト（チェックボックス）」を入れる
+- 作業中: スコープが増減した時点でタスクリストを更新する（後から思い出して追記しない）
+- 完了時: 実際に完了した項目をチェックし、未完が残るなら Issue を閉じない
+
+### git commit するタイミング
+- 論理的にまとまった最小単位で、いつでも戻せる状態になった時点
+- PR 作成前に少なくとも 1 回はコミットして push する
+- 破壊的変更や広範な変更は、レビューしやすい粒度に分けてコミットする
+
+### PR を作成するタイミング
+- レビュー可能な単位で変更がまとまったら早めに作る（Draft PR 可）
+- マージ可能な PR にする前提として、最低限 `npm run typecheck` は通す
+- PR 本文に `Fixes #<issue>` / `Closes #<issue>` / `Refs #<issue>` を入れて紐づける
+
+### PR を承認するタイミング
+- 仕様/設計/ドキュメント（必要なら）と実装が整合している
+- `npm run typecheck` と `npm test` が成功している（実行できない場合は理由が明記されている）
+- Done Criteria を満たし、スコープ外の未完タスクが残っていない
+
+### CURRENT.md を更新するタイミング
+- 新しい Epic / 大きなフェーズを開始するとき
+- Current Phase が変わったとき
+- 進行中 Issue（Now）が切り替わったとき（Issue の reopen も含む）
+- 次に着手する作業（Next）が明確になったとき
+- Phase の完了条件（Done Criteria）を満たしたとき
+
 ## 新規実装開始の最小手順
 1. Issue 作成（目的/完了条件/影響範囲/テスト観点を明記）
 2. docs/CURRENT.md に進行中 Issue を追記
@@ -24,18 +57,19 @@ Summary: Issue/PR 駆動の作業手順と命名規則を定義する。
 - Issue は `docs/technical/implementation/<topic>/<topic>_plan.md` のフェーズ単位で作成する
 - Issue には「目的/完了条件/影響範囲/テスト観点/メモ」を明記する
 - Issue タイトルは次のフォーマットに統一する
-  - `#<issue番号> [<PREFIX>] <タイトル>`
+  - `[<prefix>] <title>`
 - Issue は PR に紐づけて進行し、マージ時に自動クローズする
   - PR 本文に `Fixes #<issue>` / `Closes #<issue>` / `Refs #<issue>` を記載
 
 ### Issue prefix
-- `[TASK]` 機能追加/改修の通常タスク
-- `[REF]` リファクタ/構造整理/移行作業
-- `[BUG]` 不具合修正
-- `[DOC]` ドキュメント更新/整合性整理
-- `[TEST]` テスト追加/改善
-- `[CHORE]` ツール/CI/環境整備
-- `[SPIKE]` 調査/検証/プロトタイプ
+- `[task]` 機能追加/改修の通常タスク（`./.github/ISSUE_TEMPLATE/task.md`）
+- `[bug]` 不具合修正（`./.github/ISSUE_TEMPLATE/bug.md`）
+- 上記テンプレはラベルを自動付与する（`task` / `bug`）。リポジトリにラベルが存在しない場合は作成する。
+- `[ref]` リファクタ/構造整理/移行作業
+- `[doc]` ドキュメント更新/整合性整理
+- `[test]` テスト追加/改善
+- `[chore]` ツール/CI/環境整備
+- `[spike]` 調査/検証/プロトタイプ
 
 ## ブランチ運用
 - Issue 専用ブランチを作成して作業する
@@ -44,8 +78,8 @@ Summary: Issue/PR 駆動の作業手順と命名規則を定義する。
 
 ## PR 運用
 - PR には「変更点/理由/テスト/影響」を明記する
-- PR タイトルは Issue と同じフォーマットに統一する
-  - `#<issue番号> [<PREFIX>] <タイトル>`
+- PR タイトルは Issue と同じフォーマットに統一する（issue番号はタイトルに入れない）
+  - `[<prefix>] <title>`
 - 依存関係がある場合は PR 本文に `Depends on #<PR番号>` とチェックリストを記載する
 - Issue は PR 作成後に進行中とし、マージ時にクローズする
 
@@ -103,6 +137,17 @@ CURRENT.md は「現在の作業フェーズと次の行動」を示す司令塔
 - 追加/更新時は `Status:` を付与する
 - `docs/DOCS_INDEX.md` は `scripts/generate_docs_index.py` で更新する
 - `docs/DOCS_INDEX.md` を参照する前に必ず生成スクリプトを実行する
+- `docs/DOCS_INDEX.md` は生成物であり、コミット対象外（`.gitignore`）
+
+## Issue / PR テンプレ（認識ズレ最小化）
+
+AI 駆動で認識ズレを減らすため、Issue/PR 本文では「今回の正（authoritative links）」を必ず埋める。
+
+- Issue テンプレ:
+  - `./.github/ISSUE_TEMPLATE/task.md`
+  - `./.github/ISSUE_TEMPLATE/bug.md`
+- PR テンプレ:
+  - `./.github/pull_request_template.md`
 
 ## gh の本文改行
 - `gh issue create` / `gh pr create` の本文は `\n` では改行されない
