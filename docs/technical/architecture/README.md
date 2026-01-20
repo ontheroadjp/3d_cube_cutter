@@ -6,6 +6,7 @@ Summary: 設計判断の前提・責務・依存方向・不変の構造を正�
 ## 目的
 - 実装の前提となる設計判断を一箇所に集約する
 - 仕様（Specification）と混在させず、責務と境界を明確にする
+- boundary は責務/依存方向の正、contract は入出力契約の正とする
 
 ## 主要ドキュメント
 - docs/technical/architecture/structure_first_principles.md
