@@ -36,7 +36,7 @@ Summary: 学習機能の拡張に備え、UI層をReactへ段階移行する。
 ### ステップ0: 現状把握
 - UIの機能分割と依存関係を洗い出し
 - `UIManager` の責務を整理
-- Engine / UI 契約を定義（`docs/technical/architecture/engine_ui_contract.md`）
+- Engine / UI 契約を定義（`docs/technical/specification/ui/engine_ui_contract.md`）
 
 ### ステップ1: Reactの土台
 - `index.html` に React root を追加

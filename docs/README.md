@@ -56,11 +56,12 @@ React UI 移行やオブジェクトモデル移行は継続中のため、`docs
 | `docs/documentation_policy.md` | ドキュメント管理ポリシー |
 | `docs/workflow.md` | 作業フロー（Issue/PR/ブランチ運用） |
 | `docs/issue_pr_policy.md` | Issue/PR 運用の入口 |
-| `docs/technical/architecture/design_principles.md` | 構造主体アーキテクチャの設計原則 |
-| `docs/technical/architecture/structure_first_overview.md` | 構造主体モデルの概要 |
-| `docs/technical/architecture/structure_model_spec.md` | Vertex/Edge/Face/SnapPoint の構造モデル仕様 |
+| `docs/technical/architecture/structure_first_principles.md` | 構造主体アーキテクチャの設計原則 |
+| `docs/technical/architecture/engine_ui_boundary.md` | UI と Engine の境界設計 |
+| `docs/technical/architecture/edu_engine_boundary.md` | 教育要件とエンジン設計の境界 |
+| `docs/technical/specification/object_model/structure_model_spec.md` | Vertex/Edge/Face/SnapPoint の構造モデル仕様 |
 | `docs/technical/specification/snap_point_id_spec.md` | SnapPointID 仕様書 |
-| `docs/technical/architecture/object_model_spec.md` | オブジェクトベースのモデル仕様 |
+| `docs/technical/specification/object_model/object_model_spec.md` | オブジェクトモデル仕様 |
 | `docs/technical/specification/geometry/geometry_spec.md` | GeometryResolver 仕様 |
 | `docs/technical/specification/cutter/cutter_spec.md` | Cutter 仕様 |
 | `docs/technical/specification/net/net_mapping_spec.md` | 展開図の構造マッピング仕様 |
@@ -74,7 +75,7 @@ React UI 移行やオブジェクトモデル移行は継続中のため、`docs
 
 ## 4. 使い方の目安
 
-- 設計方針を理解する: `docs/technical/architecture/design_principles.md`
+- 設計方針を理解する: `docs/technical/architecture/structure_first_principles.md`
 - SnapPointID を理解する: `docs/technical/specification/snap_point_id_spec.md`
 - 移行計画を確認する: `docs/technical/migration/structure_first_migration_plan.md`
 - 実装設計を確認する: `docs/technical/specification/`

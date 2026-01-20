@@ -64,7 +64,7 @@ Specification:
 - docs/technical/specification/
 
 Architecture:
-- docs/technical/architecture/structure_first_overview.md
+- docs/technical/architecture/structure_first_principles.md
 
 ---
 

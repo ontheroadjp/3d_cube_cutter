@@ -1,7 +1,7 @@
-# vertex_labeling_spec.md
+# ラベリング仕様（頂点）
 
 Status: Active
-Summary: ユーザー指定ラベルと内部IDの両立ルールを定義する。
+Summary: 頂点ラベルの表示ルールと内部IDの両立ルールを定義する。
 
 # 頂点ラベル設定仕様
 

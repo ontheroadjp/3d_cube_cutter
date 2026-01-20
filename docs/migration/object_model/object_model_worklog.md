@@ -13,7 +13,7 @@ Summary: オブジェクトベース移行の作業履歴を記録する。
 ## 2026-01-18T20:29:08+09:00
 Summary:
 - オブジェクトベース移行の方針を合意
-- 全体モデルの最小仕様を `object_model_spec.md` として起票
+- 全体モデルの最小仕様を `docs/technical/specification/object_model/object_model_spec.md` として起票
 
 Notes:
 - 既存の構造主体モデルを拡張して段階移行する

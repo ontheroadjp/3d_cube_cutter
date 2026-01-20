@@ -1,7 +1,7 @@
-# structure_model_spec.md
+# 構造モデル仕様
 
 Status: Active
-Summary: 構造主体アーキテクチャのVertex/Edge/Face/SnapPoint仕様と座標非依存の基盤を定義する。
+Summary: 構造主体アーキテクチャの Vertex/Edge/Face/SnapPoint 仕様と座標非依存の基盤を定義する。
 
 # 3D 立体切断シミュレーター: 構造モデル仕様書
 

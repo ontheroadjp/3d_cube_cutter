@@ -1,7 +1,7 @@
 # ui_layer_design.md
 
-Status: Draft
-Summary: 現行UIの構成と、Three.js描画との責務分離方針を整理する。
+Status: Superseded
+Summary: 置き換え先は docs/technical/architecture/engine_ui_boundary.md
 
 # UI層（React + 既存UI）設計方針
 
@@ -40,7 +40,7 @@ Summary: 現行UIの構成と、Three.js描画との責務分離方針を整理�
 
 ## 4. Engineとの接続
 UIは `globalThis.__engine` の公開APIにのみ依存する。
-詳細は `docs/technical/architecture/engine_ui_contract.md` を参照。
+詳細は `docs/technical/specification/ui/engine_ui_contract.md` を参照。
 
 ---
 

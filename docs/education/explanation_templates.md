@@ -1,11 +1,11 @@
 # explanation_templates.md
 
 Status: Active
-Summary: 本テンプレートの上位方針は docs/technical/architecture/education_engine_integrated_design.md に準拠する。
+Summary: 本テンプレートの上位方針は docs/technical/architecture/edu_engine_boundary.md に準拠する。
 
 # 3D 立体切断シミュレーター: 自動解説テンプレート
 
-本テンプレートの上位方針は `docs/technical/architecture/education_engine_integrated_design.md` に準拠する。
+本テンプレートの上位方針は `docs/technical/architecture/edu_engine_boundary.md` に準拠する。
 
 ## 1. 概要
 本テンプレートは、SnapPointID に基づき、切断操作に対して自動的に解説文を生成するための指針をまとめます。

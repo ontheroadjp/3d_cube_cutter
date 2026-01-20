@@ -1,7 +1,7 @@
 # structure_first_overview.md
 
-Status: Active
-Summary: この文書では、構造主体アーキテクチャに基づき、立方体（直方体）および切断点管理のための主要構造オブジェクトを定義します。
+Status: Superseded
+Summary: 置き換え先は docs/technical/specification/object_model/structure_model_spec.md
 
 # 3D 立体切断シミュレーター: 構造主体モデルの概要
 

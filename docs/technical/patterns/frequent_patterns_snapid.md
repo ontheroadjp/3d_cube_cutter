@@ -1,12 +1,12 @@
 # docs/technical/patterns/frequent_patterns_snapid.md
 
 Status: Active
-Summary: 本ドキュメントの上位方針は docs/technical/architecture/education_engine_integrated_design.md に準拠する。
+Summary: 本ドキュメントの上位方針は docs/technical/architecture/edu_engine_boundary.md に準拠する。
 
 # 中学受験算数: 立体切断頻出パターン (SnapPointID付き)
 
 ## 1. 目的
-本ドキュメントの上位方針は `docs/technical/architecture/education_engine_integrated_design.md` に準拠する。
+本ドキュメントの上位方針は `docs/technical/architecture/edu_engine_boundary.md` に準拠する。
 本ドキュメントは、中学受験算数で頻出する立方体・直方体の切断パターンを、教育ツール用に SnapPointID を付与して整理したものです。
 Cutter / SelectionManager / PresetManager と統合し、切断パターンを自動生成・解説する際に使用できます。
 

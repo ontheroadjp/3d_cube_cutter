@@ -12,6 +12,7 @@ Summary: 技術的な設計・仕様・移行計画をまとめる入口。
 - notes/ : 参考メモ
 
 ## 主要リンク
-- docs/technical/architecture/structure_first_overview.md
+- docs/technical/architecture/README.md
+- docs/technical/architecture/structure_first_principles.md
 - docs/technical/specification/
 - docs/technical/migration/expansion_of_structural_solid_objects.md

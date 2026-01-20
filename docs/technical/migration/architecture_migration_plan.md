@@ -21,7 +21,7 @@ Summary: 置き換え先は docs/technical/migration/structure_first_migration_p
 
 ### フェーズ 1: 準備
 1. 現行コードの機能確認、主要モジュールの責務整理
-2. `docs/technical/architecture/design_principles.md` に基づく設計思想の理解
+2. `docs/technical/architecture/structure_first_principles.md` に基づく設計思想の理解
 3. SnapPointID 命名規則を策定 (`docs/technical/specification/snap_point_id_spec.md`)
 
 **目的:** 移行の共通理解と土台作り

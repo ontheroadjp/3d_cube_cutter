@@ -1,7 +1,7 @@
 # design_principles.md
 
-Status: Active
-Summary: この文書では、現行の 3dcubecutter プロジェクトを 構造主体アーキテクチャ (Structure-First Architecture) に移行する際の基本設計原則をまとめます。
+Status: Superseded
+Summary: 置き換え先は docs/technical/architecture/structure_first_principles.md
 
 # 3D 立体切断シミュレーター: 設計原則 (Design Principles)
 
@@ -72,5 +72,4 @@ Summary: この文書では、現行の 3dcubecutter プロジェクトを 構�
 - **構造情報が主役** → 座標は従属
 - 教育支援と数値安定性を両立
 - SnapPointID による統一管理で、切断面・展開図・解説生成の一貫性を確保
-
 

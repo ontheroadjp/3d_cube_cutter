@@ -1,9 +1,7 @@
-# engine_ui_contract.md
+# Engine / UI 契約（現行API）
 
 Status: Active
-Summary: 現行UIとEngineの責務境界およびグローバルAPI契約を定義する。
-
-# Engine / UI 契約（現行API）
+Summary: 現行UIとEngineのグローバルAPI契約を定義する。
 
 ## 1. 目的
 UI（React）と Engine（Three.js/構造主体ロジック）を分離し、
