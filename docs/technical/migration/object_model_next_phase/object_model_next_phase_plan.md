@@ -1,4 +1,4 @@
-# object_model_next_phase_plan.md
+# object_model_next_phase_plan
 
 Status: Draft
 Summary: Object Model 参照を展開図以外の描画へ段階拡張するための計画。
@@ -43,5 +43,5 @@ Summary: Object Model 参照を展開図以外の描画へ段階拡張するた�
 
 ## 関連ドキュメント
 - `docs/technical/specification/object_model/object_model_spec.md`
-- `docs/technical/migration/object_model_migration_plan.md`
+- `docs/technical/migration/object_model_migration/object_model_migration_plan.md`
 - `docs/technical/specification/ui/ui_spec.md`

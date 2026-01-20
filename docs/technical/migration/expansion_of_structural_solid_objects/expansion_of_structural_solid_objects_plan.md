@@ -1,4 +1,4 @@
-# expansion_of_structural_solid_objects.md
+# expansion_of_structural_solid_objects
 
 Status: Draft
 

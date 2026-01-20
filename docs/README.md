@@ -67,7 +67,7 @@ React UI 移行やオブジェクトモデル移行は継続中のため、`docs
 | `docs/technical/specification/net/net_mapping_spec.md` | 展開図の構造マッピング仕様 |
 | `docs/technical/specification/ui/ui_spec.md` | UI の現行仕様 |
 | `docs/technical/specification/storage/storage_adapter_spec.md` | 保存アダプタ仕様 |
-| `docs/technical/migration/structure_first_migration_plan.md` | 移行計画（全体） |
+| `docs/technical/migration/structure_first_migration/structure_first_migration_plan.md` | 移行計画（全体） |
 | `docs/migration/object_model/object_model_worklog.md` | オブジェクトモデル移行の作業履歴（例外配置） |
 | `docs/technical/testing/verification_plan.md` | 検証計画 |
 
@@ -77,7 +77,7 @@ React UI 移行やオブジェクトモデル移行は継続中のため、`docs
 
 - 設計方針を理解する: `docs/technical/architecture/structure_first_principles.md`
 - SnapPointID を理解する: `docs/technical/specification/snap_point_id_spec.md`
-- 移行計画を確認する: `docs/technical/migration/structure_first_migration_plan.md`
+- 移行計画を確認する: `docs/technical/migration/structure_first_migration/structure_first_migration_plan.md`
 - 実装設計を確認する: `docs/technical/specification/`
 
 ---

@@ -1,4 +1,4 @@
-# implementation_checklist.md
+# implementation_checklist
 
 Status: Superseded
 Summary: 構造主体移行は完了済み。本チェックリストは記録用。

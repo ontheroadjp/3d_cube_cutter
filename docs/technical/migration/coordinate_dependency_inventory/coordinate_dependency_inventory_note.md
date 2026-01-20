@@ -1,4 +1,4 @@
-# coordinate_dependency_inventory.md
+# coordinate_dependency_inventory
 
 Status: Active
 Summary: 座標依存箇所を棚卸しし、SnapPointID/Resolver 起点への移行優先度を整理する。

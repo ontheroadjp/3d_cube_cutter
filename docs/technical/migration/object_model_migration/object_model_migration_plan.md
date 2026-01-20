@@ -1,4 +1,4 @@
-# object_model_migration_plan.md
+# object_model_migration_plan
 
 Status: Active
 Summary: 立体/切断/展開図の全要素をオブジェクト化するための段階的移行計画。

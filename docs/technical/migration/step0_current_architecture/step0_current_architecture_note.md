@@ -1,4 +1,4 @@
-# step0_current_architecture.md
+# step0_current_architecture
 
 Status: Legacy
 Summary: 構造主体移行の前提として、現行実装の責務とフローを整理する。

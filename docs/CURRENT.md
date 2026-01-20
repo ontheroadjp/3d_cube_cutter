@@ -9,7 +9,7 @@ Summary: 現在進行中の作業フェーズと、次に行うべき作業を�
 構造主導パイプライン全面移行
 
 全体計画:
-- docs/technical/migration/expansion_of_structural_solid_objects.md
+- docs/technical/migration/expansion_of_structural_solid_objects/expansion_of_structural_solid_objects_plan.md
 
 ---
 
@@ -55,7 +55,7 @@ Parent Issue:
 ## References
 
 Plan:
-- docs/technical/migration/expansion_of_structural_solid_objects.md
+- docs/technical/migration/expansion_of_structural_solid_objects/expansion_of_structural_solid_objects_plan.md
 
 Worklog:
 - docs/migration/object_model/object_model_worklog.md

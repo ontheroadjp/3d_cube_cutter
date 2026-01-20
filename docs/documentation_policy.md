@@ -144,9 +144,9 @@ docs 直下は、tech/edu のいずれにも属さない横断ドキュメント
 
 対象（技術側）:
 - docs/technical/migration/<topic>/
-  - plan.md（必須）
-  - memo.md（必須・空でも良い）
-  - inventory.md（任意）
+  - <topic>_plan.md（必須）
+  - <topic>_note.md（必須・空でも良い）
+  - <topic>_inventory.md（任意）
 
 対象（教育側）:
 - 原則、教育施策の段階導入や大規模改定がある場合のみ L2 相当を持つ
@@ -164,7 +164,7 @@ Work Memo（必須だが任意記述）:
 
 補足:
 - `docs/technical/migration/` 直下の既存ファイルは旧形式として扱う
-- 新規作業は必ず `<topic>/plan.md` と `<topic>/memo.md` を正とする
+- 新規作業は必ず `<topic>/<topic>_plan.md` と `<topic>/<topic>_note.md` を正とする
 
 ---
 
