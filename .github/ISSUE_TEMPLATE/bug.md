@@ -16,6 +16,11 @@ assignees: []
 
 ## 実際の結果
 
+## Authoritative links（認識合わせ）
+- docs/CURRENT.md
+- docs/glossary.md（表記の正）
+- <relevant specs/architecture>（例: docs/technical/specification/... / docs/technical/architecture/...）
+
 ## 影響範囲
 - 
 

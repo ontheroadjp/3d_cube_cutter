@@ -75,6 +75,9 @@ def main():
     header = [
         "# DOCS_INDEX",
         "",
+        "Status: Active",
+        "Summary: docs/ 配下ドキュメントの一覧（生成物）。参照前に scripts/generate_docs_index.py を実行する。",
+        "",
         "ドキュメント一覧（Status/作成日/更新日）。日付は git log に基づきます。",
         "",
         "| No | Path | Status | Description | Created (ISO) | Updated (ISO) |",

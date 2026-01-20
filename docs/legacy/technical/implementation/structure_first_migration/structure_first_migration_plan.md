@@ -2,6 +2,7 @@
 
 Status: Superseded
 Summary: 置き換え先は docs/technical/implementation/expansion_of_structural_solid_objects/expansion_of_structural_solid_objects_plan.md
+Replaced-by: docs/technical/implementation/expansion_of_structural_solid_objects/expansion_of_structural_solid_objects_plan.md
 
 本ドキュメントは、立体切断シミュレーターを
 座標主導アーキテクチャから構造主体アーキテクチャへ移行するための

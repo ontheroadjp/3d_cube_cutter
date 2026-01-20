@@ -1,6 +1,7 @@
 # expansion_of_structural_solid_objects
 
 Status: Draft
+Summary: 立体オブジェクトを構造主導（ObjectModel）に一本化するためのフェーズ計画。
 
 ## 目的
 - 立体オブジェクトを構造主導（ObjectModel）に一本化する
@@ -52,4 +53,3 @@ Status: Draft
 ## リスクと検証
 - 構造更新の不整合（隣接/辺/面の欠落）をテストで検出
 - 展開の向きズレは「ヒンジ/基準軸の不整合」として原因を切り分ける
-

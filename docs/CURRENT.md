@@ -24,9 +24,10 @@ Parent Issue:
 ## Now（進行中）
 
 - Phase 1 計画の着手準備
+- ドキュメントのポリシー整合と導線回復（#119）
 
 進行中の Issue:
-- なし（#119 完了）
+- #119 [DOC] ドキュメント構成の再編と管理ポリシーの反映（リオープン）
 
 ---
 
@@ -56,6 +57,7 @@ Parent Issue:
 
 Plan:
 - docs/technical/implementation/expansion_of_structural_solid_objects/expansion_of_structural_solid_objects_plan.md
+- docs/technical/implementation/documentation_alignment/documentation_alignment_plan.md
 
 Worklog:
 - docs/technical/implementation/object_model_migration/object_model_migration_worklog.md

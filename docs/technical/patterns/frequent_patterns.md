@@ -1,14 +1,14 @@
 # frequent_patterns.md
 
 Status: Active
-Summary: 本ファイルの上位方針は docs/technical/architecture/edu_engine_boundary.md に準拠する。
+Summary: 頻出切断パターンを SnapPointID の例として列挙する（カタログ）。プリセット契約は specification/presets を正とする。
 
 # 3D 立体切断シミュレーター: 典型的切断パターン一覧
 
 ## 1. 概要
-本ファイルの上位方針は `docs/technical/architecture/edu_engine_boundary.md` に準拠する。
-本ファイルでは、中学受験算数で頻出する立体切断パターンを分類し、SnapPointID を用いて定義します。
-教育用ハイライトや自動解説生成、展開図描画に直接利用可能です。
+本ファイルは「技術側の表現（SnapPointID/登録形式）」を正として扱う。
+教育的な“見るべき線/教え方/強調方針”は `docs/education/cut_patterns.md` を参照する。
+プリセットのデータ契約と適用フローは `docs/technical/specification/presets/preset_snapid_notes.md` を正とする。
 
 ---
 
@@ -16,25 +16,20 @@ Summary: 本ファイルの上位方針は docs/technical/architecture/edu_engin
 
 ### 2.1 頂点を含む単純切断（三角形切断）
 - **特徴**: 立方体の3頂点を通る平面で切断
-- **教育ポイント**: 切断面は三角形、面積計算が頻出
 - **SnapPointID 例**
   ```ts
   [ "V:0", "V:1", "V:2" ]
   ```
-- **ハイライト**: 選択頂点を緑、交点は黄色
 
 ### 2.2 辺上点を含む三角形切断
 - **特徴**: 1頂点 + 2辺上点
-- **教育ポイント**: 切断面が直角三角形になることが多く、辺比率理解が重要
 - **SnapPointID 例**
   ```ts
   [ "V:0", "E:12@1/2", "E:34@1/2" ]
   ```
-- **ハイライト**: 頂点は緑、辺上点は黄色
 
 ### 2.3 正中線切断（立方体の面対角線上）
 - **特徴**: 面の対角線上に点を選ぶ
-- **教育ポイント**: 切断面が平行四辺形になる場合がある
 - **SnapPointID 例**
   ```ts
   [ "E:01@1/2", "E:23@1/2", "E:45@1/2" ]
@@ -42,7 +37,6 @@ Summary: 本ファイルの上位方針は docs/technical/architecture/edu_engin
 
 ### 2.4 頂点 + 辺 + 面中央の複合切断
 - **特徴**: 1頂点 + 辺上1点 + 面中心
-- **教育ポイント**: 直方体の立体感理解、切断面の面積・展開図計算が頻出
 - **SnapPointID 例**
   ```ts
   [ "V:0", "E:12@1/4", "F:3452@center" ]
@@ -50,63 +44,22 @@ Summary: 本ファイルの上位方針は docs/technical/architecture/edu_engin
 
 ### 2.5 面平行切断（平行六面体切断）
 - **特徴**: 立方体の面に平行な平面で切断
-- **教育ポイント**: 切断面は正方形または長方形、面積計算が基本
 - **SnapPointID 例**
   ```ts
   [ "E:01@0/1", "E:12@0/1", "E:23@0/1" ]
   ```
-- **ハイライト**: 交点の黄色マーカーを強調
 
 ---
 
-## 3. パターン登録方法（PresetData 用）
-
-```ts
-export const FREQUENT_PATTERNS = [
-  {
-    name: "三角形切断（頂点3つ）",
-    category: "単純切断",
-    points: [ "V:0", "V:1", "V:2" ]
-  },
-  {
-    name: "1頂点 + 2辺上",
-    category: "単純切断",
-    points: [ "V:0", "E:12@1/2", "E:34@1/2" ]
-  },
-  {
-    name: "面対角線切断",
-    category: "面平行/対角線",
-    points: [ "E:01@1/2", "E:23@1/2", "E:45@1/2" ]
-  },
-  {
-    name: "頂点 + 辺 + 面中心",
-    category: "複合切断",
-    points: [ "V:0", "E:12@1/4", "F:3452@center" ]
-  },
-  {
-    name: "面平行切断",
-    category: "基本平行切断",
-    points: [ "E:01@0/1", "E:12@0/1", "E:23@0/1" ]
-  }
-];
-```
-
-- `points` 配列は **SnapPointID** で統一
-- PresetManager でそのまま使用可能
-- 教育支援用にハイライトや自動解説を生成
+## 3. References
+- 教育（教え方/強調方針）: docs/education/cut_patterns.md
+- 解説テンプレ（教育）: docs/education/explanation_templates.md
+- 境界条件（技術）: docs/technical/architecture/edu_engine_boundary.md
+- SnapPointID 仕様: docs/technical/specification/snap_point_id_spec.md
+- プリセット契約（技術）: docs/technical/specification/presets/preset_snapid_notes.md
 
 ---
 
-## 4. 教育支援との統合
-- 頂点: 緑マーカー
-- 辺上点: 黄色マーカー
-- 面中心点: 青マーカー
-- 重要辺: 太線表示
-- 切断パターン名とカテゴリを画面に表示して解説
-
----
-
-## 5. まとめ
-- 頻出パターンは SnapPointID で統一管理
-- Cutter / SelectionManager / PresetManager / NetManager のすべてで同じID体系を利用
-- 教育ツールとして視覚的・解説的に直接活用可能
+## 4. まとめ
+- 頻出パターンの「技術表現」を SnapPointID で統一する
+- 教育的な“見せ方”は education 側へ委譲し、参照で接続する

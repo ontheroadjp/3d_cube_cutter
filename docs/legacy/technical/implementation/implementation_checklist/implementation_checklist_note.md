@@ -1,7 +1,7 @@
 # implementation_checklist
 
-Status: Superseded
-Summary: 構造主体移行は完了済み。本チェックリストは記録用。
+Status: Legacy
+Summary: 構造主体移行の旧チェックリスト（記録用）。現行の正ではない。
 
 構造主体移行は完了済み。本チェックリストは記録用。
 

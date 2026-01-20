@@ -1,7 +1,8 @@
 # SnapPointID プリセット適用例
 
-Status: Active
-Summary: SnapPointIDプリセットの適用手順と実装例を示す。
+Status: Superseded
+Summary: 置き換え先は docs/technical/specification/presets/preset_snapid_notes.md
+Replaced-by: docs/technical/specification/presets/preset_snapid_notes.md
 
 ## 1. 概要
 
