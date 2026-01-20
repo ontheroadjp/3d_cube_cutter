@@ -70,7 +70,7 @@ Summary: 現行UIの仕様（サイドバー/ヘッダー/プリセット/設定
 ---
 
 ## 6. UI と Engine の接続
-- UIは `globalThis.__engine` に依存する（詳細は `docs/technical/architecture/engine_ui_contract.md`）。
+- UIは `globalThis.__engine` に依存する（詳細は `docs/technical/specification/ui/engine_ui_contract.md`）。
 - パネル開閉は `setPanelOpen(open)` で Engine に通知する。
 - モード変更は `setMode(mode)` で通知する。
 

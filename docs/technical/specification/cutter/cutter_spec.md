@@ -1,134 +1,108 @@
-# Cutter モジュール仕様書（TypeScript 移行版）
+# Cutter 仕様
 
 Status: Active
-Summary: Cutter モジュールは、3D立方体の切断処理を担当するコアコンポーネントです。
+Summary: Cutter の構成、CutResult データ、交点計算、CSG出力の仕様を統合して定義する。
 
-## 1. 概要
-
-Cutter モジュールは、3D立方体の切断処理を担当するコアコンポーネントです。
-本仕様書では、TypeScript 移行を前提に、責務ごとのモジュール分割、SnapPointID との連携、
-教育ツールとしての表示機能を含めた設計を明文化します。
+## 1. 目的
+- 切断処理の責務とデータ構造を一つの仕様として整理する
+- SnapPointID 主導で切断結果を構造化し、再利用可能にする
 
 ---
 
-## 2. 責務分割（モジュール構造）
-
-### 2.1 CutterCore.ts
-- **役割**: 切断平面生成・切断側判定のコアロジック
-- **入力**: `snapPointIDs: string[]`, `cube: Cube`
-- **出力**: `THREE.Plane`, `targetVertices: THREE.Vector3[]`
-- **主な関数**
-    ```ts
-    createCutPlane(snapPointIDs: string[], cube: Cube): THREE.Plane
-    determineCutSide(cube: Cube, plane: THREE.Plane, invert: boolean): {targetVertices: THREE.Vector3[], normal: THREE.Vector3}
-    ```
+## 2. Cutter の責務
+- 切断平面の生成
+- 辺と平面の交点計算
+- 切断結果（メッシュ/輪郭/マーカー）の生成
+- CutResult を通じた展開/教育表示への連携
 
 ---
 
-### 2.2 CutterCSG.ts
-- **役割**: CSG演算によるメッシュ生成
-- **入力**: `cubeBrush: Brush`, `cutBrush: Brush`
-- **出力**: `resultMesh: Mesh`, `removedMesh: Mesh`
-- **主な関数**
-    ```ts
-    executeCSG(cubeBrush: Brush, cutBrush: Brush): { resultMesh: Mesh; removedMesh: Mesh }
-    ```
+## 3. 主要データ構造
+
+### 3.1 IntersectionPoint
+```
+interface IntersectionPoint {
+  id: string;                 // SnapPointID
+  type: 'snap' | 'intersection';
+  edgeId?: string;            // 交点が所属する EdgeID
+  ratio?: { numerator: number; denominator: number };
+  faceIds?: string[];         // 交点が属する面 (1-2 面)
+  position?: THREE.Vector3;   // 描画用座標（派生情報）
+}
+```
+
+### 3.2 CutSegment
+```
+interface CutSegment {
+  startId: string;            // SnapPointID
+  endId: string;              // SnapPointID
+  faceIds?: string[];         // 共有面ID（展開図用）
+  start?: THREE.Vector3;      // 描画用座標（派生情報）
+  end?: THREE.Vector3;        // 描画用座標（派生情報）
+}
+```
+
+### 3.3 Outline
+```
+interface Outline {
+  points: IntersectionPoint[]; // CCW 順の閉曲線
+}
+```
+
+### 3.4 CutResult
+```
+interface CutResult {
+  resultMesh: THREE.Mesh;      // 切断後の本体
+  removedMesh: THREE.Mesh;     // 切り取られた部分
+  outline: Outline;            // 切断面の輪郭
+  intersections: IntersectionPoint[];
+  cutSegments: CutSegment[];
+  markers: THREE.Mesh[];       // 教育用マーカー
+}
+```
 
 ---
 
-### 2.3 CutterIntersections.ts
-- **役割**: 立方体の辺と切断平面の交点計算、輪郭線生成
-- **入力**: `cube: Cube`, `plane: THREE.Plane`, `snapPoints: SnapPoint[]`
-- **出力**: `intersections: IntersectionPoint[]`, `outline: Line3[]`
-- **主な関数**
-    ```ts
-    computeIntersections(cube: Cube, plane: THREE.Plane, snapPoints: SnapPoint[]): IntersectionPoint[]
-    generateOutline(intersections: IntersectionPoint[]): Line3[]
-    ```
+## 4. 処理フロー
+1. SnapPointID から切断平面を生成
+2. 平面と辺の交点を計算し、IntersectionPoint を構成
+3. CSG によるメッシュ生成
+4. CutResult を組み立てる
 
 ---
 
-### 2.4 CutterMarkers.ts
-- **役割**: 交点・頂点・辺中点のマーカー生成と色分け
-- **入力**: `points: THREE.Vector3[]`, `type: 'original'|'intersection'|'snapPoint'`
-- **出力**: `THREE.Mesh[]`（マーカー）
-- **主な関数**
-    ```ts
-    createVertexMarker(point: THREE.Vector3, type: 'original'|'intersection'|'snapPoint'): Mesh
-    ```
+## 5. 交点計算仕様
+- 線分内判定は閾値を用いて安定化
+- Edge の交点は ratio（有理数）で保持
+- 交点は SnapPointID を必ず付与する
 
 ---
 
-### 2.5 CutterFacade.ts
-- **役割**: 外部 API 提供・各モジュールの統合
-- **主な関数**
-    ```ts
-    cutCube(cube: Cube, snapPointIDs: string[]): void
-    flipCut(): void
-    reset(): void
-    getIntersections(): IntersectionPoint[]
-    ```
+## 6. CutResult 生成規則
+- intersections には入力 SnapPoint も含める
+- outline.points は平面上の角度順で整列
+- faceIds / ratio は構造情報から決定
 
 ---
 
-## 3. SnapPointID 連携
-
-- Cutter 内部では座標（THREE.Vector3）ではなく **SnapPointID を基準** に処理を行う
-- Cube クラスに SnapPointID → THREE.Vector3 変換関数を用意
-- IntersectionPoint の座標は派生情報として Resolver 経由で再計算可能な扱いにする
-
-    ```ts
-    getSnapPointPosition(snapId: string): THREE.Vector3
-    ```
-
-- SnapPointID の種類
-    - 頂点: `"V:0"`, `"V:1"`…
-    - 辺: `"E:01@1/2"`（0–1 辺の中点）
-    - 面: `"F:0123@center"`（4頂点の重心、拡張予定）
-
-- プリセットは SnapPointID 配列で定義可能
-- SelectionManager に渡す際も SnapPointID → 座標変換を行う
+## 7. SnapPointID 連携
+- Cutter 内部の真実は SnapPointID
+- 座標は Resolver による派生値としてのみ扱う
 
 ---
 
-## 4. 教育ツール連携
+## 8. モジュール関係（概略）
 
-- SnapPointID と IntersectionPoint の構造情報を利用
-    - どの辺上か、どの頂点か、切断面の法線方向
-- マーカー・輪郭線・色分けは CutterMarkers.ts が担当
-- UIManager / NetManager と連携して解説表示可能
-- 例: 頂点マーキング → 緑、交点 → 黄、解説テキスト → 赤枠
-
----
-
-## 5. TypeScript 移行上の注意
-
-- 型定義を明確にする
-    - SnapPoint, IntersectionPoint, Cube, Line3
-- モジュール間の依存関係を最小化
-- CSG 演算は three-bvh-csg の型定義に準拠
-- ユニットテストはモジュール単位で作成
-- SnapPointID 依存のロジックは座標変換関数を通すことでテスト可能
+```
+Cutter
+ ├─ PlaneBuilder
+ ├─ IntersectionCalculator
+ └─ CutResultBuilder
+```
 
 ---
 
-## 6. 参考図
-
-    ```
-    CutterFacade
-         │
-         ├── CutterCore.ts
-         ├── CutterCSG.ts
-         ├── CutterIntersections.ts
-         └── CutterMarkers.ts
-    ```
-
----
-
-## 7. 変更履歴
-
+## 9. 変更履歴
 | 日付       | バージョン | 変更内容 |
 |------------|------------|----------|
-| 2026-01-17 | 1.0        | 初版作成。Cutter.js 分割構造、SnapPointID、教育機能連携を反映 |
-
----
+| 2026-01-17 | 1.0        | 初版作成 |

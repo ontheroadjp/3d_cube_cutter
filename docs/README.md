@@ -1,109 +1,34 @@
-# 3D 立体切断シミュレーター ドキュメント
+# Docs Overview
 
 Status: Active
-Summary: 本プロジェクトは、中学受験算数向けの教育ツールとして、立方体・直方体の切断操作をシミュレーションするウェブアプリケーションです。
+Summary: このディレクトリはプロジェクトのドキュメント入口（地図）である。
 
-## 1. 概要
-本プロジェクトは、中学受験算数向けの教育ツールとして、立方体・直方体の切断操作をシミュレーションするウェブアプリケーションです。
-構造主体アーキテクチャへの移行は継続中で、SnapPointID を中心とした仕様の整備を進めています。
-TypeScript 移行は完了しており、`dist/` を出力して動作させます。
-React UI 移行やオブジェクトモデル移行は継続中のため、`docs/technical/migration/` を参照してください。
+## Where to start
 
----
+- 今どこ？
+  - docs/CURRENT.md
 
-## 2. ドキュメント構成
+- どう進める？（Issue / PR / ブランチ運用）
+  - docs/workflow.md
 
-```
-3d_cube_cutter/
-├─ docs/
-│  ├─ README.md
-│  ├─ CURRENT.md
-│  ├─ workflow.md
-│  ├─ documentation_policy.md
-│  ├─ issue_pr_policy.md
-│  ├─ technical/
-│  │  ├─ README.md
-│  │  ├─ architecture/
-│  │  ├─ specification/
-│  │  ├─ migration/
-│  │  ├─ patterns/
-│  │  ├─ testing/
-│  │  └─ notes/
-│  ├─ education/
-│  │  ├─ README.md
-│  │  ├─ philosophy.md
-│  │  ├─ learning_goals.md
-│  │  ├─ learner_model.md
-│  │  ├─ ui_policy.md
-│  │  ├─ content_guidelines.md
-│  │  └─ examples/
-│  ├─ migration/
-│  │  └─ object_model/
-│  │     └─ object_model_worklog.md
-│  └─ legacy/
-│     └─ v0.0.1/
-│        ├─ implementation_notes.md
-│        └─ specification.md
-```
+- 書き方・置き場所
+  - docs/documentation_policy.md
 
----
+## Documentation axes
 
-## 3. 主要ドキュメント
+- 技術ドキュメント（architecture / specification / migration）
+  - docs/technical/README.md
 
-| ファイル | 内容 |
-|----------|------|
-| `docs/CURRENT.md` | 現在地（進行中のフェーズと次の作業） |
-| `docs/documentation_policy.md` | ドキュメント管理ポリシー |
-| `docs/workflow.md` | 作業フロー（Issue/PR/ブランチ運用） |
-| `docs/issue_pr_policy.md` | Issue/PR 運用の入口 |
-| `docs/technical/architecture/design_principles.md` | 構造主体アーキテクチャの設計原則 |
-| `docs/technical/architecture/structure_first_overview.md` | 構造主体モデルの概要 |
-| `docs/technical/architecture/structure_model_spec.md` | Vertex/Edge/Face/SnapPoint の構造モデル仕様 |
-| `docs/technical/architecture/snap_point_id_spec.md` | SnapPointID 仕様書 |
-| `docs/technical/architecture/object_model_spec.md` | オブジェクトベースのモデル仕様 |
-| `docs/technical/specification/geometry/geometry_resolver_spec.md` | GeometryResolver 仕様 |
-| `docs/technical/specification/net/net_mapping_spec.md` | 展開図の構造マッピング仕様 |
-| `docs/technical/specification/ui/ui_spec.md` | UI の現行仕様 |
-| `docs/technical/specification/storage/storage_adapter_spec.md` | 保存アダプタ仕様 |
-| `docs/technical/migration/architecture_migration_plan.md` | 移行計画（全体） |
-| `docs/migration/object_model/object_model_worklog.md` | オブジェクトモデル移行の作業履歴（例外配置） |
-| `docs/technical/testing/verification_plan.md` | 検証計画 |
+- 教育ドキュメント（philosophy / learning goals / UI policy）
+  - docs/education/README.md
 
----
+- 履歴（旧版・参照用）
+  - docs/legacy/
 
-## 4. 使い方の目安
+## When starting new work
 
-- 設計方針を理解する: `docs/technical/architecture/design_principles.md`
-- SnapPointID を理解する: `docs/technical/architecture/snap_point_id_spec.md`
-- 移行計画を確認する: `docs/technical/migration/architecture_migration_plan.md`
-- 実装設計を確認する: `docs/technical/specification/`
+新規実装・リファクタ開始前に以下を確認する。
 
----
-
-## 5. 補足
-- 旧版の仕様は `docs/legacy/v0.0.1/` に隔離しています。必要な場合のみ参照してください。
-- 移行計画ドキュメントは「当時の判断」を含むため、最新の方針は `docs/technical/migration/` を参照してください。
-
-## 6. ステータス指標
-新規参加者の混乱を避けるため、各ドキュメントの冒頭に以下のステータスを付与する運用を推奨します。
-
-- `Status: Active` 現行の正式仕様/方針
-- `Status: Draft` 作業中・将来計画
-- `Status: Superseded` 置き換え済み（参照のみ）
-- `Status: Legacy` 旧版
-
-## 7. ドキュメント管理ルール
-- 追加・更新したドキュメントは必ず `Status:` を冒頭に付与
-- 仕様/方針の変更時は、旧ドキュメントを `Status: Superseded` に更新し、置き換え先を明記
-- 移行計画は実施後に `Superseded` へ移行し、最新版の参照先を明記
-- `docs/legacy` は参照のみ。現行仕様の根拠としては使わない
-
-## 8. ドキュメント一覧の自動生成
-ドキュメント一覧（Status/作成日/更新日）は自動生成します。
-
-```
-python3 scripts/generate_docs_index.py
-```
-
-生成結果: `docs/DOCS_INDEX.md`
-注意: `DOCS_INDEX.md` は自動生成物のため、参照前に必ずスクリプトを実行して最新化してください。
+1. docs/CURRENT.md
+2. docs/workflow.md
+3. docs/documentation_policy.md（L2 plan/note の要件を確認）

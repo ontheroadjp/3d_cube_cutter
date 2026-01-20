@@ -19,7 +19,7 @@ Summary: 本リポジトリにおけるドキュメントの役割分担、配�
 - ドキュメントは「役割（レイヤ）」と「視点（技術/教育）」を分離して管理する
 - 技術ドキュメントと教育ドキュメントはディレクトリを分けて物理的に管理する
 - 進捗・履歴・差分は Issue / PR / Git を正とし、ドキュメントに作業ログを書かない
-- L2（実装開始時）は plan と work memo を必ず作成する（work memo は空でもよい）
+- L2（実装開始時）は plan と note を必ず作成する（note は空でもよい）
 - 横断情報（入口・現在地・運用ルール）は docs 直下に置き、tech/edu のいずれにも属させない
 
 ---
@@ -140,17 +140,17 @@ docs 直下は、tech/edu のいずれにも属さない横断ドキュメント
 
 ---
 
-### L2: Plan & Work Memo（計画と補助メモ）
+### L2: Plan & Note（計画と補助メモ）
 
 対象（技術側）:
-- docs/technical/migration/<topic>/
-  - plan.md（必須）
-  - memo.md（必須・空でも良い）
-  - inventory.md（任意）
+- docs/technical/implementation/<topic>/
+  - <topic>_plan.md（必須）
+  - <topic>_note.md（必須・空でも良い）
+  - <topic>_inventory.md（任意）
 
 対象（教育側）:
 - 原則、教育施策の段階導入や大規模改定がある場合のみ L2 相当を持つ
-  - docs/education/migration/<topic>/（任意）
+- docs/education/implementation/<topic>/（任意）
 
 Plan（必須）:
 - フェーズ分解
@@ -161,6 +161,10 @@ Work Memo（必須だが任意記述）:
 - 作業中の気づき、注意点、判断の断片
 - 書く必要がなければ空でよい
 - 進捗・作業内容の記録は目的としない
+
+補足:
+- 新規作業は必ず `<topic>/<topic>_plan.md` と `<topic>/<topic>_note.md` を正とする
+- 例外: `docs/technical/implementation/object_model_migration/object_model_migration_worklog.md` は当面維持する
 
 ---
 
@@ -200,7 +204,7 @@ Work Memo（必須だが任意記述）:
 
 - 追加ドキュメントは必ず Status / Summary を持つ
 - ドキュメントの役割が変わる場合は、移動（配置変更）を優先し、内容を混在させない
-- Superseded / Legacy は docs/legacy または technical/migration/_history に退避して明示する
+- Superseded / Legacy は docs/legacy または technical/implementation/_history に退避して明示する
 
 ---
 
@@ -221,9 +225,16 @@ Work Memo（必須だが任意記述）:
 
 ---
 
-## 11. 本ポリシーの位置づけ
+## 11. Architecture / Specification の判断基準
+
+最短の判断式:
+- 違反したらバグ → Specification
+- 責務/境界/依存の前提 → Architecture
+
+---
+
+## 12. 本ポリシーの位置づけ
 
 - 本ドキュメントはドキュメント管理に関する最上位ポリシーとする
 - 個別ドキュメントの内容よりも本ポリシーを優先する
 - 管理構造を変更する場合は本ポリシーを更新する
-
