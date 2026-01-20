@@ -13,6 +13,13 @@ Summary: Issue/PR 駆動の作業手順と命名規則を定義する。
 - 仕様/設計/移行の整合性を維持する
 - 変更に応じてドキュメントとテストを更新する
 
+## 新規実装開始の最小手順
+1. Issue 作成（目的/完了条件/影響範囲/テスト観点を明記）
+2. docs/CURRENT.md に進行中 Issue を追記
+3. L2 plan / memo を作成（`docs/technical/migration/<topic>/`）
+4. 参照すべき仕様/設計を Issue 本文に明記
+5. Issue 専用ブランチを作成して実装開始
+
 ## Issue 運用
 - Issue には「目的/完了条件/影響範囲/テスト観点/メモ」を明記する
 - Issue タイトルは次のフォーマットに統一する
@@ -76,6 +83,7 @@ Summary: Issue/PR 駆動の作業手順と命名規則を定義する。
 - 変更に応じてドキュメントを更新する
 - 追加/更新時は `Status:` を付与する
 - `docs/DOCS_INDEX.md` は `scripts/generate_docs_index.py` で更新する
+- `docs/DOCS_INDEX.md` を参照する前に必ず生成スクリプトを実行する
 
 ## gh の本文改行
 - `gh issue create` / `gh pr create` の本文は `\n` では改行されない
