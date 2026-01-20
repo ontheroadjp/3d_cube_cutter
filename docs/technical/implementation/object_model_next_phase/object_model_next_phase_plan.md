@@ -43,5 +43,5 @@ Summary: Object Model 参照を展開図以外の描画へ段階拡張するた�
 
 ## 関連ドキュメント
 - `docs/technical/specification/object_model/object_model_spec.md`
-- `docs/technical/migration/object_model_migration/object_model_migration_plan.md`
+- `docs/technical/implementation/object_model_migration/object_model_migration_plan.md`
 - `docs/technical/specification/ui/ui_spec.md`

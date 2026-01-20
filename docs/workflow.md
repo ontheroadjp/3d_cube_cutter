@@ -16,7 +16,7 @@ Summary: Issue/PR 駆動の作業手順と命名規則を定義する。
 ## 新規実装開始の最小手順
 1. Issue 作成（目的/完了条件/影響範囲/テスト観点を明記）
 2. docs/CURRENT.md に進行中 Issue を追記
-3. L2 plan / note を作成（`docs/technical/migration/<topic>/`）
+3. L2 plan / note を作成（`docs/technical/implementation/<topic>/`）
 4. 参照すべき仕様/設計を Issue 本文に明記
 5. Issue 専用ブランチを作成して実装開始
 

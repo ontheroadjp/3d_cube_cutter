@@ -143,14 +143,14 @@ docs 直下は、tech/edu のいずれにも属さない横断ドキュメント
 ### L2: Plan & Work Memo（計画と補助メモ）
 
 対象（技術側）:
-- docs/technical/migration/<topic>/
+- docs/technical/implementation/<topic>/
   - <topic>_plan.md（必須）
   - <topic>_note.md（必須・空でも良い）
   - <topic>_inventory.md（任意）
 
 対象（教育側）:
 - 原則、教育施策の段階導入や大規模改定がある場合のみ L2 相当を持つ
-  - docs/education/migration/<topic>/（任意）
+- docs/education/implementation/<topic>/（任意）
 
 Plan（必須）:
 - フェーズ分解
@@ -163,9 +163,8 @@ Work Memo（必須だが任意記述）:
 - 進捗・作業内容の記録は目的としない
 
 補足:
-- `docs/technical/migration/` 直下の既存ファイルは旧形式として扱う
 - 新規作業は必ず `<topic>/<topic>_plan.md` と `<topic>/<topic>_note.md` を正とする
-- 例外: `docs/technical/migration/object_model_migration/object_model_migration_worklog.md` は当面維持する
+- 例外: `docs/technical/implementation/object_model_migration/object_model_migration_worklog.md` は当面維持する
 
 ---
 
@@ -205,7 +204,7 @@ Work Memo（必須だが任意記述）:
 
 - 追加ドキュメントは必ず Status / Summary を持つ
 - ドキュメントの役割が変わる場合は、移動（配置変更）を優先し、内容を混在させない
-- Superseded / Legacy は docs/legacy または technical/migration/_history に退避して明示する
+- Superseded / Legacy は docs/legacy または technical/implementation/_history に退避して明示する
 
 ---
 
