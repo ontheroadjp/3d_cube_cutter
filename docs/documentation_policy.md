@@ -165,6 +165,7 @@ Work Memo（必須だが任意記述）:
 補足:
 - `docs/technical/migration/` 直下の既存ファイルは旧形式として扱う
 - 新規作業は必ず `<topic>/<topic>_plan.md` と `<topic>/<topic>_note.md` を正とする
+- 例外: `docs/technical/migration/object_model_migration/object_model_migration_worklog.md` は当面維持する
 
 ---
 
