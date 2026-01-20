@@ -58,7 +58,7 @@ Plan:
 - docs/technical/migration/expansion_of_structural_solid_objects/expansion_of_structural_solid_objects_plan.md
 
 Worklog:
-- docs/migration/object_model/object_model_worklog.md
+- docs/technical/migration/object_model_migration/object_model_migration_worklog.md
 
 Specification:
 - docs/technical/specification/

@@ -68,7 +68,7 @@ React UI 移行やオブジェクトモデル移行は継続中のため、`docs
 | `docs/technical/specification/ui/ui_spec.md` | UI の現行仕様 |
 | `docs/technical/specification/storage/storage_adapter_spec.md` | 保存アダプタ仕様 |
 | `docs/technical/migration/structure_first_migration/structure_first_migration_plan.md` | 移行計画（全体） |
-| `docs/migration/object_model/object_model_worklog.md` | オブジェクトモデル移行の作業履歴（例外配置） |
+| `docs/technical/migration/object_model_migration/object_model_migration_worklog.md` | オブジェクトモデル移行の作業履歴 |
 | `docs/technical/testing/verification_plan.md` | 検証計画 |
 
 ---

@@ -57,4 +57,4 @@ Summary: 立体/切断/展開図の全要素をオブジェクト化するため
 - `docs/technical/specification/net/net_mapping_spec.md`
 
 ## 作業履歴
-- 進行ログは `docs/migration/object_model/object_model_worklog.md` に記載する
+- 進行ログは `docs/technical/migration/object_model_migration/object_model_migration_worklog.md` に記載する
