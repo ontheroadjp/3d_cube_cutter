@@ -21,6 +21,7 @@ Summary: Issue/PR 駆動の作業手順と命名規則を定義する。
 5. Issue 専用ブランチを作成して実装開始
 
 ## Issue 運用
+- Issue は `docs/technical/implementation/<topic>/<topic>_plan.md` のフェーズ単位で作成する
 - Issue には「目的/完了条件/影響範囲/テスト観点/メモ」を明記する
 - Issue タイトルは次のフォーマットに統一する
   - `#<issue番号> [<PREFIX>] <タイトル>`
@@ -67,6 +68,24 @@ Summary: Issue/PR 駆動の作業手順と命名規則を定義する。
 - PR タイトルはワークフロー形式を維持し、最終コミットは Conventional Commits に統一する
 - Squash merge を利用する場合、最終コミットメッセージを Conventional 形式で整える
 
+## CURRENT.md の運用
+
+CURRENT.md は「現在の作業フェーズと次の行動」を示す司令塔ドキュメントとする。
+
+以下のタイミングで更新すること：
+
+- 新しい Epic / 大きなフェーズを開始するとき
+- Current Phase が変わったとき
+- 進行中 Issue（Now）が切り替わったとき
+- 次に着手する作業（Next）が明確になったとき
+- Phase の完了条件（Done Criteria）を満たしたとき
+
+以下は CURRENT.md に書かないこと：
+
+- 日々の進捗ログ
+- 実装の詳細
+- 試行錯誤のメモ（Issue / PR に記載する）
+
 ## テスト運用
 - PR 作成前: `npm run typecheck` 必須
 - マージ前: `npm run typecheck` と `npm test` 必須
@@ -77,7 +96,7 @@ Summary: Issue/PR 駆動の作業手順と命名規則を定義する。
 - `npm test` が成功している
 - 主要ユースケースの手動確認（必要な場合）
 - ドキュメント更新（必要な場合）
-- 破壊的変更なら migration note / release note を追加
+- 破壊的変更なら implementation note / release note を追加
 
 ## ドキュメント運用
 - 変更に応じてドキュメントを更新する
