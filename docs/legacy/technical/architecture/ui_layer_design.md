@@ -2,6 +2,7 @@
 
 Status: Superseded
 Summary: 置き換え先は docs/technical/architecture/engine_ui_boundary.md
+Replaced-by: docs/technical/architecture/engine_ui_boundary.md
 
 # UI層（React + 既存UI）設計方針
 

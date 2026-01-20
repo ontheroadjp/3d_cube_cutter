@@ -2,6 +2,7 @@
 
 Status: Superseded
 Summary: 置き換え先は docs/technical/specification/snap_point_id_spec.md
+Replaced-by: docs/technical/specification/snap_point_id_spec.md
 
 
 # SnapPointID パース / 正規化仕様

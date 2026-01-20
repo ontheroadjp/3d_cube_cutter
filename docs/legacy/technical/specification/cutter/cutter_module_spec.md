@@ -2,6 +2,7 @@
 
 Status: Superseded
 Summary: 置き換え先は docs/technical/specification/cutter/cutter_spec.md
+Replaced-by: docs/technical/specification/cutter/cutter_spec.md
 
 
 Cutter を構成する各モジュールの役割と責務を整理する。

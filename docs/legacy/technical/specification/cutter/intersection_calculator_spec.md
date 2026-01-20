@@ -2,6 +2,7 @@
 
 Status: Superseded
 Summary: 置き換え先は docs/technical/specification/cutter/cutter_spec.md
+Replaced-by: docs/technical/specification/cutter/cutter_spec.md
 
 
 切断平面と辺の交点計算を安定化する仕様を定義する。

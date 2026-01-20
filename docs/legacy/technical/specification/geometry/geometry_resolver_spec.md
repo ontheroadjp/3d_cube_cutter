@@ -2,6 +2,7 @@
 
 Status: Superseded
 Summary: 置き換え先は docs/technical/specification/geometry/geometry_spec.md
+Replaced-by: docs/technical/specification/geometry/geometry_spec.md
 
 
 # GeometryResolver モジュール仕様書

@@ -2,6 +2,7 @@
 
 Status: Superseded
 Summary: 置き換え先は docs/technical/specification/object_model/structure_model_spec.md
+Replaced-by: docs/technical/specification/object_model/structure_model_spec.md
 
 # 3D 立体切断シミュレーター: 構造主体モデルの概要
 

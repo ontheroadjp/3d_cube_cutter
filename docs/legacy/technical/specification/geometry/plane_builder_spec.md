@@ -2,6 +2,7 @@
 
 Status: Superseded
 Summary: 置き換え先は docs/technical/specification/geometry/geometry_spec.md
+Replaced-by: docs/technical/specification/geometry/geometry_spec.md
 
 
 SnapPoint から切断平面を生成する仕様を定義する。

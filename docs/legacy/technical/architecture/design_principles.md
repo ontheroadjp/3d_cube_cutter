@@ -2,6 +2,7 @@
 
 Status: Superseded
 Summary: 置き換え先は docs/technical/architecture/structure_first_principles.md
+Replaced-by: docs/technical/architecture/structure_first_principles.md
 
 # 3D 立体切断シミュレーター: 設計原則 (Design Principles)
 

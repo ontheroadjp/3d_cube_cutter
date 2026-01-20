@@ -2,6 +2,7 @@
 
 Status: Superseded
 Summary: 置き換え先は docs/technical/specification/cutter/cutter_spec.md
+Replaced-by: docs/technical/specification/cutter/cutter_spec.md
 
 
 # CutResult / IntersectionPoint データ仕様
