@@ -13,7 +13,7 @@ describe('Cube', () => {
     const cube = new Cube(scene, 10);
 
     expect(cube.getSnapPointIdForVertexLabel('A')).toBe('V:0');
-    expect(cube.getSnapPointIdForEdgeName('AB', 1, 2)).toBe('E:01@1/2');
+    expect(cube.getSnapPointIdForEdgeName('AB', 1, 2)).toBe('E:0-1@1/2');
   });
 
   it('should apply vertex label map to display and structure', () => {

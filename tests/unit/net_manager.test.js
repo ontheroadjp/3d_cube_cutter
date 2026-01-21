@@ -62,9 +62,9 @@ describe('NetManager', () => {
 
   it('should map front face midpoint to center of the front grid cell', () => {
     const segment = {
-      startId: 'E:01@1/2',
-      endId: 'E:04@1/2',
-      faceIds: ['F:0154']
+      startId: 'E:0-1@1/2',
+      endId: 'E:0-4@1/2',
+      faceIds: ['F:0-1-5-4']
     };
 
     const resolveSpy = vi.spyOn(resolver, 'resolveSnapPoint');
@@ -73,15 +73,15 @@ describe('NetManager', () => {
     const ctx = netManager.ctx;
     expect(ctx.moveTo).toHaveBeenCalled();
     expect(ctx.lineTo).toHaveBeenCalled();
-    expect(resolveSpy).toHaveBeenCalledWith('E:01@1/2');
-    expect(resolveSpy).toHaveBeenCalledWith('E:04@1/2');
+    expect(resolveSpy).toHaveBeenCalledWith('E:0-1@1/2');
+    expect(resolveSpy).toHaveBeenCalledWith('E:0-4@1/2');
   });
 
   it('should draw segments inside the front face grid cell', () => {
     const segment = {
-      startId: 'E:01@1/2',
-      endId: 'E:04@1/2',
-      faceIds: ['F:0154']
+      startId: 'E:0-1@1/2',
+      endId: 'E:0-4@1/2',
+      faceIds: ['F:0-1-5-4']
     };
 
     netManager.update([segment], cube.getStructure(), resolver);
@@ -99,9 +99,9 @@ describe('NetManager', () => {
 
   it('should resolve segments with multiple faceIds using a deterministic rule', () => {
     const segment = {
-      startId: 'E:01@1/2',
-      endId: 'E:04@1/2',
-      faceIds: ['F:0154', 'F:0321']
+      startId: 'E:0-1@1/2',
+      endId: 'E:0-4@1/2',
+      faceIds: ['F:0-1-5-4', 'F:0-3-2-1']
     };
 
     netManager.update([segment], cube.getStructure(), resolver);
