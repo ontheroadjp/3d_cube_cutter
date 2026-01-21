@@ -11,7 +11,7 @@ import { buildUserPresetState } from './js/presets/userPresetState.js';
 import { NoopStorageAdapter, IndexedDbStorageAdapter } from './js/storage/storageAdapter.js';
 import { generateExplanation } from './js/education/explanationGenerator.js';
 import { initReactApp } from './js/ui/reactApp.js';
-import { ObjectModelManager } from './js/model/objectModelManager.js';
+import { ObjectModelManager, type EngineEvent } from './js/model/objectModelManager.js';
 import type { CutFacePolygon, DisplayState, LearningProblem, UserPresetState } from './js/types.js';
 import type { ObjectNetState } from './js/model/objectModel.js';
 import { normalizeSnapPointId, parseSnapPointId } from './js/geometry/snapPointId.js';
@@ -231,6 +231,9 @@ class App {
             getNetVisible: () => this.objectModelManager.getNetVisible()
         };
         initReactApp();
+
+        this.objectModelManager.subscribe((event) => this.handleEngineEvent(event));
+
         if (!this.useReactPresets) {
             this.ui.populatePresets(this.presetManager.getPresets());
         }
@@ -242,6 +245,42 @@ class App {
         this.setInitialState();
         this.handleResize();
         this.animate();
+    }
+
+    handleEngineEvent(event: EngineEvent) {
+        switch (event.type) {
+            case "SSOT_UPDATED": {
+                const display = this.objectModelManager.getDisplayState();
+                this.objectModelManager.applyDisplayToView(display);
+                this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
+                this.cutter.setTransparency(display.cubeTransparent);
+                this.selection.toggleVertexLabels(display.showVertexLabels);
+                this.updateNetOverlayDisplay(display);
+                this.updateNetLabelDisplay(display);
+                
+                // Sync global/React state
+                if (typeof globalThis.__setDisplayState === 'function') {
+                    globalThis.__setDisplayState(display);
+                }
+                break;
+            }
+            case "CUT_RESULT_UPDATED": {
+                this.cutter.refreshEdgeHighlightColors();
+                this.cutter.updateCutPointMarkers(this.objectModelManager.resolveCutIntersectionPositions());
+                this.netManager.update(this.objectModelManager.getCutSegments(), this.cube, this.resolver);
+                this.selection.updateSplitLabels(this.objectModelManager.getCutIntersections());
+                break;
+            }
+            case "NET_DERIVED_UPDATED": {
+                this.applyNetStateFromModel();
+                break;
+            }
+            case "ERROR": {
+                console.error("Engine Error:", event.message);
+                this.ui.showMessage(event.message, "warning");
+                break;
+            }
+        }
     }
 
     setInitialState() {
@@ -328,10 +367,6 @@ class App {
             facePolygons: this.cutter.getResultFacePolygons(),
             faceAdjacency: this.cutter.getResultFaceAdjacency()
         });
-        this.cutter.refreshEdgeHighlightColors();
-        this.cutter.updateCutPointMarkers(this.objectModelManager.resolveCutIntersectionPositions());
-        this.netManager.update(this.objectModelManager.getCutSegments(), this.cube, this.resolver);
-        this.selection.updateSplitLabels(this.objectModelManager.getCutIntersections());
         const explanation = generateExplanation({
             snapIds,
             outlineRefs: this.cutter.getOutlineRefs(),
@@ -519,18 +554,10 @@ class App {
         const next = { ...current, ...display };
         this.ui.applyDisplayState(next);
         this.objectModelManager.setDisplay(next);
-        this.objectModelManager.applyDisplayToView(next);
-        this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
-        this.cutter.setTransparency(next.cubeTransparent);
-        const modelDisplay = this.objectModelManager.getDisplayState();
-        this.updateNetOverlayDisplay(modelDisplay);
-        this.updateNetLabelDisplay(modelDisplay);
+        
         if (this.objectModelManager.getNetState().state !== 'closed') {
             this.cube.setVisible(false);
             this.cutter.setVisible(false);
-        }
-        if (typeof globalThis.__setDisplayState === 'function') {
-            globalThis.__setDisplayState(next);
         }
     }
 
@@ -1581,7 +1608,6 @@ class App {
                 ...partial
             }
         });
-        this.applyNetStateFromModel();
     }
 
     syncNetModelState() {
@@ -1604,7 +1630,6 @@ class App {
             camera: current.camera
         };
         this.objectModelManager.syncNetState({ faces, animation });
-        this.applyNetStateFromModel();
     }
 
     buildCutNetUnfoldGroup(

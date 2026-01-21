@@ -23,6 +23,15 @@ const DEFAULT_DISPLAY: DisplayState = {
   colorizeCutLines: false
 };
 
+export type EngineEvent =
+  | { type: "SSOT_UPDATED"; payload?: ObjectModel }
+  | { type: "DERIVED_UPDATED"; payload?: any }
+  | { type: "CUT_RESULT_UPDATED"; payload?: any }
+  | { type: "NET_DERIVED_UPDATED"; payload?: any }
+  | { type: "ERROR"; message: string };
+
+type Listener = (event: EngineEvent) => void;
+
 export class ObjectModelManager {
   cube: Cube;
   resolver: GeometryResolver;
@@ -38,6 +47,8 @@ export class ObjectModelManager {
   netFaces: ObjectNetFace[];
   netState: ObjectNetState;
   netVisible: boolean;
+
+  private listeners: Listener[] = [];
 
   constructor({
     cube,
@@ -66,6 +77,17 @@ export class ObjectModelManager {
     this.netVisible = false;
   }
 
+  subscribe(listener: Listener): () => void {
+    this.listeners.push(listener);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== listener);
+    };
+  }
+
+  private notify(event: EngineEvent) {
+    this.listeners.forEach(l => l(event));
+  }
+
   build(displayOverride?: DisplayState) {
     const structure = this.cube.getStructure();
     const solid = buildObjectSolidModel({
@@ -75,6 +97,7 @@ export class ObjectModelManager {
     });
     if (!solid) {
       this.model = null;
+      this.notify({ type: "ERROR", message: "Failed to build solid model" });
       return null;
     }
     const display = displayOverride || (this.ui ? this.ui.getDisplayState() : DEFAULT_DISPLAY);
@@ -103,6 +126,8 @@ export class ObjectModelManager {
     this.netFaces = [];
     this.netState = this.createDefaultNetState();
     this.netVisible = false;
+    
+    this.notify({ type: "SSOT_UPDATED", payload: this.model });
     return this.model;
   }
 
@@ -121,6 +146,7 @@ export class ObjectModelManager {
     if (this.model.cut) {
       this.model.cut.showCutSurface = display.showCutSurface;
     }
+    this.notify({ type: "SSOT_UPDATED", payload: this.model });
   }
 
   applyDisplayToView(displayOverride?: DisplayState) {
@@ -397,6 +423,7 @@ export class ObjectModelManager {
     } else {
       this.setCutFacePolygons([], []);
     }
+    this.notify({ type: "CUT_RESULT_UPDATED", payload: { intersections, cutSegments, facePolygons } });
   }
 
   getCutSegments() {
@@ -440,6 +467,7 @@ export class ObjectModelManager {
         this.model.net.visible = visible;
       }
     }
+    this.notify({ type: "NET_DERIVED_UPDATED", payload: { faces, animation, visible } });
   }
 
   getNetState() {
