@@ -1161,13 +1161,15 @@ export class Cutter {
       });
     });
 
-    const edgeLines = solid.edges.map((edge: any) => {
+    const edgesArray = Array.isArray(solid.edges) ? solid.edges : Object.values(solid.edges);
+
+    const edgeLines = edgesArray.map((edge: any) => {
         const edgeId = typeof edge === 'string' ? edge : edge.id;
         const resolved = resolver.resolveEdge(edgeId);
         return resolved ? new THREE.Line3(resolved.start, resolved.end) : null;
     });
 
-    solid.edges.forEach((edge: any, index: number) => {
+    edgesArray.forEach((edge: any, index: number) => {
         const line = edgeLines[index];
         if (!line) return;
         const target = new THREE.Vector3();
@@ -1209,9 +1211,17 @@ export class Cutter {
         const foundFaces: string[] = [];
         if (ref.edgeId) {
             Object.values(solid.faces).forEach((face: any) => {
-                 // Assume face.edges is list of IDs
-                 const edgeIds = Array.isArray(face.edges) ? face.edges.map((e:any) => typeof e === 'string'?e:e.id) : [];
-                 if (edgeIds.includes(ref.edgeId)) foundFaces.push(face.id);
+                 const vertexIds = face.vertices || [];
+                 for (let i = 0; i < vertexIds.length; i++) {
+                     const v0 = vertexIds[i];
+                     const v1 = vertexIds[(i + 1) % vertexIds.length];
+                     const sorted = [v0, v1].sort();
+                     const edgeId = `E:${sorted[0].replace('V:', '')}-${sorted[1].replace('V:', '')}`;
+                     if (edgeId === ref.edgeId) {
+                         foundFaces.push(face.id);
+                         break;
+                     }
+                 }
             });
         }
         return foundFaces.length ? foundFaces : undefined;
@@ -1237,20 +1247,28 @@ export class Cutter {
     const polygons: CutFacePolygon[] = [];
     Object.values(solid.faces).forEach((face: any) => {
         // Assume face.vertices is list of Vertex objects or IDs
-        const vertices = face.vertices.map((v: any) => {
+        const vertexIds = face.vertices || [];
+        const vertices = vertexIds.map((v: any) => {
             const id = typeof v === 'string' ? v : v.id;
             return { id, position: resolver.resolveVertex(id) };
         }).filter((v:any) => v.position);
         
-        // Assume face.edges corresponds to vertices
-        const edges = Array.isArray(face.edges) ? face.edges.map((e:any) => typeof e === 'string'?e:e.id) : [];
-        if (vertices.length < 3 || edges.length !== vertices.length) return;
+        if (vertices.length < 3) return;
+
+        // Resolve edge IDs for each vertex pair in the face
+        const faceEdgeIds: string[] = [];
+        for (let i = 0; i < vertexIds.length; i++) {
+            const v0 = vertexIds[i];
+            const v1 = vertexIds[(i + 1) % vertexIds.length];
+            const sorted = [v0, v1].sort();
+            faceEdgeIds.push(`E:${sorted[0].replace('V:', '')}-${sorted[1].replace('V:', '')}`);
+        }
 
         const output: any[] = [];
         for (let i = 0; i < vertices.length; i++) {
             const current = vertices[i];
             const next = vertices[(i + 1) % vertices.length];
-            const edgeId = edges[i];
+            const edgeId = faceEdgeIds[i];
             const d1 = plane.distanceToPoint(current.position);
             const d2 = plane.distanceToPoint(next.position);
             const inside1 = isInside(d1);
@@ -1306,7 +1324,7 @@ export class Cutter {
         });
         
         const cutVertexIds = cutPoints.map(p => p.ref.id);
-        const cutFaceId = `F:${cutVertexIds.join('-')}`;
+        const cutFaceId = `F:${cutVertexIds.map(id => id.startsWith('V:') ? id.slice(2) : id).join('-')}`;
         
         polygons.push({
             faceId: cutFaceId,

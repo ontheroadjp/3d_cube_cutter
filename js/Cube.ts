@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createLabel } from './utils.js';
 import { getDefaultIndexMap } from './geometry/indexMap.js';
+import { buildCubeStructure } from './structure/structureModel.js';
 import type { CubeSize } from './types.js';
 import type { GeometryResolver } from './geometry/GeometryResolver.js';
 import type { ObjectModel, VertexID, EdgeID, FaceID } from './model/objectModel.js';
@@ -19,6 +20,7 @@ export class Cube {
   faceLabels: Map<FaceID, THREE.Sprite>;
 
   // Legacy properties for compatibility (to be removed gradually)
+  cubeMesh: THREE.Mesh;
   size: number;
   edgeLengths: CubeSize;
   physicalIndexToIndex: Record<number, number> = {
@@ -58,6 +60,30 @@ export class Cube {
       return undefined;
   }
 
+  getSnapPointIdForVertexLabel(label: string): string | null {
+      // Temporary mapping for legacy tests
+      const labelToIndex: Record<string, string> = {
+          'A': '0', 'B': '1', 'C': '2', 'D': '3',
+          'E': '4', 'F': '5', 'G': '6', 'H': '7'
+      };
+      const index = labelToIndex[label];
+      return index ? `V:${index}` : null;
+  }
+
+  getSnapPointIdForEdgeName(name: string, num: number, den: number): string | null {
+      // Temporary mapping for legacy tests (e.g., AB -> E:0-1)
+      const labelToIndex: Record<string, string> = {
+          'A': '0', 'B': '1', 'C': '2', 'D': '3',
+          'E': '4', 'F': '5', 'G': '6', 'H': '7'
+      };
+      if (name.length !== 2) return null;
+      const i1 = labelToIndex[name[0]];
+      const i2 = labelToIndex[name[1]];
+      if (!i1 || !i2) return null;
+      const indices = [parseInt(i1), parseInt(i2)].sort((a, b) => a - b);
+      return `E:${indices[0]}-${indices[1]}@${num}/${den}`;
+  }
+
   constructor(scene: THREE.Scene, size = 10) {
     this.scene = scene;
     this.resolver = null;
@@ -73,6 +99,19 @@ export class Cube {
     this.vertexSprites = new Map();
     this.edgeLabels = new Map();
     this.faceLabels = new Map();
+
+    // Legacy cubeMesh for CSG and tests
+    const geometry = new THREE.BoxGeometry(size, size, size);
+    const material = new THREE.MeshPhongMaterial({
+        color: 0x66ccff,
+        transparent: true,
+        opacity: 0.4,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+    this.cubeMesh = new THREE.Mesh(geometry, material);
+    // Note: this.cubeMesh is NOT added to scene by default in new pipeline,
+    // but Cutter.ts needs it for CSG reference.
 
     this.vertexMeshes = [];
     this.edgeMeshes = [];
@@ -262,6 +301,14 @@ export class Cube {
     // Update or add faces
     Object.values(ssot.faces).forEach(face => {
       let mesh = this.faceMeshes.get(face.id);
+      
+      // Optimization: Skip regeneration during net unfolding if already exists
+      if (mesh && model.derived.net && model.derived.net.visible) {
+          const label = this.faceLabels.get(face.id);
+          if (label) label.visible = presentation.display.showFaceLabels;
+          return;
+      }
+
       const vertices = face.vertices.map(vId => this.resolver!.resolveSnapPoint(vId)).filter(Boolean) as THREE.Vector3[];
       
       if (vertices.length < 3) return;
@@ -549,10 +596,16 @@ export class Cube {
   setVertexLabelMap(labelMap: any) {
       this.displayLabelMap = labelMap;
   }
-  getDisplayLabelByIndex(index: number) { 
-      return this.displayLabelMap ? this.displayLabelMap[`V:${index}`] : `V:${index}`; 
+  getDisplayLabelByIndex(index: string | number) { 
+      const id = typeof index === 'string' && index.startsWith('V:') ? index : `V:${index}`;
+      return this.displayLabelMap ? this.displayLabelMap[id] : id; 
   }
   getIndexMap() { return this.indexMap; }
-  getStructure() { return null; }
+  getStructure() {
+      return buildCubeStructure({
+          indexMap: this.indexMap,
+          labelMap: this.displayLabelMap
+      });
+  }
   getSize() { return this.edgeLengths; }
 }

@@ -74,33 +74,13 @@ class App {
     objectModelManager: ObjectModelManager;
     currentMode: string;
     panelOpen: boolean;
-    netUnfoldGroup: THREE.Group | null;
-    netUnfoldState: 'closed' | 'opening' | 'open' | 'closing' | 'prescale' | 'postscale';
-    netUnfoldDuration: number;
-    netUnfoldFaceDuration: number;
-    netUnfoldStagger: number;
     defaultCameraPosition: THREE.Vector3;
     defaultCameraTarget: THREE.Vector3;
-    netUnfoldFaces: Array<{
-        pivot: THREE.Group;
-        mesh: THREE.Mesh;
-        startQuat: THREE.Quaternion;
-        endQuat: THREE.Quaternion;
-        delayIndex: number;
-        faceId?: string;
-    }>;
-    netUnfoldTargetCenter: THREE.Vector3 | null;
-    netUnfoldPositionTarget: THREE.Vector3 | null;
-    netUnfoldPreScaleDelay: number;
-    netUnfoldPostScaleDelay: number;
-    netUnfoldScaleReadyAt: number | null;
-    layoutPanelOffset: number;
-    layoutTargetPanelOffset: number;
+    layoutTransitionActive: boolean;
     layoutTransitionStart: number;
     layoutTransitionFrom: number;
     layoutTransitionTo: number;
-    layoutTransitionDuration: number;
-    layoutTransitionActive: boolean;
+    layoutPanelOffset: number;
 
     constructor() {
         // --- State Properties ---
@@ -117,21 +97,9 @@ class App {
         this.useReactUserPresets = false;
         this.currentMode = 'free';
         this.panelOpen = false;
-        this.netUnfoldGroup = null;
-        this.netUnfoldState = 'closed';
-        this.netUnfoldDuration = 800;
-        this.netUnfoldFaceDuration = 700;
-        this.netUnfoldStagger = 700;
         this.defaultCameraPosition = new THREE.Vector3(10, 5, 3);
         this.defaultCameraTarget = new THREE.Vector3(0, 0, 0);
-        this.netUnfoldFaces = [];
-        this.netUnfoldTargetCenter = null;
-        this.netUnfoldPositionTarget = null;
-        this.netUnfoldPreScaleDelay = 320;
-        this.netUnfoldPostScaleDelay = 220;
-        this.netUnfoldScaleReadyAt = null;
         this.layoutPanelOffset = 0;
-        this.layoutTargetPanelOffset = 0;
         this.layoutTransitionStart = 0;
         this.layoutTransitionFrom = 0;
         this.layoutTransitionTo = 0;
@@ -263,8 +231,6 @@ class App {
                 this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
                 this.cutter.setTransparency(display.cubeTransparent);
                 this.selection.toggleVertexLabels(display.showVertexLabels);
-                this.updateNetOverlayDisplay(display);
-                this.updateNetLabelDisplay(display);
                 
                 // Sync global/React state
                 if (typeof globalThis.__setDisplayState === 'function') {
@@ -406,7 +372,6 @@ class App {
         this.clearLearningPlane();
         this.clearLearningHints();
         if (this.objectModelManager.getNetState().state !== 'closed') {
-            this.clearNetUnfoldGroup();
             this.cube.setVisible(true);
         }
         this.objectModelManager.setNetVisible(false);
@@ -504,10 +469,11 @@ class App {
         }
         if (parsed.type === 'edge') {
             const edgeIndex = parsed.edgeIndex || '';
-            const i1 = Number(edgeIndex[0]);
-            const i2 = Number(edgeIndex[1]);
-            const label1 = this.cube.getDisplayLabelByIndex(i1) || edgeIndex[0];
-            const label2 = this.cube.getDisplayLabelByIndex(i2) || edgeIndex[1];
+            const parts = edgeIndex.split('-');
+            const i1 = Number(parts[0]);
+            const i2 = Number(parts[1]);
+            const label1 = this.cube.getDisplayLabelByIndex(isNaN(i1) ? parts[0] : i1) || parts[0];
+            const label2 = this.cube.getDisplayLabelByIndex(isNaN(i2) ? parts[1] : i2) || parts[1];
             const ratio = parsed.ratio;
             if (ratio && ratio.numerator * 2 === ratio.denominator) {
                 return `辺${label1}${label2}の中点に印をつけよう。`;
@@ -788,59 +754,6 @@ class App {
         canvas.style.position = 'fixed';
         canvas.style.top = '0';
         canvas.style.left = `${sidebarWidth + panelOffset}px`;
-        this.updateNetUnfoldScale();
-    }
-
-    logNetUnfoldInvalid(context: string, detail: Record<string, unknown>) {
-        console.error(`[net] ${context}`, detail);
-    }
-
-    updateNetUnfoldScale() {
-        if (!this.netUnfoldGroup) return;
-        const originalScale = this.netUnfoldGroup.scale.clone();
-        const originalQuats = this.netUnfoldFaces.map(face => face.pivot.quaternion.clone());
-        this.netUnfoldFaces.forEach(face => face.pivot.quaternion.copy(face.endQuat));
-        this.netUnfoldGroup.scale.setScalar(1);
-        this.netUnfoldGroup.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(this.netUnfoldGroup);
-        const center = new THREE.Vector3();
-        box.getCenter(center);
-        const size = new THREE.Vector3();
-        box.getSize(size);
-        if (!Number.isFinite(size.x) || !Number.isFinite(size.y) || !Number.isFinite(size.z) || size.x <= 0 || size.y <= 0) {
-            this.logNetUnfoldInvalid('invalid net bounds', {
-                size: { x: size.x, y: size.y, z: size.z },
-                faceCount: this.netUnfoldFaces.length,
-                groupChildren: this.netUnfoldGroup.children.length
-            });
-            this.netUnfoldFaces.forEach((face, idx) => face.pivot.quaternion.copy(originalQuats[idx]));
-            this.netUnfoldGroup.scale.copy(originalScale);
-            this.netUnfoldGroup.updateMatrixWorld(true);
-            return;
-        }
-        this.netUnfoldFaces.forEach((face, idx) => face.pivot.quaternion.copy(originalQuats[idx]));
-        this.netUnfoldGroup.scale.copy(originalScale);
-        this.netUnfoldGroup.updateMatrixWorld(true);
-        const viewWidth = this.camera.right - this.camera.left;
-        const viewHeight = this.camera.top - this.camera.bottom;
-        if (size.x <= 0 || size.y <= 0) return;
-        const scale = Math.min(viewWidth / size.x, viewHeight / size.y) * 0.85;
-        const scaleTarget = Math.min(1, scale);
-        if (!Number.isFinite(scaleTarget)) {
-            this.logNetUnfoldInvalid('invalid net scale target', {
-                scaleTarget,
-                scale,
-                viewWidth,
-                viewHeight,
-                size: { x: size.x, y: size.y, z: size.z }
-            });
-            return;
-        }
-        this.netUnfoldTargetCenter = center.clone();
-        this.netUnfoldPositionTarget = new THREE.Vector3(-center.x, -center.y, 0);
-        this.setNetAnimationState({
-            scaleTarget
-        });
     }
 
     handlePanelOpenChange(open: boolean) {
@@ -1259,79 +1172,10 @@ class App {
         this.ui.showMessage('ユーザープリセットを削除しました。', 'success');
     }
 
-    buildNetUnfoldGroup() {
-        // Legacy method removed. Unfolding is now handled by NetManager (NetPlan) and Cube (applyNetPlan).
-    }
-
-    // computeUnfoldDepths, analyzeCutAdjacency, buildCubeNetUnfoldGroup, buildCutNetUnfoldGroup removed.
-
-    updateNetOverlayDisplay(display: DisplayState) {
-        if (!this.netUnfoldGroup) return;
-        const showPoints = !!display.showCutPoints;
-        const colorizeLines = !!display.colorizeCutLines;
-        this.netUnfoldGroup.traverse((obj) => {
-            const type = obj.userData && obj.userData.type;
-            if (type === 'net-cut-point') {
-                obj.visible = showPoints;
-            }
-            if (type === 'net-cut-line' && obj instanceof THREE.Line) {
-                const material = obj.material;
-                const highlightColor = obj.userData ? obj.userData.highlightColor : null;
-                const defaultColor = obj.userData ? obj.userData.defaultColor : null;
-                if (material instanceof THREE.LineBasicMaterial) {
-                    const color = colorizeLines && typeof highlightColor === 'number'
-                        ? highlightColor
-                        : (typeof defaultColor === 'number' ? defaultColor : 0x333333);
-                    material.color.setHex(color);
-                    material.needsUpdate = true;
-                }
-                obj.visible = true;
-            }
-        });
-    }
-
-    updateNetLabelDisplay(display: DisplayState) {
-        if (!this.netUnfoldGroup) return;
-        this.netUnfoldGroup.traverse((obj) => {
-            const type = obj.userData && obj.userData.type;
-            if (type === 'net-face-label') {
-                obj.visible = !!display.showFaceLabels;
-            }
-            if (type === 'net-vertex-label') {
-                obj.visible = !!display.showVertexLabels;
-            }
-        });
-    }
-
-    updateNetLabelScale() {
-        if (!this.netUnfoldGroup) return;
-        const scale = this.netUnfoldGroup.scale.x;
-        if (!Number.isFinite(scale) || scale <= 0) return;
-        const inverse = THREE.MathUtils.clamp(1 / scale, 1, 2.5);
-        this.netUnfoldGroup.traverse((obj) => {
-            const type = obj.userData && obj.userData.type;
-            if (type !== 'net-face-label' && type !== 'net-vertex-label') return;
-            if (!(obj instanceof THREE.Sprite)) return;
-            const baseScale = obj.userData.baseScale;
-            const basePosition = obj.userData.basePosition;
-            if (!(baseScale instanceof THREE.Vector3)) return;
-            obj.scale.copy(baseScale).multiplyScalar(inverse);
-            if (type === 'net-vertex-label' && basePosition instanceof THREE.Vector3) {
-                obj.position.copy(basePosition);
-                obj.position.z += 0.04 * inverse;
-            }
-        });
-    }
-
     applyNetStateFromModel() {
         const state = this.objectModelManager.getNetState();
         if (!state) return;
-        this.netUnfoldState = state.state;
-        this.netUnfoldDuration = state.duration;
-        this.netUnfoldFaceDuration = state.faceDuration;
-        this.netUnfoldStagger = state.stagger;
-        this.netUnfoldPreScaleDelay = state.preScaleDelay;
-        this.netUnfoldPostScaleDelay = state.postScaleDelay;
+        // Animation params are kept in model derived
     }
 
     setNetAnimationState(partial: {
@@ -1359,28 +1203,6 @@ class App {
                 ...partial
             }
         });
-    }
-
-    syncNetModelState() {
-        const faces = this.netUnfoldFaces.map(face => ({
-            faceId: face.faceId,
-            delayIndex: face.delayIndex
-        }));
-        const current = this.objectModelManager.getNetState();
-        const animation = {
-            state: current.state,
-            progress: current.progress,
-            duration: this.netUnfoldDuration,
-            faceDuration: this.netUnfoldFaceDuration,
-            stagger: this.netUnfoldStagger,
-            scale: current.scale,
-            scaleTarget: current.scaleTarget,
-            startAt: current.startAt,
-            preScaleDelay: this.netUnfoldPreScaleDelay,
-            postScaleDelay: this.netUnfoldPostScaleDelay,
-            camera: current.camera
-        };
-        this.objectModelManager.syncNetState({ faces, animation });
     }
 
     // buildCutNetUnfoldGroup removed (legacy logic)
@@ -1420,48 +1242,31 @@ class App {
 
     startNetUnfold() {
         const netState = this.objectModelManager.getNetState();
-        if (netState.state === 'opening' || netState.state === 'open' || netState.state === 'prescale') return;
+        if (netState.state === 'opening' || netState.state === 'open') return;
         this.isCameraAnimating = false;
         this.cameraTargetPosition = null;
         
-        // Disable old group building
-        // this.clearNetUnfoldGroup();
-        // this.buildNetUnfoldGroup();
-        
         const startAt = performance.now();
-        // Keep main cube visible for new pipeline
         this.cube.setVisible(true); 
         this.cutter.setVisible(false);
         this.highlightMarker.visible = false;
         this.snappedPointInfo = null;
+
         const camera = {
             startPos: this.camera.position.clone(),
             startTarget: this.controls.target.clone(),
             endPos: new THREE.Vector3(0, 0, this.cube.size * 3),
             endTarget: new THREE.Vector3(0, 0, 0)
         };
-        this.netUnfoldScaleReadyAt = null;
-        if (this.netUnfoldGroup) {
-            this.netUnfoldGroup.position.set(0, 0, 0);
-        }
-        const display = this.objectModelManager.getDisplayState();
-        this.updateNetOverlayDisplay(display);
-        this.updateNetLabelDisplay(display);
-        this.updateNetUnfoldScale();
+
         const nextState = this.objectModelManager.getNetState();
-        const duration = nextState.duration || this.netUnfoldDuration;
-        const faceDuration = nextState.faceDuration || this.netUnfoldFaceDuration;
-        const stagger = nextState.stagger || this.netUnfoldStagger;
+        
         this.setNetAnimationState({
-            state: 'prescale',
+            state: 'opening',
             progress: 0,
-            duration,
-            faceDuration,
-            stagger,
-            scale: 1,
-            scaleTarget: nextState.scaleTarget,
-            preScaleDelay: nextState.preScaleDelay,
-            postScaleDelay: nextState.postScaleDelay,
+            duration: nextState.duration || 1000,
+            faceDuration: nextState.faceDuration || 800,
+            stagger: nextState.stagger || 800,
             startAt,
             camera
         });
@@ -1469,28 +1274,24 @@ class App {
 
     startNetFold() {
         const netState = this.objectModelManager.getNetState();
-        if (netState.state === 'closed' || netState.state === 'closing' || netState.state === 'prescale') return;
+        if (netState.state === 'closed' || netState.state === 'closing') return;
         this.isCameraAnimating = false;
         this.cameraTargetPosition = null;
-        const duration = netState.duration || this.netUnfoldDuration;
+        
+        const duration = netState.duration || 1000;
         const startAt = performance.now() - (1 - netState.progress) * duration;
+        
         const camera = {
             startPos: this.camera.position.clone(),
             startTarget: this.controls.target.clone(),
             endPos: this.defaultCameraPosition.clone(),
             endTarget: this.defaultCameraTarget.clone()
         };
-        this.netUnfoldScaleReadyAt = null;
+
         this.setNetAnimationState({
             state: 'closing',
             progress: netState.progress,
             duration,
-            faceDuration: netState.faceDuration || this.netUnfoldFaceDuration,
-            stagger: netState.stagger || this.netUnfoldStagger,
-            scale: netState.scale,
-            scaleTarget: netState.scaleTarget,
-            preScaleDelay: netState.preScaleDelay,
-            postScaleDelay: netState.postScaleDelay,
             startAt,
             camera
         });
@@ -1535,17 +1336,24 @@ class App {
                 this.setNetAnimationState({ startAt: performance.now() + netState.postScaleDelay });
             }
         }
-        this.setNetAnimationState({
-            state: nextState,
-            progress: netProgress,
-            duration,
-            faceDuration,
-            stagger,
-            scale: netState.scale,
-            scaleTarget: nextState === 'postscale' ? 1 : netState.scaleTarget,
-            preScaleDelay: netState.preScaleDelay,
-            postScaleDelay: netState.postScaleDelay
-        });
+        
+        // Synchronize back to model only when state changes or at moderate progress intervals
+        // to avoid triggering syncWithModel every frame.
+        const shouldSync = (nextState !== netState.state) || (Math.abs(netProgress - netState.progress) > 0.01);
+
+        if (shouldSync) {
+            this.setNetAnimationState({
+                state: nextState,
+                progress: netProgress,
+                duration,
+                faceDuration,
+                stagger,
+                scale: netState.scale,
+                scaleTarget: nextState === 'postscale' ? 1 : netState.scaleTarget,
+                preScaleDelay: netState.preScaleDelay,
+                postScaleDelay: netState.postScaleDelay
+            });
+        }
     }
 
     handleFlipCutClick() {
@@ -1603,84 +1411,24 @@ class App {
                 this.updateLayout(this.layoutPanelOffset);
             }
         }
-        if (this.netUnfoldGroup) {
-            this.applyNetStateFromModel();
-            let netState = this.objectModelManager.getNetState();
-            if (!Number.isFinite(netState.scaleTarget) || !Number.isFinite(netState.scale)) {
-                this.logNetUnfoldInvalid('invalid net animation state', {
-                    state: netState.state,
-                    scale: netState.scale,
-                    scaleTarget: netState.scaleTarget
-                });
-                return;
-            }
-            const scaleReady = netState.state !== 'postscale' || (performance.now() - netState.startAt) >= 0;
-            let nextScale = netState.scale;
-            if (Math.abs(netState.scaleTarget - netState.scale) > 0.001) {
-                if (scaleReady) {
-                    const speed = netState.state === 'prescale' ? 0.08 : 0.15;
-                    nextScale = netState.scale + (netState.scaleTarget - netState.scale) * speed;
+        
+                // Animation State Machine & Logic
+        
+                this.applyNetStateFromModel();
+        
+                const netState = this.objectModelManager.getNetState();
+        
+        
+        
+                if (netState.state === 'opening' || netState.state === 'closing') {
+        
+                    this.updateNetUnfoldAnimation();
+        
                 }
-            } else {
-                nextScale = netState.scaleTarget;
-            }
-            this.netUnfoldGroup.scale.setScalar(nextScale);
-            this.updateNetLabelScale();
-            if (netState.state === 'prescale') {
-                this.netUnfoldFaces.forEach(face => face.pivot.quaternion.copy(face.startQuat));
-            }
-            if (this.netUnfoldPositionTarget) {
-                const target = this.netUnfoldPositionTarget;
-                const scale = nextScale;
-                const scaledTarget = new THREE.Vector3(target.x * scale, target.y * scale, 0);
-                if (netState.state === 'postscale') {
-                    this.netUnfoldGroup.position.lerp(new THREE.Vector3(0, 0, 0), 0.15);
-                } else if (netState.state === 'prescale') {
-                    this.netUnfoldGroup.position.lerp(scaledTarget, 0.12);
-                } else {
-                    this.netUnfoldGroup.position.copy(scaledTarget);
-                }
-            }
-            if (netState.state === 'prescale') {
-                if (Math.abs(netState.scaleTarget - nextScale) <= 0.001) {
-                    if (!this.netUnfoldScaleReadyAt) {
-                        this.netUnfoldScaleReadyAt = performance.now();
-                    }
-                    if (performance.now() - this.netUnfoldScaleReadyAt >= netState.preScaleDelay) {
-                        this.netUnfoldScaleReadyAt = null;
-                        const startAt = performance.now();
-                        this.setNetAnimationState({ state: 'opening', progress: 0, startAt });
-                        netState = { ...netState, state: 'opening', progress: 0, startAt };
-                    }
-                } else {
-                    this.netUnfoldScaleReadyAt = null;
-                }
-            }
-            if (netState.state === 'postscale' && scaleReady && Math.abs(netState.scaleTarget - nextScale) <= 0.001) {
-                this.clearNetUnfoldGroup();
-                this.cube.setVisible(true);
-                this.cutter.setVisible(true);
-                this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
-                const display = this.objectModelManager.getDisplayState();
-                this.cutter.setTransparency(display.cubeTransparent);
-                this.controls.update();
-            }
-            if (netState.state !== 'closed') {
-                this.setNetAnimationState({
-                    state: netState.state,
-                    progress: netState.progress,
-            duration: netState.duration,
-            faceDuration: netState.faceDuration,
-            stagger: netState.stagger,
-                    scale: nextScale,
-                    scaleTarget: netState.scaleTarget,
-                    preScaleDelay: netState.preScaleDelay,
-                    postScaleDelay: netState.postScaleDelay
-                });
-            }
-        }
-        this.updateNetUnfoldAnimation();
-        if (this.isCameraAnimating && this.cameraTargetPosition) {
+        
+                
+        
+                if (this.isCameraAnimating && this.cameraTargetPosition) {
             this.camera.position.lerp(this.cameraTargetPosition, 0.05);
             if (this.camera.position.distanceTo(this.cameraTargetPosition) < 0.1) {
                 this.isCameraAnimating = false;

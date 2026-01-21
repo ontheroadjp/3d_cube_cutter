@@ -388,11 +388,17 @@ export class ObjectModelManager {
         }
 
         const nextVId = vertexIds[(i + 1) % vertexIds.length];
-        const sortedIds = [vId, nextVId].sort();
-        const edgeId = `E:${sortedIds[0]}-${sortedIds[1]}`;
+        const v0Raw = vId.startsWith('V:') ? vId.slice(2) : vId;
+        const v1Raw = nextVId.startsWith('V:') ? nextVId.slice(2) : nextVId;
+        const sortedIndices = [v0Raw, v1Raw].sort((a, b) => {
+            const na = parseInt(a), nb = parseInt(b);
+            if (!isNaN(na) && !isNaN(nb)) return na - nb;
+            return a.localeCompare(b);
+        });
+        const edgeId = `E:${sortedIndices[0]}-${sortedIndices[1]}`;
         
         if (!newEdges[edgeId]) {
-          newEdges[edgeId] = { id: edgeId, v0: sortedIds[0], v1: sortedIds[1] };
+          newEdges[edgeId] = { id: edgeId, v0: `V:${sortedIndices[0]}`, v1: `V:${sortedIndices[1]}` };
           newPresEdges[edgeId] = this.model!.presentation.edges[edgeId] || createDefaultEdgePresentation();
         }
       });

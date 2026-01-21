@@ -64,7 +64,8 @@ export class GeometryResolver {
   resolveEdge(edgeId: string) {
     if (!edgeId || !edgeId.startsWith('E:')) return null;
     const content = edgeId.slice(2);
-    const indices = content.split('-').map(s => s.replace(/^V:/, ''));
+    // Split by '-' and handle optional 'V:' prefix for each part
+    const indices = content.split('-').map(s => s.startsWith('V:') ? s.slice(2) : s);
 
     if (indices.length !== 2) return null;
     const start = this.resolveVertex(`V:${indices[0]}`);
@@ -75,13 +76,22 @@ export class GeometryResolver {
 
   resolveFace(faceId: string) {
     if (!faceId || !faceId.startsWith('F:')) return null;
-    const indices = faceId.slice(2).split('');
-    if (indices.length !== 4) return null;
-    const vertices = indices.map(index => this.resolveVertex(`V:${index}`));
-    if (vertices.some(v => !v)) return null;
-    const v0 = vertices[0];
-    const v1 = vertices[1];
-    const v2 = vertices[2];
+    const content = faceId.slice(2);
+    // Support both F:0-1-2 and F:0123 (legacy)
+    const parts = content.includes('-') ? content.split('-') : content.split('');
+    
+    const vertices = parts.map(p => {
+        // Resolve each part as a SnapPointID. 
+        // If it's just a number, assume it's a vertex index.
+        const id = /^\d+$/.test(p) ? `V:${p}` : p;
+        return this.resolveSnapPoint(id as SnapPointID);
+    });
+    
+    if (vertices.length < 3 || vertices.some(v => !v)) return null;
+    
+    const v0 = vertices[0]!;
+    const v1 = vertices[1]!;
+    const v2 = vertices[2]!;
     const normal = new THREE.Vector3()
       .subVectors(v1, v0)
       .cross(new THREE.Vector3().subVectors(v2, v0))
@@ -107,7 +117,8 @@ export class GeometryResolver {
   }
 
   resolveSnapPoint(snapId: SnapPointID) {
-    const parsed = normalizeSnapPointId(parseSnapPointId(snapId));
+    const id = /^\d+$/.test(snapId) ? `V:${snapId}` : snapId;
+    const parsed = normalizeSnapPointId(parseSnapPointId(id as SnapPointID));
     return this.resolveSnapPointRef(parsed);
   }
 

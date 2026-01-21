@@ -64,12 +64,12 @@ export class NetManager {
             offsetX: 20,
             offsetY: 20,
             faces: [
-                { name: 'Front', faceId: 'F:0154', grid: {x:1, y:1}, uvVertices: ['V:4', 'V:5', 'V:1', 'V:0'] },
-                { name: 'Back',  faceId: 'F:2376', grid: {x:3, y:1}, uvVertices: ['V:6', 'V:7', 'V:3', 'V:2'] },
-                { name: 'Top',   faceId: 'F:4567', grid: {x:1, y:0}, connectTo: 'Front', uvVertices: ['V:7', 'V:6', 'V:5', 'V:4'] },
-                { name: 'Bottom', faceId: 'F:0321', grid: {x:1, y:2}, uvVertices: ['V:0', 'V:1', 'V:2', 'V:3'] },
-                { name: 'Left',   faceId: 'F:0473', grid: {x:0, y:1}, uvVertices: ['V:7', 'V:4', 'V:0', 'V:3'] },
-                { name: 'Right',  faceId: 'F:1265', grid: {x:2, y:1}, uvVertices: ['V:5', 'V:6', 'V:2', 'V:1'] },
+                { name: 'Front', faceId: 'F:0-1-5-4', grid: {x:1, y:1}, uvVertices: ['4', '5', '1', '0'] },
+                { name: 'Back',  faceId: 'F:2-3-7-6', grid: {x:3, y:1}, uvVertices: ['6', '7', '3', '2'] },
+                { name: 'Top',   faceId: 'F:4-5-6-7', grid: {x:1, y:0}, connectTo: 'Front', uvVertices: ['7', '6', '5', '4'] },
+                { name: 'Bottom', faceId: 'F:0-3-2-1', grid: {x:1, y:2}, uvVertices: ['0', '1', '2', '3'] },
+                { name: 'Left',   faceId: 'F:0-4-7-3', grid: {x:0, y:1}, uvVertices: ['7', '4', '0', '3'] },
+                { name: 'Right',  faceId: 'F:1-2-6-5', grid: {x:2, y:1}, uvVertices: ['5', '6', '2', '1'] },
             ]
         };
     }
@@ -107,7 +107,8 @@ export class NetManager {
      */
     generateNetPlan(solid: SolidSSOT, rootFaceId?: FaceID): NetPlan {
         const faceIds = Object.keys(solid.faces);
-        const root = rootFaceId && faceIds.includes(rootFaceId) ? rootFaceId : (faceIds.includes('F:0154') ? 'F:0154' : faceIds[0]);
+        const defaultRoot = 'F:0-1-5-4';
+        const root = rootFaceId && faceIds.includes(rootFaceId) ? rootFaceId : (faceIds.includes(defaultRoot) ? defaultRoot : faceIds[0]);
         
         // 1. Build adjacency graph (simplified for now, using vertex sharing)
         const hinges: NetHinge[] = [];
@@ -193,9 +194,13 @@ export class NetManager {
         // Draw grid
         ctx.strokeStyle = '#ccc';
         ctx.lineWidth = 1;
+        const facesSource = solid.faceMap || solid.faces;
+        
         L.faces.forEach(face => {
             // Check if face exists in solid
-            const exists = solid.faces[face.faceId] !== undefined;
+            const exists = (facesSource instanceof Map) 
+                ? facesSource.has(face.faceId)
+                : facesSource[face.faceId] !== undefined;
             if (!exists) return;
 
             const x = L.offsetX + face.grid.x * s;
