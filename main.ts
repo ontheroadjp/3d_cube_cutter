@@ -267,7 +267,7 @@ class App {
             case "CUT_RESULT_UPDATED": {
                 this.cutter.refreshEdgeHighlightColors();
                 this.cutter.updateCutPointMarkers(this.objectModelManager.resolveCutIntersectionPositions());
-                const solid = this.objectModelManager.getModel()?.solid;
+                const solid = this.objectModelManager.getModel()?.ssot;
                 this.netManager.update(this.objectModelManager.getCutSegments(), solid, this.resolver);
                 this.selection.updateSplitLabels(this.objectModelManager.getCutIntersections());
                 break;
@@ -363,7 +363,7 @@ class App {
         const modelDisplay = this.objectModelManager.getDisplayState();
         this.cutter.setTransparency(modelDisplay.cubeTransparent);
 
-        const solid = this.objectModelManager.getModel()?.solid;
+        const solid = this.objectModelManager.getModel()?.ssot;
         const cutState = solid ? this.cutter.computeCutState(solid, snapIds, this.resolver) : null;
 
         if (cutState) {
@@ -410,7 +410,7 @@ class App {
         this.cutter.resetInversion();
         this.cutter.reset();
         this.objectModelManager.clearCutIntersections();
-        const solid = this.objectModelManager.getModel()?.solid;
+        const solid = this.objectModelManager.getModel()?.ssot;
         this.netManager.update([], solid, this.resolver);
         this.isCutExecuted = false;
         this.snappedPointInfo = null;
