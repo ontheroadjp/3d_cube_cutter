@@ -30,6 +30,7 @@ import {
 } from './objectModel.js';
 import { buildObjectModelData } from './objectModelBuilder.js';
 import { normalizeSnapPointId, parseSnapPointId } from '../geometry/snapPointId.js';
+import { buildCubeStructure } from '../structure/structureModel.js';
 
 const DEFAULT_DISPLAY: DisplayState = {
   showVertexLabels: true,
@@ -102,7 +103,7 @@ export class ObjectModelManager {
   }
 
   build(displayOverride?: DisplayState) {
-    const structure = this.cube.getStructure();
+    const structure = this.cube.getStructure() || buildCubeStructure({ indexMap: this.cube.getIndexMap() });
     const display = displayOverride || (this.ui ? this.ui.getDisplayState() : DEFAULT_DISPLAY);
     
     const built = buildObjectModelData({

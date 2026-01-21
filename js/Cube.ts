@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createLabel } from './utils.js';
+import { getDefaultIndexMap } from './geometry/indexMap.js';
 import type { CubeSize } from './types.js';
 import type { GeometryResolver } from './geometry/GeometryResolver.js';
 import type { ObjectModel, VertexID, EdgeID, FaceID } from './model/objectModel.js';
@@ -23,7 +24,13 @@ export class Cube {
   physicalIndexToIndex: Record<number, number> = {
       0: 3, 1: 2, 2: 6, 3: 7, 4: 0, 5: 1, 6: 5, 7: 4
   };
+  indexMap: Record<string, { x: number; y: number; z: number }>;
+  displayLabelMap: Record<string, string> | null;
   
+  // hitboxes for raycasting
+  vertexMeshes: THREE.Mesh[]; 
+  edgeMeshes: THREE.Mesh[];
+
   getVertexObjectById(vertexId: VertexID) {
       return this.vertexHitboxes.get(vertexId);
   }
@@ -51,15 +58,13 @@ export class Cube {
       return undefined;
   }
 
-  // hitboxes for raycasting
-  vertexMeshes: THREE.Mesh[]; 
-  edgeMeshes: THREE.Mesh[];
-
   constructor(scene: THREE.Scene, size = 10) {
     this.scene = scene;
     this.resolver = null;
     this.size = size;
     this.edgeLengths = { lx: size, ly: size, lz: size };
+    this.indexMap = getDefaultIndexMap();
+    this.displayLabelMap = null;
 
     this.faceMeshes = new Map();
     this.edgeLines = new Map();
@@ -92,9 +97,81 @@ export class Cube {
     this.syncEdges(model);
     this.syncVertices(model);
     
+    // Apply net unfolding if active
+    if (derived.net && derived.net.visible) {
+        // (WIP: applyNetPlan will be called here or from main.ts)
+    }
+
     // Update raycast arrays
     this.vertexMeshes = Array.from(this.vertexHitboxes.values());
     this.edgeMeshes = Array.from(this.edgeHitboxes.values());
+  }
+
+  /**
+   * Applies unfolding/folding transformation to faces based on a NetPlan.
+   * Moves faces relative to the root face.
+   */
+  applyNetPlan(plan: any, progress: number) {
+    if (!plan || !this.resolver) return;
+
+    const { rootFaceId, hinges } = plan;
+    // Map to store world poses of each face during unfolding
+    const worldPoses = new Map<string, { position: THREE.Vector3, quaternion: THREE.Quaternion }>();
+
+    // Root face stays at origin (local frame)
+    worldPoses.set(rootFaceId, {
+      position: new THREE.Vector3(),
+      quaternion: new THREE.Quaternion()
+    });
+
+    // Sort hinges or use a queue to ensure parents are processed before children
+    const queue = [...hinges];
+    let attempts = 0;
+    while (queue.length > 0 && attempts < 100) {
+      attempts++;
+      const hinge = queue.shift();
+      if (!hinge) break;
+
+      const parentPose = worldPoses.get(hinge.parentFaceId);
+      if (!parentPose) {
+        queue.push(hinge);
+        continue;
+      }
+
+      // Resolve hinge edge coordinates in world space (relative to cube origin)
+      const edge = this.resolver.resolveEdge(hinge.hingeEdgeId);
+      if (!edge) continue;
+
+      // Calculate child rotation around the hinge edge
+      // The goal is to rotate the child face until it's coplanar with the parent (180 deg)
+      // For now, use a simplified 90-degree fold for the base cube
+      const axis = edge.end.clone().sub(edge.start).normalize();
+      
+      // Pivot point is on the edge
+      const pivot = edge.start.clone();
+
+      // Simple 90-degree unfolding for cube faces
+      const angle = (Math.PI / 2) * progress; 
+      // (Advanced: calculate dihedral angle between faces for arbitrary solids)
+      
+      const rotation = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+      
+      const childQuat = parentPose.quaternion.clone().multiply(rotation);
+      // Position needs to be offset based on rotation around pivot
+      // (This is a simplified placeholder for complex pivot logic)
+      const childPos = parentPose.position.clone(); 
+
+      worldPoses.set(hinge.childFaceId, { position: childPos, quaternion: childQuat });
+    }
+
+    // Apply computed poses to meshes
+    worldPoses.forEach((pose, faceId) => {
+      const mesh = this.faceMeshes.get(faceId);
+      if (mesh) {
+        mesh.quaternion.copy(pose.quaternion);
+        mesh.position.copy(pose.position);
+      }
+    });
   }
 
   private syncFaces(model: ObjectModel) {
@@ -119,7 +196,7 @@ export class Cube {
     // Update or add faces
     Object.values(ssot.faces).forEach(face => {
       let mesh = this.faceMeshes.get(face.id);
-      const vertices = face.vertices.map(vId => this.resolver!.resolveVertex(vId)).filter(Boolean) as THREE.Vector3[];
+      const vertices = face.vertices.map(vId => this.resolver!.resolveSnapPoint(vId)).filter(Boolean) as THREE.Vector3[];
       
       if (vertices.length < 3) return;
 
@@ -171,8 +248,8 @@ export class Cube {
 
     // Update or add edges
     Object.values(ssot.edges).forEach(edge => {
-      const v0 = this.resolver!.resolveVertex(edge.v0);
-      const v1 = this.resolver!.resolveVertex(edge.v1);
+      const v0 = this.resolver!.resolveSnapPoint(edge.v0);
+      const v1 = this.resolver!.resolveSnapPoint(edge.v1);
       if (!v0 || !v1) return;
 
       // Line
@@ -216,7 +293,7 @@ export class Cube {
 
     // Update or add vertices
     Object.values(ssot.vertices).forEach(vertex => {
-      const pos = this.resolver!.resolveVertex(vertex.id);
+      const pos = this.resolver!.resolveSnapPoint(vertex.id);
       if (!pos) return;
 
       // Hitbox
@@ -403,9 +480,13 @@ export class Cube {
       // No-op or initial build? 
       // In new pipeline, this should trigger ObjectModel update which then calls syncWithModel.
   }
-  setVertexLabelMap(labelMap: any) {}
-  getDisplayLabelByIndex(index: number) { return ""; }
-  getIndexMap() { return {}; }
+  setVertexLabelMap(labelMap: any) {
+      this.displayLabelMap = labelMap;
+  }
+  getDisplayLabelByIndex(index: number) { 
+      return this.displayLabelMap ? this.displayLabelMap[`V:${index}`] : `V:${index}`; 
+  }
+  getIndexMap() { return this.indexMap; }
   getStructure() { return null; }
   getSize() { return this.edgeLengths; }
 }

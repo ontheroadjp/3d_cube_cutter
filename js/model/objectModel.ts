@@ -62,6 +62,27 @@ export type PresentationModel = {
   faces: Record<FaceID, FacePresentation>;
 };
 
+// --- Net Plan (SSOT) ---
+
+export type NetPlanID = string;
+
+export type NetHinge = {
+  parentFaceId: FaceID;
+  childFaceId: FaceID;
+  hingeEdgeId: EdgeID;
+};
+
+export type NetPlan = {
+  id: NetPlanID;
+  targetSolidId: string;
+  rootFaceId: FaceID;
+  hinges: NetHinge[];
+  faceOrder: FaceID[];
+  meta?: {
+    name?: string;
+  };
+};
+
 // --- Derived Layer (Calculated Results) ---
 
 export type ObjectCutSegment = {

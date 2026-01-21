@@ -13,7 +13,7 @@ import { generateExplanation } from './js/education/explanationGenerator.js';
 import { initReactApp } from './js/ui/reactApp.js';
 import { ObjectModelManager, type EngineEvent } from './js/model/objectModelManager.js';
 import type { CutFacePolygon, DisplayState, LearningProblem, UserPresetState } from './js/types.js';
-import type { ObjectNetState } from './js/model/objectModel.js';
+import type { ObjectNetState, NetPlan } from './js/model/objectModel.js';
 import { normalizeSnapPointId, parseSnapPointId } from './js/geometry/snapPointId.js';
 import { createLabel, createMarker } from './js/utils.js';
 
@@ -21,6 +21,7 @@ const DEBUG = false;
 
 class App {
     isCutExecuted: boolean;
+    currentNetPlan: NetPlan | null;
     snappedPointInfo: {
         point: THREE.Vector3;
         object: THREE.Object3D;
@@ -104,6 +105,7 @@ class App {
     constructor() {
         // --- State Properties ---
         this.isCutExecuted = false;
+        this.currentNetPlan = null;
         this.snappedPointInfo = null;
         this.cameraTargetPosition = null;
         this.isCameraAnimating = false;
@@ -195,7 +197,6 @@ class App {
             selection: this.selection
         });
         this.cube.setResolver(this.resolver); // NEW
-        this.objectModelManager.build();
         this.cutter.setEdgeHighlightColorResolver((edgeId: string) => this.objectModelManager.getEdgeHighlightColor(edgeId));
     }
 
@@ -234,6 +235,7 @@ class App {
         initReactApp();
 
         this.objectModelManager.subscribe((event) => this.handleEngineEvent(event));
+        this.objectModelManager.build();
 
         if (!this.useReactPresets) {
             this.ui.populatePresets(this.presetManager.getPresets());
@@ -2224,11 +2226,14 @@ class App {
         if (netState.state === 'opening' || netState.state === 'open' || netState.state === 'prescale') return;
         this.isCameraAnimating = false;
         this.cameraTargetPosition = null;
-        this.clearNetUnfoldGroup();
-        this.buildNetUnfoldGroup();
-        this.netUnfoldFaces.forEach(face => face.pivot.quaternion.copy(face.startQuat));
+        
+        // Disable old group building
+        // this.clearNetUnfoldGroup();
+        // this.buildNetUnfoldGroup();
+        
         const startAt = performance.now();
-        this.cube.setVisible(false);
+        // Keep main cube visible for new pipeline
+        this.cube.setVisible(true); 
         this.cutter.setVisible(false);
         this.highlightMarker.visible = false;
         this.snappedPointInfo = null;
@@ -2306,26 +2311,12 @@ class App {
         const faceDuration = netState.faceDuration;
         const stagger = netState.stagger;
         const progress = Math.min(1, elapsed / duration);
-        const maxDelay = Math.max(...this.netUnfoldFaces.map(face => face.delayIndex));
-        this.netUnfoldFaces.forEach(face => {
-            const delayIndex = netState.state === 'opening'
-                ? face.delayIndex
-                : (maxDelay - face.delayIndex);
-            const delay = delayIndex * stagger;
-            const localElapsed = elapsed - delay;
-            const localProgress = Math.min(1, Math.max(0, localElapsed / faceDuration));
-            const eased = localProgress < 0.5
-                ? 2 * localProgress * localProgress
-                : 1 - Math.pow(-2 * localProgress + 2, 2) / 2;
-            const t = netState.state === 'opening'
-                ? eased
-                : 1 - eased;
-            const effectiveT = localElapsed < 0
-                ? (netState.state === 'opening' ? 0 : 1)
-                : t;
-            face.pivot.quaternion.slerpQuaternions(face.startQuat, face.endQuat, effectiveT);
-        });
         const netProgress = netState.state === 'opening' ? progress : 1 - progress;
+
+        // NEW: Apply structural unfolding to the dynamic renderer
+        if (this.currentNetPlan) {
+            this.cube.applyNetPlan(this.currentNetPlan, netProgress);
+        }
 
         if (netState.camera && netState.camera.startPos && netState.camera.endPos && netState.camera.startTarget && netState.camera.endTarget) {
             const cameraT = progress;
@@ -2385,6 +2376,10 @@ class App {
             globalThis.__setNetVisible(nextVisible);
         }
         if (nextVisible) {
+            const model = this.objectModelManager.getModel();
+            if (model) {
+                this.currentNetPlan = this.netManager.generateNetPlan(model.ssot);
+            }
             this.netManager.show();
             this.startNetUnfold();
         } else {
