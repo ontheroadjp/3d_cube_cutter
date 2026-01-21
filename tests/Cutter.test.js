@@ -32,6 +32,8 @@ import { Cutter } from '../dist/js/Cutter.js';
 import { Cube } from '../dist/js/Cube.js';
 import { GeometryResolver } from '../dist/js/geometry/GeometryResolver.js';
 import { buildUserPresetState } from '../dist/js/presets/userPresetState.js';
+import { buildCubeStructure } from '../dist/js/structure/structureModel.js';
+import { getDefaultIndexMap } from '../dist/js/geometry/indexMap.js';
 
 const createTestScene = () => {
     const scene = new THREE.Scene();
@@ -73,6 +75,14 @@ describe('Cutter', () => {
     beforeEach(() => {
         scene = createTestScene();
         cube = new Cube(scene, 10);
+        cube.getStructure = () => buildCubeStructure({ indexMap: getDefaultIndexMap() });
+        cube.cubeMesh = {
+            geometry: new THREE.BoxGeometry(10, 10, 10),
+            position: new THREE.Vector3(),
+            rotation: new THREE.Euler(),
+            scale: new THREE.Vector3(1, 1, 1),
+            material: new THREE.MeshBasicMaterial()
+        };
         resolver = new GeometryResolver({ size: cube.getSize(), indexMap: cube.getIndexMap() });
         cutter = new Cutter(scene);
         scene.add.mockClear();

@@ -8,6 +8,8 @@ vi.mock('../../dist/js/utils.js', () => ({
 import { Cube } from '../../dist/js/Cube.js';
 import { GeometryResolver } from '../../dist/js/geometry/GeometryResolver.js';
 import { buildObjectModelData } from '../../dist/js/model/objectModelBuilder.js';
+import { buildCubeStructure } from '../../dist/js/structure/structureModel.js';
+import { getDefaultIndexMap } from '../../dist/js/geometry/indexMap.js';
 
 describe('object model builder', () => {
   it('builds a solid model from structure and resolver', () => {
@@ -15,7 +17,7 @@ describe('object model builder', () => {
     const cube = new Cube(scene, 10);
     // resolver is not needed for buildObjectModelData but kept for context if needed later
     const resolver = new GeometryResolver({ size: cube.getSize(), indexMap: cube.getIndexMap() });
-    const structure = cube.getStructure();
+    const structure = buildCubeStructure({ indexMap: getDefaultIndexMap() });
 
     const modelData = buildObjectModelData({
       structure,
@@ -35,7 +37,7 @@ describe('object model builder', () => {
     // position is derived, not in SSOT
     expect(v0.position).toBeUndefined();
 
-    const edge = ssot.edges['E:01'];
+    const edge = ssot.edges['E:0-1'];
     expect(edge).toBeTruthy();
     // length is derived
     expect(edge.length).toBeUndefined();

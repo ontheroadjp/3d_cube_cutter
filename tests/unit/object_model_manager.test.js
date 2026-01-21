@@ -233,6 +233,7 @@ describe('object model manager', () => {
       toggleVertexLabels: vi.fn(),
       setEdgeLabelMode: vi.fn(),
     };
+    const toggleTransparencySpy = vi.spyOn(cube, 'toggleTransparency');
     const manager = new ObjectModelManager({ cube, resolver, ui: null, selection });
     const cutter = {
       toggleSurface: vi.fn(),
@@ -265,7 +266,7 @@ describe('object model manager', () => {
 
     expect(selection.toggleVertexLabels).toHaveBeenCalledWith(false);
     expect(selection.setEdgeLabelMode).toHaveBeenCalledWith('popup');
-    expect(cube.cubeMesh.material.transparent).toBe(true);
+    expect(toggleTransparencySpy).toHaveBeenCalledWith(true);
     expect(cutter.toggleSurface).toHaveBeenCalledWith(true);
     expect(cutter.togglePyramid).toHaveBeenCalledWith(false);
     expect(cutter.setCutPointsVisible).toHaveBeenCalledWith(true);

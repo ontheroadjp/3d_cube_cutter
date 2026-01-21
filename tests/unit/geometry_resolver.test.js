@@ -25,10 +25,10 @@ describe('GeometryResolver', () => {
       size: { lx: 10, ly: 10, lz: 10 },
       indexMap: getDefaultIndexMap()
     });
-    const edge = resolver.resolveEdge('E:01');
+    const edge = resolver.resolveEdge('E:0-1');
     expect(edge.length).toBeCloseTo(10);
 
-    const mid = resolver.resolveSnapPoint('E:01@1/2');
+    const mid = resolver.resolveSnapPoint('E:0-1@1/2');
     expect(mid.x).toBeCloseTo(0);
     expect(mid.y).toBeCloseTo(-5);
     expect(mid.z).toBeCloseTo(5);
@@ -69,15 +69,15 @@ describe('GeometryResolver', () => {
       size: { lx: 10, ly: 10, lz: 10 },
       indexMap: getDefaultIndexMap()
     });
-    const edge = resolver.resolveEdge('E:01');
-    const point = resolver.resolveSnapPoint('E:01@3/10');
+    const edge = resolver.resolveEdge('E:0-1');
+    const point = resolver.resolveSnapPoint('E:0-1@3/10');
     const dist = point.distanceTo(edge.start);
     const ratio = dist / edge.length;
     expect(ratio).toBeCloseTo(0.3, 6);
 
     resolver.setSize({ lx: 20, ly: 10, lz: 10 });
-    const edge2 = resolver.resolveEdge('E:01');
-    const point2 = resolver.resolveSnapPoint('E:01@3/10');
+    const edge2 = resolver.resolveEdge('E:0-1');
+    const point2 = resolver.resolveSnapPoint('E:0-1@3/10');
     const dist2 = point2.distanceTo(edge2.start);
     const ratio2 = dist2 / edge2.length;
     expect(ratio2).toBeCloseTo(0.3, 6);

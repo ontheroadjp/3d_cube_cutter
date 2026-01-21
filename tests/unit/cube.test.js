@@ -13,17 +13,15 @@ describe('Cube', () => {
     const cube = new Cube(scene, 10);
 
     expect(cube.getSnapPointIdForVertexLabel('A')).toBe('V:0');
-    expect(cube.getSnapPointIdForEdgeName('AB', 1, 2)).toBe('E:01@1/2');
+    expect(cube.getSnapPointIdForEdgeName('AB', 1, 2)).toBe('E:0-1@1/2');
   });
 
-  it('should apply vertex label map to display and structure', () => {
+  it('should apply vertex label map to display properties', () => {
     const scene = new THREE.Scene();
     const cube = new Cube(scene, 10);
 
     cube.setVertexLabelMap({ 'V:0': 'X' });
     expect(cube.getDisplayLabelByIndex(0)).toBe('X');
-
-    const structure = cube.getStructure();
-    expect(structure.vertexMap.get('V:0').label).toBe('X');
+    // Note: structure update is no longer Cube's responsibility
   });
 });
