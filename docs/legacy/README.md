@@ -1,7 +1,6 @@
-# Docs Overview
+# README.md
 
-Status: Active
-Summary: このディレクトリはプロジェクトのドキュメント入口（地図）である。
+このファイル（docs/README.md）はプロジェクトのドキュメント入口（地図）です。
 
 ## Where to start
 
