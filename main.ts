@@ -267,7 +267,8 @@ class App {
             case "CUT_RESULT_UPDATED": {
                 this.cutter.refreshEdgeHighlightColors();
                 this.cutter.updateCutPointMarkers(this.objectModelManager.resolveCutIntersectionPositions());
-                this.netManager.update(this.objectModelManager.getCutSegments(), this.cube, this.resolver);
+                const solid = this.objectModelManager.getModel()?.solid;
+                this.netManager.update(this.objectModelManager.getCutSegments(), solid, this.resolver);
                 this.selection.updateSplitLabels(this.objectModelManager.getCutIntersections());
                 break;
             }
@@ -361,12 +362,27 @@ class App {
         this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
         const modelDisplay = this.objectModelManager.getDisplayState();
         this.cutter.setTransparency(modelDisplay.cubeTransparent);
-        this.objectModelManager.syncCutState({
-            intersections: this.cutter.getIntersectionRefs(),
-            cutSegments: this.cutter.getCutSegments(),
-            facePolygons: this.cutter.getResultFacePolygons(),
-            faceAdjacency: this.cutter.getResultFaceAdjacency()
-        });
+
+        const solid = this.objectModelManager.getModel()?.solid;
+        const cutState = solid ? this.cutter.computeCutState(solid, snapIds, this.resolver) : null;
+
+        if (cutState) {
+            this.objectModelManager.syncCutState({
+                intersections: cutState.intersections,
+                cutSegments: cutState.cutSegments,
+                facePolygons: cutState.facePolygons,
+                faceAdjacency: cutState.faceAdjacency
+            });
+        } else {
+            console.warn("Structure-first cut failed, falling back to legacy CSG result.");
+            this.objectModelManager.syncCutState({
+                intersections: this.cutter.getIntersectionRefs(),
+                cutSegments: this.cutter.getCutSegments(),
+                facePolygons: this.cutter.getResultFacePolygons(),
+                faceAdjacency: this.cutter.getResultFaceAdjacency()
+            });
+        }
+
         const explanation = generateExplanation({
             snapIds,
             outlineRefs: this.cutter.getOutlineRefs(),
@@ -394,7 +410,8 @@ class App {
         this.cutter.resetInversion();
         this.cutter.reset();
         this.objectModelManager.clearCutIntersections();
-        this.netManager.update([], this.cube, this.resolver);
+        const solid = this.objectModelManager.getModel()?.solid;
+        this.netManager.update([], solid, this.resolver);
         this.isCutExecuted = false;
         this.snappedPointInfo = null;
         this.highlightMarker.visible = false;

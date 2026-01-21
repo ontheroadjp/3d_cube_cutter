@@ -68,7 +68,7 @@ describe('NetManager', () => {
     };
 
     const resolveSpy = vi.spyOn(resolver, 'resolveSnapPoint');
-    netManager.update([segment], cube, resolver);
+    netManager.update([segment], cube.getStructure(), resolver);
 
     const ctx = netManager.ctx;
     expect(ctx.moveTo).toHaveBeenCalled();
@@ -84,7 +84,7 @@ describe('NetManager', () => {
       faceIds: ['F:0154']
     };
 
-    netManager.update([segment], cube, resolver);
+    netManager.update([segment], cube.getStructure(), resolver);
 
     const ctx = netManager.ctx;
     const [x1, y1] = ctx.moveTo.mock.calls[0];
@@ -104,7 +104,7 @@ describe('NetManager', () => {
       faceIds: ['F:0154', 'F:0321']
     };
 
-    netManager.update([segment], cube, resolver);
+    netManager.update([segment], cube.getStructure(), resolver);
 
     const ctx = netManager.ctx;
     expect(ctx.moveTo).toHaveBeenCalled();

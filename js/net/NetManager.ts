@@ -138,10 +138,10 @@ export class NetManager {
     // cube: Cube instance (to get vertices and transform to local/face coords)
     /**
      * @param {Array<{ startId: SnapPointID, endId: SnapPointID, start?: THREE.Vector3, end?: THREE.Vector3, faceIds?: string[], faceId?: string }>} cutSegments
-     * @param {object} cube
+     * @param {object} solid
      * @param {object | null} resolver
      */
-    update(cutSegments, cube, resolver = null) {
+    update(cutSegments, solid, resolver = null) {
         if (this.container.style.display === 'none') return;
         this.updatePosition();
         
@@ -151,9 +151,11 @@ export class NetManager {
         const L = this.layout;
         const s = L.scale;
         const activeResolver = resolver || this.resolver;
-        const structure = cube && cube.getStructure ? cube.getStructure() : null;
+        // Simple adaptation for ObjectSolid (array search instead of map)
+        const getFace = (id) => solid && Array.isArray(solid.faces) ? solid.faces.find(f => f.id === id) : null;
+        
         const faceData = L.faces.map(face => {
-            if (structure && structure.faceMap && !structure.faceMap.has(face.faceId)) return null;
+            if (!getFace(face.faceId)) return null;
             return {
                 name: face.name,
                 grid: face.grid,
@@ -169,7 +171,6 @@ export class NetManager {
             const x = L.offsetX + face.grid.x * s;
             const y = L.offsetY + face.grid.y * s;
             ctx.strokeRect(x, y, s, s);
-            // 面の名前
             ctx.fillStyle = '#999';
             ctx.font = '10px Arial';
             ctx.fillText(face.name, x+2, y+10);
@@ -177,15 +178,12 @@ export class NetManager {
 
         if(!cutSegments || cutSegments.length === 0) return;
 
-        // 切断線の描画
-        // 各線分について、どの面の上にあるか判定し、その面の2D座標に変換して描画
         ctx.strokeStyle = 'red';
         ctx.lineWidth = 2;
         ctx.beginPath();
 
-        // 面の法線と中心点（判定用）
         if (!activeResolver) return;
-        if (!structure) return;
+        if (!solid) return;
         const faceIndex = new Map(faceData.map(face => [face.faceId, face]));
 
         /** @param {SnapPointID} snapId */
@@ -193,12 +191,12 @@ export class NetManager {
             const parsed = normalizeSnapPointId(parseSnapPointId(snapId));
             if (!parsed) return [];
             if (parsed.type === 'vertex') {
-                const vertex = structure.vertexMap.get(`V:${parsed.vertexIndex}`);
-                return vertex ? vertex.faces : [];
+                const vertex = solid.vertices.find(v => v.id === `V:${parsed.vertexIndex}`);
+                return vertex && vertex.faces ? vertex.faces.map(f => typeof f === 'string' ? f : f.id) : [];
             }
             if (parsed.type === 'edge') {
-                const edge = structure.edgeMap.get(`E:${parsed.edgeIndex}`);
-                return edge ? edge.faces : [];
+                const edge = solid.edges.find(e => e.id === `E:${parsed.edgeIndex}`);
+                return edge && edge.faces ? edge.faces.map(f => typeof f === 'string' ? f : f.id) : [];
             }
             if (parsed.type === 'face') {
                 return [`F:${parsed.faceIndex}`];
