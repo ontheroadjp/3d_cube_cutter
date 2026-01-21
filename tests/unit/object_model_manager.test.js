@@ -56,14 +56,14 @@ describe('object model manager', () => {
     manager.build();
 
     manager.applyCutIntersections([
-      { id: 'E:01@1/2', type: 'intersection' },
+      { id: 'E:0-1@1/2', type: 'intersection' },
       { id: 'V:2', type: 'intersection' }
     ]);
 
     const model = manager.getModel();
     
     // Access presentation edges/vertices by ID directly (no find needed)
-    const edgePres = model.presentation.edges['E:01'];
+    const edgePres = model.presentation.edges['E:0-1'];
     const vertexPres = model.presentation.vertices['V:2'];
     
     expect(edgePres).toBeTruthy();
@@ -74,13 +74,13 @@ describe('object model manager', () => {
     expect(edgePres.isMidpointCut).toBe(true);
     expect(vertexPres.isCutPoint).toBe(true);
 
-    expect(manager.getEdgeHighlightColor('E:01')).toBe(0x00cc66);
-    expect(manager.getEdgeHighlightColor('E:12')).toBe(0xff8800);
+    expect(manager.getEdgeHighlightColor('E:0-1')).toBe(0x00cc66);
+    expect(manager.getEdgeHighlightColor('E:1-2')).toBe(0xff8800);
 
     const resolved = manager.resolveCutIntersectionPositions();
-    const midpoint = resolved.find(ref => ref.id === 'E:01@1/2');
+    const midpoint = resolved.find(ref => ref.id === 'E:0-1@1/2');
     const vertexResolved = resolved.find(ref => ref.id === 'V:2');
-    const edgeResolved = resolver.resolveEdge('E:01');
+    const edgeResolved = resolver.resolveEdge('E:0-1');
     expect(midpoint.position).toBeInstanceOf(THREE.Vector3);
     expect(vertexResolved.position).toBeInstanceOf(THREE.Vector3);
     if (edgeResolved) {
@@ -99,14 +99,14 @@ describe('object model manager', () => {
     const resolveSpy = vi.spyOn(resolver, 'resolveSnapPoint');
     manager.applyCutIntersections([
       { id: 'V:0', type: 'intersection' },
-      { id: 'E:01@1/2', type: 'intersection' }
+      { id: 'E:0-1@1/2', type: 'intersection' }
     ]);
 
     const resolved = manager.resolveCutIntersectionPositions();
-    const midpoint = resolved.find(ref => ref.id === 'E:01@1/2');
+    const midpoint = resolved.find(ref => ref.id === 'E:0-1@1/2');
     const vertexResolved = resolved.find(ref => ref.id === 'V:0');
 
-    expect(resolveSpy).toHaveBeenCalledWith('E:01@1/2');
+    expect(resolveSpy).toHaveBeenCalledWith('E:0-1@1/2');
     expect(resolveSpy).toHaveBeenCalledWith('V:0');
     expect(midpoint?.position).toBeInstanceOf(THREE.Vector3);
     expect(vertexResolved?.position).toBeInstanceOf(THREE.Vector3);
