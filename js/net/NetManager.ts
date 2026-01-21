@@ -154,12 +154,24 @@ export class NetManager {
     private getFaceEdges(faceId: FaceID, solid: SolidSSOT): EdgeID[] {
         const face = solid.faces[faceId];
         const edges: EdgeID[] = [];
+        if (!face || !face.vertices) return edges;
+
+        // Iterate over all edges in the solid to find those that match the face's vertex pairs
+        // This is O(F * E) but safer than relying on ID naming conventions
+        const faceVertexPairs = new Set<string>();
         for (let i = 0; i < face.vertices.length; i++) {
             const v0 = face.vertices[i];
             const v1 = face.vertices[(i + 1) % face.vertices.length];
-            const sortedIds = [v0, v1].sort();
-            edges.push(`E:${sortedIds[0]}-${sortedIds[1]}`);
+            faceVertexPairs.add([v0, v1].sort().join('|'));
         }
+
+        Object.values(solid.edges).forEach(edge => {
+            const key = [edge.v0, edge.v1].sort().join('|');
+            if (faceVertexPairs.has(key)) {
+                edges.push(edge.id);
+            }
+        });
+        
         return edges;
     }
 

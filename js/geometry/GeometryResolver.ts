@@ -63,7 +63,9 @@ export class GeometryResolver {
 
   resolveEdge(edgeId: string) {
     if (!edgeId || !edgeId.startsWith('E:')) return null;
-    const indices = edgeId.slice(2).split('');
+    const content = edgeId.slice(2);
+    const indices = content.split('-').map(s => s.replace(/^V:/, ''));
+
     if (indices.length !== 2) return null;
     const start = this.resolveVertex(`V:${indices[0]}`);
     const end = this.resolveVertex(`V:${indices[1]}`);

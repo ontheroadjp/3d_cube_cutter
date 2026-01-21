@@ -142,25 +142,91 @@ export class Cube {
       const edge = this.resolver.resolveEdge(hinge.hingeEdgeId);
       if (!edge) continue;
 
-      // Calculate child rotation around the hinge edge
-      // The goal is to rotate the child face until it's coplanar with the parent (180 deg)
-      // For now, use a simplified 90-degree fold for the base cube
-      const axis = edge.end.clone().sub(edge.start).normalize();
+      // Calculate dihedral angle-based rotation
+      const parentFaceInfo = this.resolver.resolveFace(hinge.parentFaceId);
+      const childFaceInfo = this.resolver.resolveFace(hinge.childFaceId);
       
-      // Pivot point is on the edge
-      const pivot = edge.start.clone();
+      let angle = Math.PI / 2; // Default fallback
+      let axis = edge.end.clone().sub(edge.start).normalize();
 
-      // Simple 90-degree unfolding for cube faces
-      const angle = (Math.PI / 2) * progress; 
-      // (Advanced: calculate dihedral angle between faces for arbitrary solids)
+      if (parentFaceInfo && childFaceInfo) {
+          const np = parentFaceInfo.normal;
+          const nc = childFaceInfo.normal;
+          // Dihedral angle alpha
+          // cos(alpha) = np . nc
+          // However, for unfolding, we want to rotate child so nc aligns with np (coplanar)
+          // The rotation required is (PI - alpha)
+          // Direction depends on the hinge axis direction vs cross product
+          
+          const dot = THREE.MathUtils.clamp(np.dot(nc), -1, 1);
+          const alpha = Math.acos(dot);
+          const unfoldAngle = Math.PI - alpha;
+          
+          // Determine sign
+          // cross(np, nc) should align with axis for positive rotation?
+          const cross = new THREE.Vector3().crossVectors(np, nc);
+          const sign = cross.dot(axis) >= 0 ? 1 : -1;
+          
+          angle = sign * unfoldAngle * progress;
+      } else {
+          angle = (Math.PI / 2) * progress;
+      }
       
       const rotation = new THREE.Quaternion().setFromAxisAngle(axis, angle);
       
       const childQuat = parentPose.quaternion.clone().multiply(rotation);
-      // Position needs to be offset based on rotation around pivot
-      // (This is a simplified placeholder for complex pivot logic)
-      const childPos = parentPose.position.clone(); 
-
+      // Position needs to be offset based on rotation around pivot (hinge edge start)
+      // P_child_new = P_pivot + Q_rot * (P_child_old - P_pivot)
+      // But P_child_old is relative to parent pose? No, we need to chain transforms properly.
+      
+      // Correct approach:
+      // The child face is logically attached to the parent face at the hinge.
+      // 1. Start at parent position/rotation.
+      // 2. Move to hinge position (relative to parent).
+      // 3. Apply rotation.
+      // 4. Child's origin is maintained relative to the hinge.
+      
+      // Since our faces are defined in global coordinates initially (mesh.position=0,0,0),
+      // we need to rotate the child mesh around the hinge axis in the parent's frame.
+      
+      // Let's rely on the accumulated quaternion for rotation.
+      // For position, we simply need to ensure the hinge stays connected.
+      // Since "worldPoses" tracks the transform of the face frame (initially identity),
+      // and we rotate around the hinge axis (which is constant in the initial frame if we assume
+      // the hinge definition edge.start/end are from the initial static geometry),
+      // we need to rotate the "center of the child face" around the hinge axis.
+      
+      // Actually, simply applying the rotation to the mesh quaternion rotates it around the mesh origin (0,0,0).
+      // This is WRONG if the mesh origin is at the center of the cube.
+      // We need to rotate around the hinge.
+      
+      // Correction:
+      // The hinge axis 'axis' and point 'edge.start' are in the LOCAL frame of the initial cube (model space).
+      // The child face mesh is also in model space.
+      // We want to rotate the child face around 'edge.start'/'axis' by 'angle'.
+      // AND we want to apply the parent's accumulated transform.
+      
+      // Transform chain:
+      // T_child = T_parent * T_hinge_rotation
+      // Where T_hinge_rotation rotates around the hinge line.
+      
+      // T_hinge_rotation:
+      // Translate(-pivot) -> Rotate(angle, axis) -> Translate(pivot)
+      
+      const pivot = edge.start;
+      const qRot = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+      
+      // Apply parent transform to the pivot-rotated frame
+      // Final Pos = ParentPos + ParentQuat * (Pivot + qRot * (-Pivot))
+      // Final Quat = ParentQuat * qRot
+      
+      const localOffset = pivot.clone().add(
+          pivot.clone().negate().applyQuaternion(qRot)
+      );
+      
+      const worldOffset = localOffset.applyQuaternion(parentPose.quaternion);
+      const childPos = parentPose.position.clone().add(worldOffset);
+      
       worldPoses.set(hinge.childFaceId, { position: childPos, quaternion: childQuat });
     }
 

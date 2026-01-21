@@ -627,7 +627,7 @@ class App {
                 });
                 this.cutter.refreshEdgeHighlightColors();
                 this.cutter.updateCutPointMarkers(this.objectModelManager.resolveCutIntersectionPositions());
-                this.netManager.update(this.objectModelManager.getCutSegments(), this.cube, this.resolver);
+                this.netManager.update(this.objectModelManager.getCutSegments(), this.objectModelManager.getModel()?.ssot, this.resolver);
                 this.selection.updateSplitLabels(this.objectModelManager.getCutIntersections());
                 const explanation = generateExplanation({
                     snapIds,
@@ -2364,7 +2364,7 @@ class App {
         });
         this.cutter.refreshEdgeHighlightColors();
         this.cutter.updateCutPointMarkers(this.objectModelManager.resolveCutIntersectionPositions());
-        this.netManager.update(this.objectModelManager.getCutSegments(), this.cube, this.resolver);
+        this.netManager.update(this.objectModelManager.getCutSegments(), this.objectModelManager.getModel()?.ssot, this.resolver);
         this.selection.updateSplitLabels(this.objectModelManager.getCutIntersections());
     }
 
@@ -2386,7 +2386,7 @@ class App {
             this.netManager.hide();
             this.startNetFold();
         }
-        this.netManager.update(this.objectModelManager.getCutSegments(), this.cube, this.resolver);
+        this.netManager.update(this.objectModelManager.getCutSegments(), this.objectModelManager.getModel()?.ssot, this.resolver);
     }
 
     // --- Animation Loop ---
