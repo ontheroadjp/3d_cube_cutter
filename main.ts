@@ -194,6 +194,7 @@ class App {
             ui: this.ui,
             selection: this.selection
         });
+        this.cube.setResolver(this.resolver); // NEW
         this.objectModelManager.build();
         this.cutter.setEdgeHighlightColorResolver((edgeId: string) => this.objectModelManager.getEdgeHighlightColor(edgeId));
     }
@@ -250,7 +251,12 @@ class App {
     handleEngineEvent(event: EngineEvent) {
         switch (event.type) {
             case "SSOT_UPDATED": {
+                const model = this.objectModelManager.getModel(); // NEW
                 const display = this.objectModelManager.getDisplayState();
+                
+                // Sync the 3D scene from ObjectModel
+                this.cube.syncWithModel(model); // NEW
+                
                 this.objectModelManager.applyDisplayToView(display);
                 this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
                 this.cutter.setTransparency(display.cubeTransparent);
