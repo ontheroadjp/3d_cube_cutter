@@ -1305,14 +1305,16 @@ export class Cutter {
              return Math.atan2(va.dot(up), va.dot(base)) - Math.atan2(vb.dot(up), vb.dot(base));
         });
         
+        const cutVertexIds = cutPoints.map(p => p.ref.id);
+        const cutFaceId = `F:${cutVertexIds.join('-')}`;
+        
         polygons.push({
-            faceId: 'F:cut',
+            faceId: cutFaceId,
             type: 'cut',
-            vertexIds: cutPoints.map(p => p.ref.id)
+            vertexIds: cutVertexIds
         });
     }
 
-    const outlineRefs = cutPoints.map(p => p.ref);
     const cutSegments: CutSegmentMeta[] = cutPoints.map((p, i) => ({
         startId: p.ref.id,
         endId: cutPoints[(i+1)%cutPoints.length].ref.id,
@@ -1326,7 +1328,7 @@ export class Cutter {
         facePolygons: polygons,
         faceAdjacency,
         cutSegments,
-        outlineRefs,
+        outlineRefs: cutPoints.map(p => p.ref),
         cutPlane: plane
     };
   }

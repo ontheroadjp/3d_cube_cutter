@@ -15,7 +15,18 @@ import {
   type ObjectNetFace,
   type ObjectNetState,
   type VertexID,
-  type EdgeID
+  type EdgeID,
+  type FaceID,
+  type VertexSSOT,
+  type EdgeSSOT,
+  type FaceSSOT,
+  type VertexPresentation,
+  type EdgePresentation,
+  type FacePresentation,
+  createDefaultFacePresentation,
+  createDefaultVertexPresentation,
+  createDefaultEdgePresentation,
+  createDefaultNetDerived
 } from './objectModel.js';
 import { buildObjectModelData } from './objectModelBuilder.js';
 import { normalizeSnapPointId, parseSnapPointId } from '../geometry/snapPointId.js';
@@ -38,25 +49,6 @@ const createDefaultCutDerived = () => ({
   cutSegments: [],
   facePolygons: [],
   faceAdjacency: []
-});
-
-// Helper to create default empty net derived
-const createDefaultNetDerived = () => ({
-  faces: [],
-  animation: {
-      state: 'closed' as const,
-      progress: 0,
-      duration: 0,
-      faceDuration: 0,
-      stagger: 0,
-      scale: 1,
-      scaleTarget: 1,
-      startAt: 0,
-      preScaleDelay: 0,
-      postScaleDelay: 0,
-      camera: undefined
-  },
-  visible: false
 });
 
 
@@ -367,6 +359,53 @@ export class ObjectModelManager {
     }
   }
 
+  private updateSolidFromCutResult() {
+    if (!this.model || !this.model.derived.cut) return;
+    const { facePolygons } = this.model.derived.cut;
+    if (!facePolygons || facePolygons.length === 0) return;
+
+    const newVertices: Record<VertexID, VertexSSOT> = {};
+    const newEdges: Record<EdgeID, EdgeSSOT> = {};
+    const newFaces: Record<FaceID, FaceSSOT> = {};
+    const newPresVertices: Record<VertexID, VertexPresentation> = {};
+    const newPresEdges: Record<EdgeID, EdgePresentation> = {};
+    const newPresFaces: Record<FaceID, FacePresentation> = {};
+
+    facePolygons.forEach(poly => {
+      const faceId = poly.faceId;
+      const vertexIds = poly.vertexIds || [];
+      newFaces[faceId] = { id: faceId, vertices: vertexIds };
+      
+      const presFace = createDefaultFacePresentation();
+      if (poly.type === 'cut') presFace.isCutFace = true;
+      newPresFaces[faceId] = presFace;
+
+      vertexIds.forEach((vId, i) => {
+        if (!newVertices[vId]) {
+          newVertices[vId] = { id: vId };
+          newPresVertices[vId] = this.model!.presentation.vertices[vId] || createDefaultVertexPresentation();
+        }
+
+        const nextVId = vertexIds[(i + 1) % vertexIds.length];
+        const sortedIds = [vId, nextVId].sort();
+        const edgeId = `E:${sortedIds[0]}-${sortedIds[1]}`;
+        
+        if (!newEdges[edgeId]) {
+          newEdges[edgeId] = { id: edgeId, v0: sortedIds[0], v1: sortedIds[1] };
+          newPresEdges[edgeId] = this.model!.presentation.edges[edgeId] || createDefaultEdgePresentation();
+        }
+      });
+    });
+
+    this.model.ssot.faces = newFaces;
+    this.model.ssot.edges = newEdges;
+    this.model.ssot.vertices = newVertices;
+    
+    this.model.presentation.faces = newPresFaces;
+    this.model.presentation.edges = newPresEdges;
+    this.model.presentation.vertices = newPresVertices;
+  }
+
   syncCutState({
     intersections,
     cutSegments,
@@ -397,6 +436,8 @@ export class ObjectModelManager {
     } else {
       this.setCutFacePolygons([], []);
     }
+
+    this.updateSolidFromCutResult();
     
     this.notify({ type: "CUT_RESULT_UPDATED", payload: { intersections, cutSegments, facePolygons } });
   }

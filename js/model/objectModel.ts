@@ -126,6 +126,24 @@ export type ObjectModel = {
   };
 };
 
+export const createDefaultNetDerived = (): NetDerived => ({
+  faces: [],
+  animation: {
+    state: 'closed' as const,
+    progress: 0,
+    duration: 0,
+    faceDuration: 0,
+    stagger: 0,
+    scale: 1,
+    scaleTarget: 1,
+    startAt: 0,
+    preScaleDelay: 0,
+    postScaleDelay: 0,
+    camera: undefined
+  },
+  visible: false
+});
+
 // --- Default Generators ---
 
 export const createDefaultVertexPresentation = (): VertexPresentation => ({
