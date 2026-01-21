@@ -530,6 +530,27 @@ export class Cube {
       return `E:${cleanEdgeId}@${numerator / common}/${denominator / common}`;
   }
 
+  getSnapPointIdForVertexLabel(label: string) {
+      const labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      const index = labels.indexOf(label);
+      return index !== -1 ? `V:${index}` : null;
+  }
+
+  getSnapPointIdForEdgeName(name: string, numerator: number, denominator: number) {
+      if (name.length !== 2) return null;
+      const labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      const i1 = labels.indexOf(name[0]);
+      const i2 = labels.indexOf(name[1]);
+      if (i1 !== -1 && i2 !== -1) {
+          const min = Math.min(i1, i2);
+          const max = Math.max(i1, i2);
+          const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+          const common = gcd(numerator, denominator);
+          return `E:${min}-${max}@${numerator/common}/${denominator/common}`;
+      }
+      return null;
+  }
+
   // Temporary visibility control
   setVisible(visible: boolean) {
       this.faceMeshes.forEach(m => m.visible = visible);
