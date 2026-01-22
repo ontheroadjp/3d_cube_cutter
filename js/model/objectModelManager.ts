@@ -11,6 +11,7 @@ type SelectionLike = {
 import {
   type ObjectCutAdjacency,
   type ObjectCutSegment,
+  type CutDerived,
   type ObjectModel,
   type ObjectNetFace,
   type ObjectNetState,
@@ -45,7 +46,7 @@ const DEFAULT_DISPLAY: DisplayState = {
 };
 
 // Helper to create default empty cut derived
-const createDefaultCutDerived = () => ({
+const createDefaultCutDerived = (): CutDerived => ({
   showCutSurface: true,
   intersections: [],
   cutSegments: [],

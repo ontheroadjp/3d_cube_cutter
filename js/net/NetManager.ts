@@ -256,7 +256,7 @@ export class NetManager {
             // We need to find one that exists in our 2D layout.
             let targetFaceId: string | null = null;
             if (segment.faceIds && segment.faceIds.length > 0) {
-                targetFaceId = segment.faceIds.find(id => faceIndex.has(id)) || null;
+                targetFaceId = segment.faceIds.find((id: string) => faceIndex.has(id)) || null;
             }
             
             // If explicit faceId not found, try to resolve from vertices (fallback)

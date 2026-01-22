@@ -52,14 +52,14 @@ function getFaceLabels(structure: StructureSummary | null, faceId: string) {
   if (structure.faceMap) {
     const face = structure.faceMap.get(faceId);
     if (face && face.vertices) {
-      return face.vertices.map(vId => getVertexLabel(structure, vId));
+      return face.vertices.map((vId: string) => getVertexLabel(structure, vId));
     }
   }
   
   if (structure.faces) {
     const face = structure.faces[faceId];
     if (face && face.vertices) {
-      return face.vertices.map(vId => getVertexLabel(structure, vId));
+      return face.vertices.map((vId: string) => getVertexLabel(structure, vId));
     }
   }
 
