@@ -1,19 +1,12 @@
-# 技術ドキュメント
+# legacy/technical README
 
-Status: Active
-Summary: 技術的な設計・仕様・移行計画をまとめる入口。
+Status: Legacy
+Summary: 旧構成の技術ドキュメントを保存する。現行の正は docs/technical/** を参照する。
 
-## 入口
-- architecture/ : 設計思想・構造モデル
-- specification/ : 仕様の正
-- implementation/ : 移行計画と方針
-- testing/ : 検証計画
-- patterns/ : 技術パターン集
-- notes/ : 参考メモ
+## 位置づけ
+- ここは旧構成の記録であり、現行仕様の正ではない
+- 参照は禁止ではないが、実装判断の正は docs/technical/** とする
 
-## 主要リンク
-- docs/technical/architecture/README.md
-- docs/technical/architecture/structure_first_principles.md
-- docs/technical/specification/
-- docs/technical/implementation/expansion_of_structural_solid_objects/expansion_of_structural_solid_objects_plan.md
-- 関連（教育）: docs/education/README.md
+## 使い方
+- 旧仕様を参照する場合は Replaced-by の参照先を優先する
+- 現行仕様との矛盾があれば現行側を正とする

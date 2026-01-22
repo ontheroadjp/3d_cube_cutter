@@ -10,14 +10,14 @@ describe('Cutter cut point markers', () => {
     cutter.lastResolver = {
       resolveSnapPoint: (id) => {
         if (id === 'V:0') return new THREE.Vector3(0, 0, 0);
-        if (id === 'E:0-1@1/2') return new THREE.Vector3(0.5, 0, 0);
+        if (id === 'E:01@1/2') return new THREE.Vector3(0.5, 0, 0);
         if (id === 'V:1') return new THREE.Vector3(1, 0, 0);
         return null;
       }
     };
     cutter.updateCutPointMarkers([
       { id: 'V:0', type: 'snap' },
-      { id: 'E:0-1@1/2', type: 'intersection' },
+      { id: 'E:01@1/2', type: 'intersection' },
       { id: 'V:1', type: 'intersection' }
     ]);
 
@@ -29,14 +29,14 @@ describe('Cutter cut point markers', () => {
     const cutter = new Cutter(scene);
     cutter.lastResolver = {
       resolveSnapPoint: (id) => {
-        if (id === 'E:0-1@1/2') return new THREE.Vector3(0.5, 0, 0);
+        if (id === 'E:01@1/2') return new THREE.Vector3(0.5, 0, 0);
         if (id === 'V:1') return new THREE.Vector3(1, 0, 0);
         return null;
       }
     };
 
     cutter.updateCutPointMarkers([
-      { id: 'E:0-1@1/2', type: 'intersection' },
+      { id: 'E:01@1/2', type: 'intersection' },
       { id: 'V:1', type: 'intersection' }
     ]);
 

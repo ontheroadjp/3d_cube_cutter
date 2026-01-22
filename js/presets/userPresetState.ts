@@ -31,19 +31,19 @@ export function buildUserPresetState({
   if (!cube || !selection || !cutter || !ui) return null;
 
   const size = cube.getSize ? cube.getSize() : null;
-  const snapIds = (selection.getSelectedSnapIds
+  const snapIds = selection.getSelectedSnapIds
     ? selection.getSelectedSnapIds()
         .map(id => {
           const parsed = normalizeSnapPointId(parseSnapPointId(id));
           return parsed ? stringifySnapPointId(parsed) : null;
         })
-        .filter((id): id is string => id !== null)
-    : []) as string[];
+        .filter(Boolean)
+    : [];
   const display = ui.getDisplayState ? ui.getDisplayState() : null;
   const cutResult = cutter.getCutResult ? cutter.getCutResult() : null;
   const cutMeta = cutResult ? {
-    outline: Array.isArray(cutResult.outline && (cutResult.outline as any).points)
-      ? (cutResult.outline as any).points.map((ref: any) => ref && ref.id).filter((id: any): id is string => id !== null)
+    outline: Array.isArray(cutResult.outline && cutResult.outline.points)
+      ? cutResult.outline.points.map(ref => ref && ref.id).filter(Boolean)
       : [],
     intersections: Array.isArray(cutResult.intersections)
       ? cutResult.intersections.map(ref => ({
@@ -66,8 +66,6 @@ export function buildUserPresetState({
   const createdAt = meta.createdAt || now();
   const updatedAt = meta.updatedAt || createdAt;
 
-  const resolvedLabelMap = labelMap || (cube.getVertexLabelMap ? cube.getVertexLabelMap() : null);
-
   return {
     id: meta.id || idFactory(),
     name: meta.name || 'User Preset',
@@ -75,7 +73,7 @@ export function buildUserPresetState({
     category: meta.category,
     cube: {
       size: size ? { ...size } : null,
-      labelMap: resolvedLabelMap || undefined
+      labelMap: labelMap || (cube.getVertexLabelMap ? cube.getVertexLabelMap() : null)
     },
     cut: {
       snapPoints: snapIds,

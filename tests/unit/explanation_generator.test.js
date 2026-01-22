@@ -7,7 +7,7 @@ import { generateExplanation } from '../../dist/js/education/explanationGenerato
       ['V:1', { id: 'V:1', label: 'B', vertices: [], edges: [], faces: [] }],
     ]),
     edgeMap: new Map([
-      ['E:0-1', { id: 'E:0-1', vertices: ['V:0', 'V:1'] }],
+      ['E:01', { id: 'E:01', vertices: ['V:0', 'V:1'] }],
     ]),
     faceMap: new Map(),
   });
@@ -48,7 +48,7 @@ describe('explanationGenerator', () => {
 
   it('should include ratio text for edge snap points', () => {
     const text = generateExplanation({
-      snapIds: ['E:0-1@1/3'],
+      snapIds: ['E:01@1/3'],
       outlineRefs: [],
       structure: createStructure()
     });

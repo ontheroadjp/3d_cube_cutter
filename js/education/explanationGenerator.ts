@@ -82,8 +82,8 @@ export function generateExplanation({
       orderedIds.push(ref.id);
     });
   }
-  const lines = orderedIds.map(id => describeSnapPoint(id, structure || null)).filter(Boolean);
-  const shape = classifyShape(outlineRefs, snapIds, structure || null);
+  const lines = orderedIds.map(id => describeSnapPoint(id, structure)).filter(Boolean);
+  const shape = classifyShape(outlineRefs, snapIds, structure);
   if (shape) lines.push(`切断面の形は ${shape} です。`);
   if (lines.length === 0) return '';
   lines.push('この切断面の形や辺の長さの関係を考えてみましょう。');
@@ -93,7 +93,7 @@ export function generateExplanation({
 function classifyShape(
   outlineRefs: Array<{ id?: SnapPointID }> | undefined,
   snapIds: SnapPointID[],
-  structure: StructureSummary | null
+  structure: StructureSummary | null | undefined
 ) {
   const outlineCount = Array.isArray(outlineRefs) ? outlineRefs.length : 0;
   if (outlineCount >= 3) {
@@ -106,14 +106,14 @@ function classifyShape(
   if (!snapIds || snapIds.length === 0) return null;
   const parsed = snapIds
     .map(id => normalizeSnapPointId(parseSnapPointId(id)))
-    .filter((p): p is NonNullable<typeof p> => p !== null);
+    .filter(Boolean);
   if (parsed.length < 3) return null;
   if (parsed.length === 3) return '三角形';
   if (parsed.length === 4) {
     if (structure && structure.faceMap) {
-      const vertexIds = new Set(parsed.filter(p => p.type === 'vertex').map(p => `V:${(p as any).vertexIndex}`));
+      const vertexIds = new Set(parsed.filter(p => p.type === 'vertex').map(p => `V:${p.vertexIndex}`));
       if (vertexIds.size === 4) {
-        const faceKey = Array.from(vertexIds).map(v => v.split(':')[1]).join('-');
+        const faceKey = Array.from(vertexIds).map(v => v.split(':')[1]).join('');
         if (structure.faceMap.has(`F:${faceKey}`)) return '正方形';
       }
     }

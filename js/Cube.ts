@@ -1,456 +1,222 @@
 import * as THREE from 'three';
 import { createLabel } from './utils.js';
 import { getDefaultIndexMap } from './geometry/indexMap.js';
+import { applyVertexLabelMap, buildCubeStructure } from './structure/structureModel.js';
 import type { CubeSize } from './types.js';
-import type { GeometryResolver } from './geometry/GeometryResolver.js';
-import type { ObjectModel, VertexID, EdgeID, FaceID } from './model/objectModel.js';
+import type { Edge, Face, Vertex } from './structure/structureModel.js';
 
 export class Cube {
   scene: THREE.Scene;
-  resolver: GeometryResolver | null;
-  
-  // Storage for Three.js objects mapped by structural IDs
-  faceMeshes: Map<FaceID, THREE.Mesh>;
-  edgeLines: Map<EdgeID, THREE.Line>;
-  vertexHitboxes: Map<VertexID, THREE.Mesh>;
-  edgeHitboxes: Map<EdgeID, THREE.Mesh>;
-  vertexSprites: Map<VertexID, THREE.Sprite>;
-  edgeLabels: Map<EdgeID, THREE.Sprite>;
-  faceLabels: Map<FaceID, THREE.Sprite>;
-
-  // Legacy properties for compatibility (to be removed gradually)
   size: number;
   edgeLengths: CubeSize;
-  physicalIndexToIndex: Record<number, number> = {
-      0: 3, 1: 2, 2: 6, 3: 7, 4: 0, 5: 1, 6: 5, 7: 4
-  };
   indexMap: Record<string, { x: number; y: number; z: number }>;
+  signToIndex: Record<string, number>;
+  indexToLabel: Record<number, string>;
   displayLabelMap: Record<string, string> | null;
-  
-  // hitboxes for raycasting
-  vertexMeshes: THREE.Mesh[]; 
+  structure: {
+    indexMap: Record<string, { x: number; y: number; z: number }> | null;
+    vertices: Vertex[];
+    edges: Edge[];
+    faces: Face[];
+    vertexMap: Map<string, Vertex>;
+    edgeMap: Map<string, Edge>;
+    faceMap: Map<string, Face>;
+    labelMap: Record<string, string> | null;
+  } | null;
+  vertices: THREE.Vector3[];
+  vertexLabels: string[];
+  edges: THREE.Line3[];
+  faceLabels: THREE.Sprite[];
+  labelToPhysicalIndex: Record<string, number>;
+  cubeMesh: THREE.Mesh | null;
+  edgeLines: THREE.LineSegments | null;
+  vertexSprites: THREE.Sprite[];
+  edgeLabels: THREE.Sprite[];
+  vertexMeshes: THREE.Mesh[];
   edgeMeshes: THREE.Mesh[];
+  edgeIndexPairs: Array<[number, number] | null>;
+  physicalIndexToIndex: Record<number, number>;
+  edgeIdToMeshIndex: Record<string, number>;
 
-  getVertexObjectById(vertexId: VertexID) {
-      return this.vertexHitboxes.get(vertexId);
-  }
-
-  getEdgeObjectById(edgeId: EdgeID) {
-      if (!edgeId) return undefined;
-      const normalized = edgeId.startsWith('E:') ? edgeId : `E:${edgeId}`;
-      return this.edgeHitboxes.get(normalized);
-  }
-
-  getVertexLabelByIndex(index: string | number) {
-      return `V:${index}`; // Temporary mapping
-  }
-
-  getEdgeNameByIndex(index: string | number) {
-      return `E:${index}`; // Temporary mapping
-  }
-
-  getVertexObjectByName(name: string) {
-      // Mapping name back to ID would require presentation model
-      return undefined; 
-  }
-
-  getEdgeObjectByName(name: string) {
-      return undefined;
-  }
-
-  constructor(scene: THREE.Scene, size = 10) {
+  constructor(scene: THREE.Scene, size=10){
     this.scene = scene;
-    this.resolver = null;
     this.size = size;
     this.edgeLengths = { lx: size, ly: size, lz: size };
     this.indexMap = getDefaultIndexMap();
+    this.signToIndex = {};
+    this.indexToLabel = {};
     this.displayLabelMap = null;
+    this.structure = null;
+    this.vertices = [];
+    this.vertexLabels = [];
+    this.edges = [];
+    this.faceLabels = []; // 面ラベル用
+    this.labelToPhysicalIndex = {}; // ラベル名から物理インデックスへの逆引きマップ
+    this.cubeMesh = null;
+    this.edgeLines = null;
+    this.vertexSprites = [];
+    this.edgeLabels = []; // 辺の長さラベル用
+    this.vertexMeshes = []; // 頂点の当たり判定用メッシュ
+    this.edgeMeshes = []; // 辺の当たり判定用メッシュ
+    this.edgeIndexPairs = [];
+    this.physicalIndexToIndex = {};
+    this.edgeIdToMeshIndex = {};
+    this.createCube([size,size,size]);
+  }
 
-    this.faceMeshes = new Map();
-    this.edgeLines = new Map();
-    this.vertexHitboxes = new Map();
-    this.edgeHitboxes = new Map();
-    this.vertexSprites = new Map();
-    this.edgeLabels = new Map();
-    this.faceLabels = new Map();
-
+  createCube(edgeLengths: number[] | number){
+    // 既存削除
+    if(this.cubeMesh) this.scene.remove(this.cubeMesh);
+    if(this.edgeLines) this.scene.remove(this.edgeLines);
+    this.vertexSprites.forEach(s => this.scene.remove(s));
+    this.vertexSprites = [];
+    this.edgeLabels.forEach(s => this.scene.remove(s));
+    this.edgeLabels = [];
+    this.faceLabels.forEach(l => this.scene.remove(l));
+    this.faceLabels = [];
+    this.vertexMeshes.forEach(m => this.scene.remove(m));
     this.vertexMeshes = [];
+    this.edgeMeshes.forEach(m => this.scene.remove(m));
     this.edgeMeshes = [];
-  }
+    this.edgeIdToMeshIndex = {};
 
-  setResolver(resolver: GeometryResolver) {
-    this.resolver = resolver;
-  }
+    const [lx,ly,lz] = Array.isArray(edgeLengths)? edgeLengths : [edgeLengths,edgeLengths,edgeLengths];
+    this.size = Math.max(lx,ly,lz);
+    this.edgeLengths = { lx, ly, lz };
 
-  // Cache for the last synced model state to avoid redundant updates
-  private lastModelHash: string | null = null;
+    // 頂点 (物理的な座標順序はTHREE.BoxGeometryのデフォルトと一致)
+    this.vertices = [
+      new THREE.Vector3(-lx/2, -ly/2, -lz/2), // 0: 奥下左 (旧A)
+      new THREE.Vector3( lx/2, -ly/2, -lz/2), // 1: 奥下右 (旧B)
+      new THREE.Vector3( lx/2,  ly/2, -lz/2), // 2: 奥上右 (旧C)
+      new THREE.Vector3(-lx/2,  ly/2, -lz/2), // 3: 奥上左 (旧D)
+      new THREE.Vector3(-lx/2, -ly/2,  lz/2), // 4: 手前下左 (旧E)
+      new THREE.Vector3( lx/2, -ly/2,  lz/2), // 5: 手前下右 (旧F)
+      new THREE.Vector3( lx/2,  ly/2,  lz/2), // 6: 手前上右 (旧G)
+      new THREE.Vector3(-lx/2,  ly/2,  lz/2)  // 7: 手前上左 (旧H)
+    ];
+    // 物理インデックスから教科書準拠ラベルへのマッピング (底面手前左をAとし反時計回り、その上がE,F,G,H)
+    const physicalIndexToLabel = ['D', 'C', 'G', 'H', 'A', 'B', 'F', 'E'];
+    this.vertexLabels = physicalIndexToLabel; // 外部からのアクセス用に更新
 
-  /**
-   * Main entry point for updating the 3D scene from the ObjectModel.
-   * This implements the structure-first rendering pipeline.
-   */
-  syncWithModel(model: ObjectModel | null) {
-    if (!model || !this.resolver) return;
-
-    // Check if we actually need to sync
-    const modelHash = this.computeModelHash(model);
-    if (modelHash === this.lastModelHash) return;
-    this.lastModelHash = modelHash;
-
-    const { ssot, presentation, derived } = model;
-    this.size = Math.max(ssot.meta.size.lx, ssot.meta.size.ly, ssot.meta.size.lz);
-    this.edgeLengths = { ...ssot.meta.size };
-
-    this.syncFaces(model);
-    this.syncEdges(model);
-    this.syncVertices(model);
-    
-    // Apply net unfolding if active
-    if (derived.net && derived.net.visible) {
-        // (applyNetPlan is called from main.ts animation loop)
-    }
-
-    // Update raycast arrays
-    this.vertexMeshes = Array.from(this.vertexHitboxes.values());
-    this.edgeMeshes = Array.from(this.edgeHitboxes.values());
-  }
-
-  /**
-   * Applies unfolding/folding transformation to faces based on a NetPlan.
-   * Moves faces relative to the root face.
-   */
-  applyNetPlan(plan: any, progress: number) {
-    if (!plan || !this.resolver) return;
-
-    const { rootFaceId, hinges } = plan;
-    // Map to store world poses of each face during unfolding
-    const worldPoses = new Map<string, { position: THREE.Vector3, quaternion: THREE.Quaternion }>();
-
-    // Root face stays at origin (local frame)
-    worldPoses.set(rootFaceId, {
-      position: new THREE.Vector3(),
-      quaternion: new THREE.Quaternion()
+    // ラベル名から物理インデックスへの逆引きマップを作成
+    this.labelToPhysicalIndex = {};
+    physicalIndexToLabel.forEach((label, index) => {
+        this.labelToPhysicalIndex[label] = index;
     });
 
-    // Sort hinges or use a queue to ensure parents are processed before children
-    const queue = [...hinges];
-    let attempts = 0;
-    while (queue.length > 0 && attempts < 100) {
-      attempts++;
-      const hinge = queue.shift();
-      if (!hinge) break;
-
-      const parentPose = worldPoses.get(hinge.parentFaceId);
-      if (!parentPose) {
-        queue.push(hinge);
-        continue;
-      }
-
-      // Resolve hinge edge coordinates in world space (relative to cube origin)
-      const edge = this.resolver.resolveEdge(hinge.hingeEdgeId);
-      if (!edge) continue;
-
-      // Calculate dihedral angle-based rotation
-      const parentFaceInfo = this.resolver.resolveFace(hinge.parentFaceId);
-      const childFaceInfo = this.resolver.resolveFace(hinge.childFaceId);
-      
-      let angle = Math.PI / 2; // Default fallback
-      let axis = edge.end.clone().sub(edge.start).normalize();
-
-      if (parentFaceInfo && childFaceInfo) {
-          const np = parentFaceInfo.normal;
-          const nc = childFaceInfo.normal;
-          
-          const dot = THREE.MathUtils.clamp(np.dot(nc), -1, 1);
-          const alpha = Math.acos(dot);
-          const unfoldAngle = Math.PI - alpha;
-          
-          // Determine sign by testing a small rotation
-          // We want to rotate nc towards np (so dot product increases)
-          const testRot = new THREE.Quaternion().setFromAxisAngle(axis, 0.1);
-          const testNc = nc.clone().applyQuaternion(testRot);
-          const sign = np.dot(testNc) > dot ? 1 : -1;
-          
-          angle = sign * unfoldAngle * progress;
-      } else {
-          angle = (Math.PI / 2) * progress;
-      }
-      
-      const qRot = new THREE.Quaternion().setFromAxisAngle(axis, angle);
-      const childQuat = parentPose.quaternion.clone().multiply(qRot);
-      
-      const pivot = edge.start;
-      const localOffset = pivot.clone().add(
-          pivot.clone().negate().applyQuaternion(qRot)
-      );
-      
-      const worldOffset = localOffset.applyQuaternion(parentPose.quaternion);
-      const childPos = parentPose.position.clone().add(worldOffset);
-      
-      worldPoses.set(hinge.childFaceId, { position: childPos, quaternion: childQuat });
-    }
-
-    // Apply computed poses to meshes
-    worldPoses.forEach((pose, faceId) => {
-      const mesh = this.faceMeshes.get(faceId);
-      if (mesh) {
-        mesh.quaternion.copy(pose.quaternion);
-        mesh.position.copy(pose.position);
-      }
+    this.signToIndex = this.buildSignToIndexMap();
+    this.indexToLabel = this.buildIndexToLabelMap();
+    this.physicalIndexToIndex = this.buildPhysicalIndexToIndexMap();
+    this.structure = buildCubeStructure({
+      indexMap: this.indexMap,
+      labelMap: this.displayLabelMap,
+      fallbackLabelMap: this.indexToLabel
     });
-  }
 
-  private computeModelHash(model: ObjectModel): string {
-      const { ssot, presentation } = model;
-      // Simple hash based on geometry structure and visibility settings
-      const faceIds = Object.keys(ssot.faces).sort().join(',');
-      const edgeIds = Object.keys(ssot.edges).sort().join(',');
-      const vertexIds = Object.keys(ssot.vertices).sort().join(',');
-      const display = presentation.display;
-      const displayHash = `${display.showVertexLabels},${display.showFaceLabels},${display.edgeLabelMode},${display.cubeTransparent}`;
-      return `${faceIds}|${edgeIds}|${vertexIds}|${ssot.meta.size.lx},${ssot.meta.size.ly},${ssot.meta.size.lz}|${displayHash}`;
-  }
+    // メッシュ
+    const geo = new THREE.BoxGeometry(lx,ly,lz);
+    this.cubeMesh = new THREE.Mesh(geo,new THREE.MeshPhongMaterial({
+        color:0x66ccff,
+        transparent:true,
+        opacity:0.4,
+        depthWrite: false, // 内部が見えるように深度書き込みを無効化
+        side: THREE.DoubleSide
+    }));
+    this.scene.add(this.cubeMesh);
 
-  private syncFaces(model: ObjectModel) {
-    const { ssot, presentation } = model;
-    const currentIds = new Set(Object.keys(ssot.faces));
+    // 辺ライン
+    const edgeGeo = new THREE.EdgesGeometry(geo);
+    this.edgeLines = new THREE.LineSegments(edgeGeo,new THREE.LineBasicMaterial({color:0x000000}));
+    this.scene.add(this.edgeLines);
 
-    // Remove old faces
-    for (const [id, mesh] of this.faceMeshes) {
-      if (!currentIds.has(id)) {
-        this.scene.remove(mesh);
-        mesh.geometry.dispose();
-        this.faceMeshes.delete(id);
+    // 頂点ラベル
+    this.refreshVertexLabels();
+
+    // 頂点の当たり判定用メッシュ
+    const vertexMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.0 });
+    this.vertices.forEach((v, i) => {
+        const vertexHitbox = new THREE.Mesh(new THREE.SphereGeometry(0.3), vertexMaterial);
+        vertexHitbox.position.copy(v);
+        const vertexId = this.physicalIndexToIndex[i] !== undefined ? `V:${this.physicalIndexToIndex[i]}` : null;
+        vertexHitbox.userData = { type: 'vertex', index: i, name: physicalIndexToLabel[i], vertexId };
+        this.scene.add(vertexHitbox);
+        this.vertexMeshes.push(vertexHitbox);
+    });
+
+    // 辺オブジェクト
+    const idx = [
+      // 底面 ABCD
+      [0,1],[1,5],[5,4],[4,0], // A-B, B-C, C-D, D-A
+      // 上面 EFGH
+      [3,2],[2,6],[6,7],[7,3], // E-F, F-G, G-H, H-E
+      // 側面 (縦)
+      [0,3],[1,2],[5,6],[4,7]  // A-E, B-F, C-G, D-H
+    ];
+    this.edges = idx.map(([i,j])=>new THREE.Line3(this.vertices[i],this.vertices[j]));
+    this.edgeIndexPairs = idx.map(([i, j]) => {
+      const a = this.physicalIndexToIndex[i];
+      const b = this.physicalIndexToIndex[j];
+      if (a === undefined || b === undefined) return null;
+      return [a, b];
+    });
+
+    // 辺の長さラベル
+    this.edges.forEach(edge => {
+      const center = new THREE.Vector3();
+      edge.getCenter(center);
+      const len = edge.distance().toFixed(0); // 整数表示
+      const sprite = createLabel(`${len}cm`, this.size/15); // 少し小さめ
+      sprite.position.copy(center);
+      this.scene.add(sprite);
+      this.edgeLabels.push(sprite);
+    });
+
+    // 辺の当たり判定用メッシュ
+    const edgeMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.0 });
+    this.edges.forEach((edge, i) => {
+        const edgeVector = new THREE.Vector3().subVectors(edge.end, edge.start);
+        const edgeLength = edgeVector.length();
+        const edgeCenter = new THREE.Vector3().addVectors(edge.start, edge.end).multiplyScalar(0.5);
+
+        const edgeHitbox = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, edgeLength), edgeMaterial);
+        edgeHitbox.position.copy(edgeCenter);
         
-        const label = this.faceLabels.get(id);
-        if (label) {
-            this.scene.remove(label);
-            this.faceLabels.delete(id);
-        }
-      }
-    }
+        // 辺の向きに合わせる
+        const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), edgeVector.normalize());
+        edgeHitbox.setRotationFromQuaternion(quat);
+        
+        const v1_name = this.vertexLabels[idx[i][0]];
+        const v2_name = this.vertexLabels[idx[i][1]];
+        const pair = this.edgeIndexPairs[i];
+        const edgeId = pair ? `E:${Math.min(pair[0], pair[1])}${Math.max(pair[0], pair[1])}` : null;
+        edgeHitbox.userData = { type: 'edge', index: i, name: `${v1_name}${v2_name}` };
+        edgeHitbox.userData.edgeId = edgeId;
+        if (edgeId) this.edgeIdToMeshIndex[edgeId] = i;
 
-    // Update or add faces
-    Object.values(ssot.faces).forEach(face => {
-      let mesh = this.faceMeshes.get(face.id);
-      const vertices = face.vertices.map(vId => this.resolver!.resolveSnapPoint(vId)).filter((v): v is THREE.Vector3 => v !== null);
-      
-      if (vertices.length < 3) return;
+        this.scene.add(edgeHitbox);
+        this.edgeMeshes.push(edgeHitbox);
+    });
 
-      const geometry = this.createFaceGeometry(vertices);
-      const facePres = presentation.faces[face.id];
-      const material = this.createFaceMaterial(facePres);
+    // 面ラベル
+    const faceDefs = [
+        { name: 'Front',  position: new THREE.Vector3(0, 0, lz/2 + 0.1) },
+        { name: 'Back',   position: new THREE.Vector3(0, 0, -lz/2 - 0.1) },
+        { name: 'Top',    position: new THREE.Vector3(0, ly/2 + 0.1, 0) },
+        { name: 'Bottom', position: new THREE.Vector3(0, -ly/2 - 0.1, 0) },
+        { name: 'Right',  position: new THREE.Vector3(lx/2 + 0.1, 0, 0) },
+        { name: 'Left',   position: new THREE.Vector3(-lx/2 - 0.1, 0, 0) },
+    ];
 
-      if (!mesh) {
-        mesh = new THREE.Mesh(geometry, material);
-        mesh.userData = { type: 'face', faceId: face.id };
-        this.scene.add(mesh);
-        this.faceMeshes.set(face.id, mesh);
-      } else {
-        mesh.geometry.dispose();
-        mesh.geometry = geometry;
-        mesh.material = material;
-        // Reset transform since geometry is world-space
-        mesh.position.set(0, 0, 0);
-        mesh.quaternion.set(0, 0, 0, 1);
-      }
-
-      // Sync labels
-      this.syncFaceLabel(face.id, vertices, presentation.display.showFaceLabels);
+    faceDefs.forEach(face => {
+        const label = createLabel(face.name, this.size / 8, 'rgba(0,0,0,0.5)');
+        label.position.copy(face.position);
+        this.scene.add(label);
+        this.faceLabels.push(label);
     });
   }
 
-  private syncEdges(model: ObjectModel) {
-    const { ssot, presentation } = model;
-    const currentIds = new Set(Object.keys(ssot.edges));
-
-    // Remove old edges
-    for (const [id, line] of this.edgeLines) {
-      if (!currentIds.has(id)) {
-        this.scene.remove(line);
-        line.geometry.dispose();
-        this.edgeLines.delete(id);
-
-        const hitbox = this.edgeHitboxes.get(id);
-        if (hitbox) {
-            this.scene.remove(hitbox);
-            hitbox.geometry.dispose();
-            this.edgeHitboxes.delete(id);
-        }
-
-        const label = this.edgeLabels.get(id);
-        if (label) {
-            this.scene.remove(label);
-            this.edgeLabels.delete(id);
-        }
-      }
-    }
-
-    // Update or add edges
-    Object.values(ssot.edges).forEach(edge => {
-      const v0 = this.resolver!.resolveSnapPoint(edge.v0);
-      const v1 = this.resolver!.resolveSnapPoint(edge.v1);
-      if (!v0 || !v1) return;
-
-      // Line
-      let line = this.edgeLines.get(edge.id);
-      const geometry = new THREE.BufferGeometry().setFromPoints([v0, v1]);
-      if (!line) {
-        line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0x000000 }));
-        this.scene.add(line);
-        this.edgeLines.set(edge.id, line);
-      } else {
-        line.geometry.dispose();
-        line.geometry = geometry;
-      }
-
-      // Hitbox
-      this.syncEdgeHitbox(edge.id, v0, v1);
-
-      // Label
-      this.syncEdgeLabel(edge.id, v0, v1, presentation.display.edgeLabelMode === 'visible');
-    });
-  }
-
-  private syncVertices(model: ObjectModel) {
-    const { ssot, presentation } = model;
-    const currentIds = new Set(Object.keys(ssot.vertices));
-
-    // Remove old vertices
-    for (const [id, hitbox] of this.vertexHitboxes) {
-      if (!currentIds.has(id)) {
-        this.scene.remove(hitbox);
-        hitbox.geometry.dispose();
-        this.vertexHitboxes.delete(id);
-
-        const sprite = this.vertexSprites.get(id);
-        if (sprite) {
-            this.scene.remove(sprite);
-            this.vertexSprites.delete(id);
-        }
-      }
-    }
-
-    // Update or add vertices
-    Object.values(ssot.vertices).forEach(vertex => {
-      const pos = this.resolver!.resolveSnapPoint(vertex.id);
-      if (!pos) return;
-
-      // Hitbox
-      let hitbox = this.vertexHitboxes.get(vertex.id);
-      if (!hitbox) {
-        hitbox = new THREE.Mesh(
-            new THREE.SphereGeometry(0.3), 
-            new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.0 })
-        );
-        hitbox.userData = { type: 'vertex', vertexId: vertex.id };
-        this.scene.add(hitbox);
-        this.vertexHitboxes.set(vertex.id, hitbox);
-      }
-      hitbox.position.copy(pos);
-
-      // Sprite
-      const pres = presentation.vertices[vertex.id];
-      const label = pres?.label || vertex.id.replace('V:', '');
-      this.syncVertexLabel(vertex.id, pos, label, presentation.display.showVertexLabels);
-    });
-  }
-
-  // --- Helper Methods ---
-
-  private createFaceGeometry(vertices: THREE.Vector3[]) {
-    const geometry = new THREE.BufferGeometry();
-    const center = vertices.reduce((acc, v) => acc.add(v), new THREE.Vector3()).divideScalar(vertices.length);
-    
-    // Simplistic triangulation for convex polygons (common in cube cutting)
-    const positions: number[] = [];
-    for (let i = 1; i < vertices.length - 1; i++) {
-      positions.push(vertices[0].x, vertices[0].y, vertices[0].z);
-      positions.push(vertices[i].x, vertices[i].y, vertices[i].z);
-      positions.push(vertices[i + 1].x, vertices[i + 1].y, vertices[i + 1].z);
-    }
-    
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.computeVertexNormals();
-    return geometry;
-  }
-
-  private createFaceMaterial(pres?: any) {
-    const isCutFace = pres?.isCutFace;
-    return new THREE.MeshPhongMaterial({
-      color: isCutFace ? 0xffcccc : 0x66ccff,
-      transparent: true,
-      opacity: 0.4,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      name: isCutFace ? 'cutFace' : 'originalFace'
-    });
-  }
-
-  private syncFaceLabel(id: FaceID, vertices: THREE.Vector3[], visible: boolean) {
-      let label = this.faceLabels.get(id);
-      const center = vertices.reduce((acc, v) => acc.add(v), new THREE.Vector3()).divideScalar(vertices.length);
-      
-      if (!label) {
-          // Use a placeholder or derive name from FaceID
-          label = createLabel(id.replace('F:', 'Face '), this.size / 8, 'rgba(0,0,0,0.5)');
-          this.scene.add(label);
-          this.faceLabels.set(id, label);
-      }
-      label.position.copy(center);
-      label.visible = visible;
-  }
-
-  private syncEdgeHitbox(id: EdgeID, v0: THREE.Vector3, v1: THREE.Vector3) {
-      let hitbox = this.edgeHitboxes.get(id);
-      const edgeVector = v1.clone().sub(v0);
-      const length = edgeVector.length();
-      const center = v0.clone().add(v1).multiplyScalar(0.5);
-
-      if (!hitbox) {
-          hitbox = new THREE.Mesh(
-              new THREE.CylinderGeometry(0.1, 0.1, length),
-              new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.0 })
-          );
-          hitbox.userData = { type: 'edge', edgeId: id };
-          this.scene.add(hitbox);
-          this.edgeHitboxes.set(id, hitbox);
-      } else {
-          // Re-scale if needed
-          hitbox.scale.set(1, length / (hitbox.geometry as THREE.CylinderGeometry).parameters.height, 1);
-      }
-      hitbox.position.copy(center);
-      hitbox.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), edgeVector.normalize());
-  }
-
-  private syncEdgeLabel(id: EdgeID, v0: THREE.Vector3, v1: THREE.Vector3, visible: boolean) {
-      let label = this.edgeLabels.get(id);
-      const center = v0.clone().add(v1).multiplyScalar(0.5);
-      const length = v0.distanceTo(v1);
-
-      if (!label) {
-          label = createLabel(`${length.toFixed(0)}cm`, this.size / 15);
-          this.scene.add(label);
-          this.edgeLabels.set(id, label);
-      }
-      label.position.copy(center);
-      label.visible = visible;
-  }
-
-  private syncVertexLabel(id: VertexID, pos: THREE.Vector3, text: string, visible: boolean) {
-      let sprite = this.vertexSprites.get(id);
-      if (!sprite) {
-          sprite = createLabel(text, this.size / 10);
-          this.scene.add(sprite);
-          this.vertexSprites.set(id, sprite);
-      }
-      sprite.position.copy(pos).add(new THREE.Vector3(0, 0.5, 0));
-      sprite.visible = visible;
-  }
-
-  // --- Public Interface ---
-
-  toggleVertexLabels(visible: boolean) {
+  toggleVertexLabels(visible: boolean){
     this.vertexSprites.forEach(s => s.visible = visible);
   }
 
@@ -458,27 +224,54 @@ export class Cube {
     this.faceLabels.forEach(l => l.visible = visible);
   }
 
-  setEdgeLabelMode(mode: 'visible' | 'popup' | 'hidden') {
+  setEdgeLabelMode(mode: 'visible' | 'popup' | 'hidden'){
+    // mode: 'visible', 'popup', 'hidden'
+    // Cubeが持つ静的な辺ラベルの表示制御
+    // popupモードの時は静的ラベルは非表示（マウスオーバーで別途表示するため）
     const visible = (mode === 'visible');
     this.edgeLabels.forEach(s => s.visible = visible);
   }
 
-  setEdgeLabelVisible(id: EdgeID, visible: boolean) {
-      const label = this.edgeLabels.get(id);
-      if (label) label.visible = visible;
+  // 特定の辺ラベルの表示/非表示を設定（SelectionManagerからの利用など）
+  setEdgeLabelVisible(index, visible) {
+      if (this.edgeLabels[index]) {
+          this.edgeLabels[index].visible = visible;
+      }
   }
 
-  toggleTransparency(transparent: boolean) {
-    this.faceMeshes.forEach(mesh => {
-      const mat = mesh.material as THREE.MeshPhongMaterial;
-      mat.transparent = transparent;
-      mat.opacity = transparent ? 0.4 : 1.0;
-      mat.depthWrite = !transparent;
-      mat.needsUpdate = true;
+  getClosestEdge(point, threshold = 0.5) {
+    let best = null, min = threshold;
+    let bestIdx = -1;
+    this.edges.forEach((line, i) => {
+        // SelectionManagerで隠されているラベルに対応する辺は対象外にする？
+        // いや、隠されていてもポップアップは出てもいいはず。
+        // ただし、分割されている場合は「元の長い辺」ではなく「分割された辺」が出るべきだが、
+        // Cubeクラスは「元の辺」しか知らない。
+        // 分割時の挙動はSelectionManager側で制御するか、あるいは
+        // SelectionManagerが分割した辺の情報を管理し、ポップアップ判定もそちらに委譲するか。
+        // ここでは単純に幾何的な距離だけで返す。
+        const lineObj = new THREE.Line3(line.start, line.end);
+        const closest = lineObj.closestPointToPoint(point, true, new THREE.Vector3());
+        const d = closest.distanceTo(point);
+        if (d < min) {
+            min = d;
+            best = line;
+            bestIdx = i;
+        }
     });
+    return best ? { edge: best, index: bestIdx, distance: min } : null;
   }
 
-  resize(camera: THREE.OrthographicCamera, width: number, height: number) {
+  toggleTransparency(transparent) {
+    if (this.cubeMesh) {
+      this.cubeMesh.material.transparent = transparent;
+      this.cubeMesh.material.opacity = transparent ? 0.4 : 1.0;
+      this.cubeMesh.material.depthWrite = !transparent; // 半透明時は深度書き込みを無効（内部が見えるように）
+      this.cubeMesh.material.needsUpdate = true;
+    }
+  }
+
+  resize(camera, width = innerWidth, height = innerHeight){
     const aspect = width / height;
     const padding = 5;
     const baseSize = this.size / 2 + padding;
@@ -490,64 +283,218 @@ export class Cube {
     camera.updateProjectionMatrix();
   }
 
-  // Legacy helper mapping EdgeID to internal mesh index (for SelectionManager)
-  getEdgeMeshIndexById(edgeId: EdgeID): any {
-      return edgeId; // SelectionManager now handles ID directly
+  getVertexObjectByName(name) {
+      return this.vertexMeshes.find(m => m.userData.name === name);
   }
 
-  // Legacy helper for SnapPointID generation
-  getSnapPointIdForEdgeId(edgeId: string, numerator: number, denominator: number) {
-      if (!edgeId || !denominator) return null;
-      const cleanEdgeId = edgeId.startsWith('E:') ? edgeId.slice(2) : edgeId;
-      const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
-      const common = gcd(numerator, denominator);
-      return `E:${cleanEdgeId}@${numerator / common}/${denominator / common}`;
+  getVertexObjectById(vertexId) {
+      if (!vertexId) return null;
+      return this.vertexMeshes.find(m => m.userData.vertexId === vertexId);
   }
 
-  getSnapPointIdForVertexLabel(label: string) {
-      const labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-      const index = labels.indexOf(label);
-      return index !== -1 ? `V:${index}` : null;
+  getVertexPosition(name) {
+      const physIdx = this.labelToPhysicalIndex[name];
+      if (physIdx === undefined) {
+          console.warn(`Vertex with name ${name} not found.`);
+          return null;
+      }
+      return this.vertices[physIdx].clone();
   }
 
-  getSnapPointIdForEdgeName(name: string, numerator: number, denominator: number) {
-      if (name.length !== 2) return null;
-      const labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-      const i1 = labels.indexOf(name[0]);
-      const i2 = labels.indexOf(name[1]);
-      if (i1 !== -1 && i2 !== -1) {
-          const min = Math.min(i1, i2);
-          const max = Math.max(i1, i2);
-          const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
-          const common = gcd(numerator, denominator);
-          return `E:${min}-${max}@${numerator/common}/${denominator/common}`;
+  getEdgeObjectByName(name) {
+      // "AB" と "BA" を同一視する
+      return this.edgeMeshes.find(m => m.userData.name === name || m.userData.name === `${name[1]}${name[0]}`);
+  }
+
+  getEdgeObjectById(edgeId) {
+      if (!edgeId) return null;
+      const normalized = edgeId.startsWith('E:') ? edgeId : `E:${edgeId}`;
+      return this.edgeMeshes.find(m => m.userData.edgeId === normalized);
+  }
+
+  getEdgeMeshIndexById(edgeId) {
+      if (!edgeId) return null;
+      const normalized = edgeId.startsWith('E:') ? edgeId : `E:${edgeId}`;
+      const idx = this.edgeIdToMeshIndex[normalized];
+      return idx === undefined ? null : idx;
+  }
+
+  getEdgeLine(name) {
+      // "AB" と "BA" を同一視する
+      const edgeIndex = this.edgeMeshes.findIndex(m => m.userData.name === name || m.userData.name === `${name[1]}${name[0]}`);
+      if (edgeIndex !== -1) {
+          return this.edges[edgeIndex];
       }
       return null;
   }
 
-  // Temporary visibility control
-  setVisible(visible: boolean) {
-      this.faceMeshes.forEach(m => m.visible = visible);
-      this.edgeLines.forEach(m => m.visible = visible);
-      this.vertexSprites.forEach(m => m.visible = visible);
-      this.edgeLabels.forEach(m => m.visible = visible);
-      this.faceLabels.forEach(m => m.visible = visible);
-      this.vertexHitboxes.forEach(m => m.visible = visible);
-      this.edgeHitboxes.forEach(m => m.visible = visible);
+  buildSignToIndexMap() {
+      const map = {};
+      Object.entries(this.indexMap).forEach(([index, sign]) => {
+          const key = `${sign.x},${sign.y},${sign.z}`;
+          map[key] = index;
+      });
+      return map;
   }
 
-  // --- Stub legacy methods to avoid immediate crashes in main.ts ---
-  createCube(edgeLengths: number[] | number) {
-      // No-op or initial build? 
-      // In new pipeline, this should trigger ObjectModel update which then calls syncWithModel.
+  buildIndexToLabelMap() {
+      const map = {};
+      this.vertices.forEach((v, physicalIndex) => {
+          const sx = v.x >= 0 ? 1 : -1;
+          const sy = v.y >= 0 ? 1 : -1;
+          const sz = v.z >= 0 ? 1 : -1;
+          const key = `${sx},${sy},${sz}`;
+          const index = this.signToIndex[key];
+          if (index !== undefined) {
+              map[index] = this.vertexLabels[physicalIndex];
+          }
+      });
+      return map;
   }
-  setVertexLabelMap(labelMap: any) {
-      this.displayLabelMap = labelMap;
+
+  buildPhysicalIndexToIndexMap() {
+      const map = {};
+      this.vertices.forEach((v, physicalIndex) => {
+          const sx = v.x >= 0 ? 1 : -1;
+          const sy = v.y >= 0 ? 1 : -1;
+          const sz = v.z >= 0 ? 1 : -1;
+          const key = `${sx},${sy},${sz}`;
+          const index = this.signToIndex[key];
+          if (index !== undefined) {
+              map[physicalIndex] = Number(index);
+          }
+      });
+      return map;
   }
-  getDisplayLabelByIndex(index: number) { 
-      return this.displayLabelMap ? this.displayLabelMap[`V:${index}`] : `V:${index}`; 
+
+  getVertexIndexByLabel(label) {
+      const physIdx = this.labelToPhysicalIndex[label];
+      if (physIdx === undefined) return null;
+      const v = this.vertices[physIdx];
+      if (!v) return null;
+      const sx = v.x >= 0 ? 1 : -1;
+      const sy = v.y >= 0 ? 1 : -1;
+      const sz = v.z >= 0 ? 1 : -1;
+      const key = `${sx},${sy},${sz}`;
+      return this.signToIndex[key] ?? null;
   }
-  getIndexMap() { return this.indexMap; }
-  getStructure() { return null; }
-  getSize() { return this.edgeLengths; }
+
+  getVertexLabelByIndex(index) {
+      return this.indexToLabel[index] ?? null;
+  }
+
+  getDisplayLabelByIndex(index) {
+      if (this.displayLabelMap && this.displayLabelMap[`V:${index}`]) {
+          return this.displayLabelMap[`V:${index}`];
+      }
+      return this.getVertexLabelByIndex(index);
+  }
+
+  setVertexLabelMap(labelMap) {
+      this.displayLabelMap = labelMap || null;
+      this.refreshVertexLabels();
+      applyVertexLabelMap(this.structure, this.displayLabelMap, this.indexToLabel);
+  }
+
+  refreshVertexLabels() {
+      this.vertexSprites.forEach(s => this.scene.remove(s));
+      this.vertexSprites = [];
+      this.vertices.forEach((v, physicalIndex) => {
+          const sx = v.x >= 0 ? 1 : -1;
+          const sy = v.y >= 0 ? 1 : -1;
+          const sz = v.z >= 0 ? 1 : -1;
+          const key = `${sx},${sy},${sz}`;
+          const index = this.signToIndex[key];
+          const label = this.getDisplayLabelByIndex(index);
+          const sprite = createLabel(label, this.size/10);
+          sprite.position.copy(v).add(new THREE.Vector3(0, 0.5, 0));
+          this.scene.add(sprite);
+          this.vertexSprites.push(sprite);
+      });
+  }
+
+  getEdgeIndexByName(name) {
+      if (!name || name.length < 2) return null;
+      const i1 = this.getVertexIndexByLabel(name[0]);
+      const i2 = this.getVertexIndexByLabel(name[1]);
+      if (i1 === null || i2 === null) return null;
+      return i1 <= i2 ? `${i1}${i2}` : `${i2}${i1}`;
+  }
+
+  getEdgeNameByIndex(edgeIndex) {
+      if (!edgeIndex || edgeIndex.length < 2) return null;
+      const label1 = this.getVertexLabelByIndex(edgeIndex[0]);
+      const label2 = this.getVertexLabelByIndex(edgeIndex[1]);
+      if (!label1 || !label2) return null;
+      return `${label1}${label2}`;
+  }
+
+  getSnapPointIdForEdgeId(edgeId, numerator, denominator) {
+      if (!edgeId || !denominator) return null;
+      const edgeIndex = edgeId.startsWith('E:') ? edgeId.slice(2) : edgeId;
+      const gcd = (a, b) => {
+          let x = Math.abs(a);
+          let y = Math.abs(b);
+          while (y !== 0) {
+              const t = x % y;
+              x = y;
+              y = t;
+          }
+          return x || 1;
+      };
+      const d = gcd(numerator, denominator);
+      const n = numerator / d;
+      const den = denominator / d;
+      return `E:${edgeIndex}@${n}/${den}`;
+  }
+
+  getSnapPointIdForVertexLabel(label) {
+      const index = this.getVertexIndexByLabel(label);
+      return index === null ? null : `V:${index}`;
+  }
+
+  getSnapPointIdForEdgeName(name, numerator, denominator) {
+      const edgeIndex = this.getEdgeIndexByName(name);
+      if (!edgeIndex || !denominator) return null;
+      const gcd = (a, b) => {
+          let x = Math.abs(a);
+          let y = Math.abs(b);
+          while (y !== 0) {
+              const t = x % y;
+              x = y;
+              y = t;
+          }
+          return x || 1;
+      };
+      const d = gcd(numerator, denominator);
+      const n = numerator / d;
+      const den = denominator / d;
+      return `E:${edgeIndex}@${n}/${den}`;
+  }
+
+  getIndexMap() {
+      return this.indexMap;
+  }
+
+  getStructure() {
+      return this.structure;
+  }
+
+  getVertexLabelMap() {
+      return this.displayLabelMap ? { ...this.displayLabelMap } : null;
+  }
+
+  getSize() {
+      return { ...this.edgeLengths };
+  }
+
+  setVisible(visible: boolean) {
+      if (this.cubeMesh) this.cubeMesh.visible = visible;
+      if (this.edgeLines) this.edgeLines.visible = visible;
+      this.vertexSprites.forEach(sprite => { sprite.visible = visible; });
+      this.edgeLabels.forEach(label => { label.visible = visible; });
+      this.faceLabels.forEach(label => { label.visible = visible; });
+      this.vertexMeshes.forEach(mesh => { mesh.visible = visible; });
+      this.edgeMeshes.forEach(mesh => { mesh.visible = visible; });
+  }
 }

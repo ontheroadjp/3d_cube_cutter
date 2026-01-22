@@ -46,20 +46,20 @@ const DEFAULT_PROBLEMS: LearningProblem[] = [
       {
         instruction: 'まずは辺ABの中点に印をつけよう。',
         reason: '問題文にある「中点」は最初に書き込むよ。',
-        action: { type: 'mark', snapId: 'E:0-1@1/2' }
+        action: { type: 'mark', snapId: 'E:01@1/2' }
       },
       {
         instruction: '次は辺GHの中点に印をつけよう。',
         reason: '別の面にも同じ条件があるよ。',
-        action: { type: 'mark', snapId: 'E:6-7@1/2' }
+        action: { type: 'mark', snapId: 'E:67@1/2' }
       },
       {
         instruction: '最後に辺DHの中点に印をつけよう。',
         reason: '3つの中点がそろったら切断面が決まるよ。',
-        action: { type: 'mark', snapId: 'E:3-7@1/2' }
+        action: { type: 'mark', snapId: 'E:37@1/2' }
       }
     ],
-    snapIds: ['E:0-1@1/2', 'E:6-7@1/2', 'E:3-7@1/2']
+    snapIds: ['E:01@1/2', 'E:67@1/2', 'E:37@1/2']
   },
   {
     id: 'ratio-edge',
@@ -76,20 +76,20 @@ const DEFAULT_PROBLEMS: LearningProblem[] = [
       {
         instruction: 'まずは辺ABを3:7に分ける点に印をつけよう。',
         reason: '比が出てきたら、その位置に印をつけるよ。',
-        action: { type: 'mark', snapId: 'E:0-1@3/10' }
+        action: { type: 'mark', snapId: 'E:01@3/10' }
       },
       {
         instruction: '次は辺BCを3:7に分ける点に印をつけよう。',
         reason: '同じ比が別の辺にも出ているね。',
-        action: { type: 'mark', snapId: 'E:1-2@3/10' }
+        action: { type: 'mark', snapId: 'E:12@3/10' }
       },
       {
         instruction: '最後に辺BFを3:7に分ける点に印をつけよう。',
         reason: '3つの点がそろったら切断面が決まるよ。',
-        action: { type: 'mark', snapId: 'E:1-5@3/10' }
+        action: { type: 'mark', snapId: 'E:15@3/10' }
       }
     ],
-    snapIds: ['E:0-1@3/10', 'E:1-2@3/10', 'E:1-5@3/10']
+    snapIds: ['E:01@3/10', 'E:12@3/10', 'E:15@3/10']
   },
   {
     id: 'trapezoid-edge',
@@ -116,10 +116,10 @@ const DEFAULT_PROBLEMS: LearningProblem[] = [
       {
         instruction: '最後に辺EH上の点に印をつけよう。',
         reason: '問題文にある点は必ず書き込むよ。',
-        action: { type: 'mark', snapId: 'E:4-7@3/10' }
+        action: { type: 'mark', snapId: 'E:47@3/10' }
       }
     ],
-    snapIds: ['V:1', 'V:3', 'E:4-7@3/10']
+    snapIds: ['V:1', 'V:3', 'E:47@3/10']
   },
   {
     id: 'vertical-rectangle',
@@ -136,20 +136,20 @@ const DEFAULT_PROBLEMS: LearningProblem[] = [
       {
         instruction: 'まずは辺AEを7:3に分ける点に印をつけよう。',
         reason: '比が書かれている場所に印をつけるよ。',
-        action: { type: 'mark', snapId: 'E:0-4@7/10' }
+        action: { type: 'mark', snapId: 'E:04@7/10' }
       },
       {
         instruction: '次は辺BFを7:3に分ける点に印をつけよう。',
         reason: '同じ高さの点になるよ。',
-        action: { type: 'mark', snapId: 'E:1-5@7/10' }
+        action: { type: 'mark', snapId: 'E:15@7/10' }
       },
       {
         instruction: '最後に辺CGを7:3に分ける点に印をつけよう。',
         reason: '3つの点で切断面が決まるよ。',
-        action: { type: 'mark', snapId: 'E:2-6@7/10' }
+        action: { type: 'mark', snapId: 'E:26@7/10' }
       }
     ],
-    snapIds: ['E:0-4@7/10', 'E:1-5@7/10', 'E:2-6@7/10']
+    snapIds: ['E:04@7/10', 'E:15@7/10', 'E:26@7/10']
   },
   {
     id: 'diagonal-rectangle',
@@ -209,20 +209,20 @@ const DEFAULT_PROBLEMS: LearningProblem[] = [
       {
         instruction: 'まずは辺ADの1/4の点に印をつけよう。',
         reason: '平行な切断面は、同じ位置の点を通るよ。',
-        action: { type: 'mark', snapId: 'E:0-3@1/4' }
+        action: { type: 'mark', snapId: 'E:03@1/4' }
       },
       {
         instruction: '次は辺BCの1/4の点に印をつけよう。',
         reason: '同じ高さの点がそろうよ。',
-        action: { type: 'mark', snapId: 'E:1-2@1/4' }
+        action: { type: 'mark', snapId: 'E:12@1/4' }
       },
       {
         instruction: '最後に辺FGの1/4の点に印をつけよう。',
         reason: '3つの点で切断面が決まるよ。',
-        action: { type: 'mark', snapId: 'E:5-6@1/4' }
+        action: { type: 'mark', snapId: 'E:56@1/4' }
       }
     ],
-    snapIds: ['E:0-3@1/4', 'E:1-2@1/4', 'E:5-6@1/4']
+    snapIds: ['E:03@1/4', 'E:12@1/4', 'E:56@1/4']
   },
   {
     id: 'pentagon-cut',
@@ -239,20 +239,20 @@ const DEFAULT_PROBLEMS: LearningProblem[] = [
       {
         instruction: 'まずは辺AEを3:7に分ける点に印をつけよう。',
         reason: '比が書かれている場所は必ず書き込むよ。',
-        action: { type: 'mark', snapId: 'E:0-4@3/10' }
+        action: { type: 'mark', snapId: 'E:04@3/10' }
       },
       {
         instruction: '次は辺ABの中点に印をつけよう。',
         reason: '中点も切断面を決める大事な点だよ。',
-        action: { type: 'mark', snapId: 'E:0-1@1/2' }
+        action: { type: 'mark', snapId: 'E:01@1/2' }
       },
       {
         instruction: '最後に辺BCの中点に印をつけよう。',
         reason: 'これで切断面を決める点がそろうよ。',
-        action: { type: 'mark', snapId: 'E:1-2@1/2' }
+        action: { type: 'mark', snapId: 'E:12@1/2' }
       }
     ],
-    snapIds: ['E:0-4@3/10', 'E:0-1@1/2', 'E:1-2@1/2']
+    snapIds: ['E:04@3/10', 'E:01@1/2', 'E:12@1/2']
   },
   {
     id: 'diamond-cut',
@@ -269,12 +269,12 @@ const DEFAULT_PROBLEMS: LearningProblem[] = [
       {
         instruction: 'まずは辺AEの中点に印をつけよう。',
         reason: '問題文にある中点は必ず書き込むよ。',
-        action: { type: 'mark', snapId: 'E:0-4@1/2' }
+        action: { type: 'mark', snapId: 'E:04@1/2' }
       },
       {
         instruction: '次は辺CGの中点に印をつけよう。',
         reason: '別の面の中点も切断面を決めるよ。',
-        action: { type: 'mark', snapId: 'E:2-6@1/2' }
+        action: { type: 'mark', snapId: 'E:26@1/2' }
       },
       {
         instruction: '最後に頂点Bに印をつけよう。',
@@ -282,7 +282,7 @@ const DEFAULT_PROBLEMS: LearningProblem[] = [
         action: { type: 'mark', snapId: 'V:1' }
       }
     ],
-    snapIds: ['E:0-4@1/2', 'E:2-6@1/2', 'V:1']
+    snapIds: ['E:04@1/2', 'E:26@1/2', 'V:1']
   },
   {
     id: 'hexagon-cut',
@@ -299,20 +299,20 @@ const DEFAULT_PROBLEMS: LearningProblem[] = [
       {
         instruction: 'まずは辺ABの中点に印をつけよう。',
         reason: '中点がたくさん出てくる問題だよ。',
-        action: { type: 'mark', snapId: 'E:0-1@1/2' }
+        action: { type: 'mark', snapId: 'E:01@1/2' }
       },
       {
         instruction: '次は辺GHの中点に印をつけよう。',
         reason: '反対側の面にも同じ条件があるよ。',
-        action: { type: 'mark', snapId: 'E:6-7@1/2' }
+        action: { type: 'mark', snapId: 'E:67@1/2' }
       },
       {
         instruction: '最後に辺DHの中点に印をつけよう。',
         reason: 'これで切断面を決める点がそろうよ。',
-        action: { type: 'mark', snapId: 'E:3-7@1/2' }
+        action: { type: 'mark', snapId: 'E:37@1/2' }
       }
     ],
-    snapIds: ['E:0-1@1/2', 'E:6-7@1/2', 'E:3-7@1/2']
+    snapIds: ['E:01@1/2', 'E:67@1/2', 'E:37@1/2']
   }
 ];
 

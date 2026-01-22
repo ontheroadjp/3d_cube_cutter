@@ -31,7 +31,7 @@ export class Edge {
   constructor(a: number, b: number) {
     const i1 = Math.min(a, b);
     const i2 = Math.max(a, b);
-    this.id = `E:${i1}-${i2}`;
+    this.id = `E:${i1}${i2}`;
     this.vertices = [`V:${i1}`, `V:${i2}`];
     this.faces = [];
     this.snapPoints = [];
@@ -45,7 +45,7 @@ export class Face {
   adjacentFaces: string[];
 
   constructor(indices: number[]) {
-    this.id = `F:${indices.join('-')}`;
+    this.id = `F:${indices.join('')}`;
     this.vertices = indices.map(i => `V:${i}`);
     this.edges = [];
     this.adjacentFaces = [];
@@ -128,7 +128,7 @@ export function buildCubeStructure({
     for (let i = 0; i < faceVertexIndices.length; i++) {
       const a = faceVertexIndices[i];
       const b = faceVertexIndices[(i + 1) % faceVertexIndices.length];
-      const edgeId = `E:${Math.min(a, b)}-${Math.max(a, b)}`;
+      const edgeId = `E:${Math.min(a, b)}${Math.max(a, b)}`;
       if (edgeMap.has(edgeId)) faceEdges.push(edgeId);
     }
     face.edges = faceEdges;

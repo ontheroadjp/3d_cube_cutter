@@ -12,9 +12,9 @@ describe('snapPointId parsing', () => {
   });
 
   it('parses edge ids', () => {
-    expect(parseSnapPointId('E:0-1@1/2')).toEqual({
+    expect(parseSnapPointId('E:01@1/2')).toEqual({
       type: 'edge',
-      edgeIndex: '0-1',
+      edgeIndex: '01',
       ratio: { numerator: 1, denominator: 2 },
     });
   });
@@ -29,40 +29,40 @@ describe('snapPointId parsing', () => {
 
 describe('snapPointId normalization', () => {
   it('reduces fractions', () => {
-    const parsed = parseSnapPointId('E:0-1@2/4');
+    const parsed = parseSnapPointId('E:01@2/4');
     const normalized = normalizeSnapPointId(parsed);
     expect(normalized).toEqual({
       type: 'edge',
-      edgeIndex: '0-1',
+      edgeIndex: '01',
       ratio: { numerator: 1, denominator: 2 },
     });
-    expect(stringifySnapPointId(normalized)).toBe('E:0-1@1/2');
+    expect(stringifySnapPointId(normalized)).toBe('E:01@1/2');
   });
 
   it('normalizes reversed edge and inverts ratio', () => {
-    const parsed = parseSnapPointId('E:1-0@1/4');
+    const parsed = parseSnapPointId('E:10@1/4');
     const normalized = normalizeSnapPointId(parsed);
     expect(normalized).toEqual({
       type: 'edge',
-      edgeIndex: '0-1',
+      edgeIndex: '01',
       ratio: { numerator: 3, denominator: 4 },
     });
-    expect(stringifySnapPointId(normalized)).toBe('E:0-1@3/4');
+    expect(stringifySnapPointId(normalized)).toBe('E:01@3/4');
   });
 
   it('normalizes reversed edge with arbitrary ratio', () => {
-    const parsed = parseSnapPointId('E:2-1@3/10');
+    const parsed = parseSnapPointId('E:21@3/10');
     const normalized = normalizeSnapPointId(parsed);
     expect(normalized).toEqual({
       type: 'edge',
-      edgeIndex: '1-2',
+      edgeIndex: '12',
       ratio: { numerator: 7, denominator: 10 },
     });
-    expect(stringifySnapPointId(normalized)).toBe('E:1-2@7/10');
+    expect(stringifySnapPointId(normalized)).toBe('E:12@7/10');
   });
 
   it('canonicalizes edge endpoints to vertex ids', () => {
-    expect(canonicalizeSnapPointId('E:0-1@0/1')).toBe('V:0');
-    expect(canonicalizeSnapPointId('E:0-1@1/1')).toBe('V:1');
+    expect(canonicalizeSnapPointId('E:01@0/1')).toBe('V:0');
+    expect(canonicalizeSnapPointId('E:01@1/1')).toBe('V:1');
   });
 });

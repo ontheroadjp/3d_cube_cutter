@@ -1,5 +1,4 @@
 import type { Ratio, SnapPointID } from '../types.js';
-export type { SnapPointID };
 
 export type SnapPointRef =
   | { type: 'vertex'; vertexIndex: string }
@@ -13,21 +12,19 @@ export function parseSnapPointId(id: string): SnapPointRef | null {
   if (match) {
     return { type: 'vertex', vertexIndex: match[1] };
   }
-  // Strictly enforce E:a-b@... format
-  match = trimmed.match(/^E:(\d+)-(\d+)@(\d+)\/(\d+)$/);
+  match = trimmed.match(/^E:(\d+)(\d+)@(\d+)\/(\d+)$/);
   if (match) {
     return {
       type: 'edge',
-      edgeIndex: `${match[1]}-${match[2]}`,
+      edgeIndex: `${match[1]}${match[2]}`,
       ratio: { numerator: Number(match[3]), denominator: Number(match[4]) },
     };
   }
-  // Support F:0154@center (legacy) or F:V:0-... (verbose)
-  match = trimmed.match(/^F:(.+?)@center$/);
+  match = trimmed.match(/^F:(\d+)(\d+)(\d+)(\d+)@center$/);
   if (match) {
     return {
       type: 'face',
-      faceIndex: match[1],
+      faceIndex: `${match[1]}${match[2]}${match[3]}${match[4]}`,
     };
   }
   return null;
@@ -68,26 +65,15 @@ export function normalizeSnapPointId(parsed: SnapPointRef | null): SnapPointRef 
     if (!parsed.edgeIndex || !parsed.ratio) return null;
     const ratio = normalizeRatio(parsed.ratio);
     if (!ratio) return null;
-    
-    // Expect "a-b" format
-    const parts = parsed.edgeIndex.split('-');
-    if (parts.length !== 2) return null;
-    
-    const i1 = parts[0];
-    const i2 = parts[1];
-    
-    const n1 = parseInt(i1, 10);
-    const n2 = parseInt(i2, 10);
-    
-    // Sort indices numerically
-    const swap = !isNaN(n1) && !isNaN(n2) ? n1 > n2 : i1 > i2;
-
-    if (!swap) {
-      return { type: 'edge', edgeIndex: `${i1}-${i2}`, ratio };
+    const i1 = parsed.edgeIndex[0];
+    const i2 = parsed.edgeIndex[1];
+    if (i1 === undefined || i2 === undefined) return null;
+    if (i1 <= i2) {
+      return { type: 'edge', edgeIndex: `${i1}${i2}`, ratio };
     }
     return {
       type: 'edge',
-      edgeIndex: `${i2}-${i1}`, 
+      edgeIndex: `${i2}${i1}`,
       ratio: {
         numerator: ratio.denominator - ratio.numerator,
         denominator: ratio.denominator,
@@ -113,16 +99,12 @@ export function canonicalizeSnapPointId(id: SnapPointID): SnapPointID | null {
   const normalized = normalizeSnapPointId(parsed);
   if (!normalized) return null;
   if (normalized.type !== 'edge') return stringifySnapPointId(normalized);
-  
   const { numerator, denominator } = normalized.ratio;
-  const parts = normalized.edgeIndex.split('-');
-  if (parts.length !== 2) return stringifySnapPointId(normalized);
-  
   if (numerator === 0) {
-    return `V:${parts[0]}`;
+    return `V:${normalized.edgeIndex[0]}`;
   }
   if (numerator === denominator) {
-    return `V:${parts[1]}`;
+    return `V:${normalized.edgeIndex[1]}`;
   }
   return stringifySnapPointId(normalized);
 }

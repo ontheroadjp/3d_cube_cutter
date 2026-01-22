@@ -36,14 +36,13 @@ describe('object model manager', () => {
     const model = manager.build();
 
     expect(model).not.toBeNull();
-    // Access presentation.display instead of display
-    expect(model.presentation.display.showVertexLabels).toBe(true);
+    expect(model.display.showVertexLabels).toBe(true);
 
     manager.setDisplay({
-      ...model.presentation.display,
+      ...model.display,
       showVertexLabels: false
     });
-    expect(manager.getModel().presentation.display.showVertexLabels).toBe(false);
+    expect(manager.getModel().display.showVertexLabels).toBe(false);
 
     globalThis.document = originalDocument;
   });
@@ -56,31 +55,24 @@ describe('object model manager', () => {
     manager.build();
 
     manager.applyCutIntersections([
-      { id: 'E:0-1@1/2', type: 'intersection' },
+      { id: 'E:01@1/2', type: 'intersection' },
       { id: 'V:2', type: 'intersection' }
     ]);
 
     const model = manager.getModel();
-    
-    // Access presentation edges/vertices by ID directly (no find needed)
-    const edgePres = model.presentation.edges['E:0-1'];
-    const vertexPres = model.presentation.vertices['V:2'];
-    
-    expect(edgePres).toBeTruthy();
-    expect(vertexPres).toBeTruthy();
-    
-    // Check flags on presentation objects
-    expect(edgePres.hasCutPoint).toBe(true);
-    expect(edgePres.isMidpointCut).toBe(true);
-    expect(vertexPres.isCutPoint).toBe(true);
+    const edgeModel = model.solid.edges.find(e => e.id === 'E:01');
+    const vertexModel = model.solid.vertices.find(v => v.id === 'V:2');
+    expect(edgeModel.flags.hasCutPoint).toBe(true);
+    expect(edgeModel.flags.isMidpointCut).toBe(true);
+    expect(vertexModel.flags.isCutPoint).toBe(true);
 
-    expect(manager.getEdgeHighlightColor('E:0-1')).toBe(0x00cc66);
-    expect(manager.getEdgeHighlightColor('E:1-2')).toBe(0xff8800);
+    expect(manager.getEdgeHighlightColor('E:01')).toBe(0x00cc66);
+    expect(manager.getEdgeHighlightColor('E:12')).toBe(0xff8800);
 
     const resolved = manager.resolveCutIntersectionPositions();
-    const midpoint = resolved.find(ref => ref.id === 'E:0-1@1/2');
+    const midpoint = resolved.find(ref => ref.id === 'E:01@1/2');
     const vertexResolved = resolved.find(ref => ref.id === 'V:2');
-    const edgeResolved = resolver.resolveEdge('E:0-1');
+    const edgeResolved = resolver.resolveEdge('E:01');
     expect(midpoint.position).toBeInstanceOf(THREE.Vector3);
     expect(vertexResolved.position).toBeInstanceOf(THREE.Vector3);
     if (edgeResolved) {
@@ -99,14 +91,14 @@ describe('object model manager', () => {
     const resolveSpy = vi.spyOn(resolver, 'resolveSnapPoint');
     manager.applyCutIntersections([
       { id: 'V:0', type: 'intersection' },
-      { id: 'E:0-1@1/2', type: 'intersection' }
+      { id: 'E:01@1/2', type: 'intersection' }
     ]);
 
     const resolved = manager.resolveCutIntersectionPositions();
-    const midpoint = resolved.find(ref => ref.id === 'E:0-1@1/2');
+    const midpoint = resolved.find(ref => ref.id === 'E:01@1/2');
     const vertexResolved = resolved.find(ref => ref.id === 'V:0');
 
-    expect(resolveSpy).toHaveBeenCalledWith('E:0-1@1/2');
+    expect(resolveSpy).toHaveBeenCalledWith('E:01@1/2');
     expect(resolveSpy).toHaveBeenCalledWith('V:0');
     expect(midpoint?.position).toBeInstanceOf(THREE.Vector3);
     expect(vertexResolved?.position).toBeInstanceOf(THREE.Vector3);
@@ -133,10 +125,9 @@ describe('object model manager', () => {
     });
 
     const model = manager.getModel();
-    // Access derived.cut instead of cut
-    expect(model.derived.cut.cutSegments.length).toBe(1);
+    expect(model.cut.cutSegments.length).toBe(1);
     expect(manager.getCutSegments().length).toBe(1);
-    expect(model.derived.cut.facePolygons.length).toBe(1);
+    expect(model.cut.facePolygons.length).toBe(1);
     expect(manager.getCutFaceAdjacency().length).toBe(1);
     expect(manager.getCutFaceAdjacency()[0].sharedEdgeIds).toBeUndefined();
   });
@@ -154,10 +145,9 @@ describe('object model manager', () => {
     });
 
     const model = manager.getModel();
-    // Access derived.net instead of net
-    expect(model.derived.net.faces.length).toBe(1);
-    expect(model.derived.net.animation.state).toBe('opening');
-    expect(model.derived.net.animation.progress).toBe(0.5);
+    expect(model.net.faces.length).toBe(1);
+    expect(model.net.animation.state).toBe('opening');
+    expect(model.net.animation.progress).toBe(0.5);
   });
 
   it('syncs net timing and camera info', () => {
@@ -179,9 +169,9 @@ describe('object model manager', () => {
     });
 
     const model = manager.getModel();
-    expect(model.derived.net.animation.startAt).toBe(1234);
-    expect(model.derived.net.animation.camera.endPos).toBeInstanceOf(THREE.Vector3);
-    expect(model.derived.net.animation.camera.endPos.x).toBe(4);
+    expect(model.net.animation.startAt).toBe(1234);
+    expect(model.net.animation.camera.endPos).toBeInstanceOf(THREE.Vector3);
+    expect(model.net.animation.camera.endPos.x).toBe(4);
   });
 
   it('keeps net camera when partial updates omit it', () => {
@@ -207,8 +197,8 @@ describe('object model manager', () => {
     });
 
     const model = manager.getModel();
-    expect(model.derived.net.animation.camera.startPos.x).toBe(1);
-    expect(model.derived.net.animation.progress).toBe(0.25);
+    expect(model.net.animation.camera.startPos.x).toBe(1);
+    expect(model.net.animation.progress).toBe(0.25);
   });
 
   it('tracks net visibility', () => {
@@ -221,8 +211,7 @@ describe('object model manager', () => {
     expect(manager.getNetVisible()).toBe(false);
     manager.setNetVisible(true);
     expect(manager.getNetVisible()).toBe(true);
-    // Access derived.net.visible
-    expect(manager.getModel().derived.net.visible).toBe(true);
+    expect(manager.getModel().net.visible).toBe(true);
   });
 
   it('applies display state to cube and selection', () => {
@@ -233,7 +222,6 @@ describe('object model manager', () => {
       toggleVertexLabels: vi.fn(),
       setEdgeLabelMode: vi.fn(),
     };
-    const toggleTransparencySpy = vi.spyOn(cube, 'toggleTransparency');
     const manager = new ObjectModelManager({ cube, resolver, ui: null, selection });
     const cutter = {
       toggleSurface: vi.fn(),
@@ -266,7 +254,7 @@ describe('object model manager', () => {
 
     expect(selection.toggleVertexLabels).toHaveBeenCalledWith(false);
     expect(selection.setEdgeLabelMode).toHaveBeenCalledWith('popup');
-    expect(toggleTransparencySpy).toHaveBeenCalledWith(true);
+    expect(cube.cubeMesh.material.transparent).toBe(true);
     expect(cutter.toggleSurface).toHaveBeenCalledWith(true);
     expect(cutter.togglePyramid).toHaveBeenCalledWith(false);
     expect(cutter.setCutPointsVisible).toHaveBeenCalledWith(true);

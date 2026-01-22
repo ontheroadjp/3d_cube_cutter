@@ -8,29 +8,9 @@ type SelectionLike = {
   toggleVertexLabels: (visible: boolean) => void;
   setEdgeLabelMode: (mode: DisplayState['edgeLabelMode']) => void;
 };
-import {
-  type ObjectCutAdjacency,
-  type ObjectCutSegment,
-  type ObjectModel,
-  type ObjectNetFace,
-  type ObjectNetState,
-  type VertexID,
-  type EdgeID,
-  type FaceID,
-  type VertexSSOT,
-  type EdgeSSOT,
-  type FaceSSOT,
-  type VertexPresentation,
-  type EdgePresentation,
-  type FacePresentation,
-  createDefaultFacePresentation,
-  createDefaultVertexPresentation,
-  createDefaultEdgePresentation,
-  createDefaultNetDerived
-} from './objectModel.js';
-import { buildObjectModelData } from './objectModelBuilder.js';
+import type { ObjectCutAdjacency, ObjectCutSegment, ObjectModel, ObjectNetFace, ObjectNetState } from './objectModel.js';
+import { buildObjectSolidModel } from './objectModelBuilder.js';
 import { normalizeSnapPointId, parseSnapPointId } from '../geometry/snapPointId.js';
-import { buildCubeStructure } from '../structure/structureModel.js';
 
 const DEFAULT_DISPLAY: DisplayState = {
   showVertexLabels: true,
@@ -43,35 +23,21 @@ const DEFAULT_DISPLAY: DisplayState = {
   colorizeCutLines: false
 };
 
-// Helper to create default empty cut derived
-const createDefaultCutDerived = () => ({
-  showCutSurface: true,
-  intersections: [],
-  cutSegments: [],
-  facePolygons: [],
-  faceAdjacency: []
-});
-
-
-export type EngineEvent =
-  | { type: "SSOT_UPDATED"; payload?: ObjectModel }
-  | { type: "DERIVED_UPDATED"; payload?: any }
-  | { type: "CUT_RESULT_UPDATED"; payload?: any }
-  | { type: "NET_DERIVED_UPDATED"; payload?: any }
-  | { type: "ERROR"; message: string };
-
-type Listener = (event: EngineEvent) => void;
-
 export class ObjectModelManager {
   cube: Cube;
   resolver: GeometryResolver;
   ui: UIManager | null;
   selection: SelectionLike | null;
   model: ObjectModel | null;
-  
-  // Local caches are removed in favor of model.derived
-  
-  private listeners: Listener[] = [];
+  edgeMap: Map<string, ObjectModel['solid']['edges'][number]> | null;
+  vertexMap: Map<string, ObjectModel['solid']['vertices'][number]> | null;
+  cutIntersections: IntersectionPoint[];
+  cutSegments: ObjectCutSegment[];
+  cutFacePolygons: CutFacePolygon[];
+  cutFaceAdjacency: ObjectCutAdjacency[];
+  netFaces: ObjectNetFace[];
+  netState: ObjectNetState;
+  netVisible: boolean;
 
   constructor({
     cube,
@@ -89,50 +55,54 @@ export class ObjectModelManager {
     this.ui = ui || null;
     this.selection = selection || null;
     this.model = null;
-  }
-
-  subscribe(listener: Listener): () => void {
-    this.listeners.push(listener);
-    return () => {
-      this.listeners = this.listeners.filter(l => l !== listener);
-    };
-  }
-
-  private notify(event: EngineEvent) {
-    this.listeners.forEach(l => l(event));
+    this.edgeMap = null;
+    this.vertexMap = null;
+    this.cutIntersections = [];
+    this.cutSegments = [];
+    this.cutFacePolygons = [];
+    this.cutFaceAdjacency = [];
+    this.netFaces = [];
+    this.netState = this.createDefaultNetState();
+    this.netVisible = false;
   }
 
   build(displayOverride?: DisplayState) {
-    const structure = this.cube.getStructure() || buildCubeStructure({ indexMap: this.cube.getIndexMap() });
-    const display = displayOverride || (this.ui ? this.ui.getDisplayState() : DEFAULT_DISPLAY);
-    
-    const built = buildObjectModelData({
+    const structure = this.cube.getStructure();
+    const solid = buildObjectSolidModel({
       structure,
-      size: this.cube.getSize(),
-      display
+      resolver: this.resolver,
+      size: this.cube.getSize()
     });
-
-    if (!built) {
+    if (!solid) {
       this.model = null;
-      this.notify({ type: "ERROR", message: "Failed to build solid model" });
       return null;
     }
-
+    const display = displayOverride || (this.ui ? this.ui.getDisplayState() : DEFAULT_DISPLAY);
     this.model = {
-      ssot: built.ssot,
-      presentation: built.presentation,
-      derived: {
-        cut: createDefaultCutDerived(),
-        net: createDefaultNetDerived()
+      solid,
+      display,
+      cut: {
+        showCutSurface: display.showCutSurface,
+        intersections: [],
+        cutSegments: [],
+        facePolygons: [],
+        faceAdjacency: []
+      },
+      net: {
+        faces: [],
+        animation: this.createDefaultNetState(),
+        visible: false
       }
     };
-    
-    // Sync cut surface visibility
-    if (this.model.derived.cut) {
-        this.model.derived.cut.showCutSurface = display.showCutSurface;
-    }
-
-    this.notify({ type: "SSOT_UPDATED", payload: this.model });
+    this.edgeMap = new Map(solid.edges.map(edge => [edge.id, edge]));
+    this.vertexMap = new Map(solid.vertices.map(vertex => [vertex.id, vertex]));
+    this.cutIntersections = [];
+    this.cutSegments = [];
+    this.cutFacePolygons = [];
+    this.cutFaceAdjacency = [];
+    this.netFaces = [];
+    this.netState = this.createDefaultNetState();
+    this.netVisible = false;
     return this.model;
   }
 
@@ -146,22 +116,17 @@ export class ObjectModelManager {
       this.build(display);
       return;
     }
-    // Update Presentation
-    this.model.presentation.display = { ...display };
-    
-    // Update Derived (if relevant)
-    if (this.model.derived.cut) {
-      this.model.derived.cut.showCutSurface = display.showCutSurface;
+    this.model.display = { ...display };
+    this.ensureCutModel();
+    if (this.model.cut) {
+      this.model.cut.showCutSurface = display.showCutSurface;
     }
-    
-    this.notify({ type: "SSOT_UPDATED", payload: this.model });
   }
 
   applyDisplayToView(displayOverride?: DisplayState) {
     const display = displayOverride
-      || (this.model ? this.model.presentation.display : null)
+      || (this.model ? this.model.display : null)
       || (this.ui ? this.ui.getDisplayState() : DEFAULT_DISPLAY);
-    
     this.cube.toggleVertexLabels(display.showVertexLabels);
     this.cube.toggleFaceLabels(display.showFaceLabels);
     if (this.selection) {
@@ -173,22 +138,21 @@ export class ObjectModelManager {
   }
 
   getDisplayState() {
-    return (this.model ? this.model.presentation.display : null)
+    return (this.model ? this.model.display : null)
       || (this.ui ? this.ui.getDisplayState() : DEFAULT_DISPLAY);
   }
 
   applyTransparencyToView(displayOverride?: DisplayState) {
     const display = displayOverride
-      || (this.model ? this.model.presentation.display : null)
+      || (this.model ? this.model.display : null)
       || (this.ui ? this.ui.getDisplayState() : DEFAULT_DISPLAY);
     this.cube.toggleTransparency(display.cubeTransparent);
   }
 
   applyCutDisplayToView({ cutter }: { cutter: { toggleSurface: (visible: boolean) => void; togglePyramid: (visible: boolean) => void; setCutPointsVisible: (visible: boolean) => void; setCutLineColorize: (enabled: boolean) => void } }) {
-    const display = this.model ? this.model.presentation.display : null;
+    const display = this.model ? this.model.display : null;
     if (!display) return;
-    
-    const showCutSurface = this.model && this.model.derived.cut ? this.model.derived.cut.showCutSurface : display.showCutSurface;
+    const showCutSurface = this.model && this.model.cut ? this.model.cut.showCutSurface : display.showCutSurface;
     cutter.toggleSurface(showCutSurface);
     cutter.togglePyramid(display.showPyramid);
     cutter.setCutPointsVisible(display.showCutPoints);
@@ -197,57 +161,53 @@ export class ObjectModelManager {
 
   resetCutFlags() {
     if (!this.model) return;
-    const { vertices, edges } = this.model.presentation;
-    
-    Object.values(vertices).forEach(v => {
-      v.isCutPoint = false;
+    this.model.solid.vertices.forEach(vertex => {
+      vertex.flags.isCutPoint = false;
     });
-    Object.values(edges).forEach(e => {
-      e.hasCutPoint = false;
-      e.isMidpointCut = false;
-      e.isCutEdge = false;
+    this.model.solid.edges.forEach(edge => {
+      edge.flags.hasCutPoint = false;
+      edge.flags.isMidpointCut = false;
+      edge.flags.isCutEdge = false;
     });
   }
 
   applyCutIntersections(intersections: IntersectionPoint[]) {
     if (!this.model) return;
     this.resetCutFlags();
-    
     const normalized = Array.isArray(intersections)
       ? intersections
           .map(ref => {
             if (!ref || !ref.id) return null;
-            return { ...ref }; // Simple clone
+            return {
+              id: ref.id,
+              type: ref.type,
+              edgeId: ref.edgeId,
+              ratio: ref.ratio ? { ...ref.ratio } : undefined,
+              faceIds: Array.isArray(ref.faceIds) ? [...ref.faceIds] : undefined
+            };
           })
           .filter(Boolean)
       : [];
-      
-    // Update Derived
-    if (!this.model.derived.cut) this.model.derived.cut = createDefaultCutDerived();
-    this.model.derived.cut.intersections = normalized as IntersectionPoint[];
-    
-    // Update Presentation based on Intersections
-    const { vertices: presVertices, edges: presEdges } = this.model.presentation;
-    const { vertices: ssotVertices, edges: ssotEdges } = this.model.ssot;
-    
-    normalized.forEach(ref => {
-      if (!ref) return;
-      const parsed = normalizeSnapPointId(parseSnapPointId(ref.id));
+    this.cutIntersections = normalized;
+    this.ensureCutModel();
+    if (this.model && this.model.cut) {
+      this.model.cut.intersections = this.cutIntersections.slice();
+    }
+    const vertexMap = this.vertexMap || new Map(this.model.solid.vertices.map(vertex => [vertex.id, vertex]));
+    const edgeMap = this.edgeMap || new Map(this.model.solid.edges.map(edge => [edge.id, edge]));
+
+    this.cutIntersections.forEach(ref => {
+      const parsed = ref && ref.id ? normalizeSnapPointId(parseSnapPointId(ref.id)) : null;
       if (!parsed) return;
 
       if (parsed.type === 'vertex') {
         const vertexId = `V:${parsed.vertexIndex}`;
-        const presV = presVertices[vertexId];
-        if (presV) presV.isCutPoint = true;
-        
-        // Find edges connected to this vertex
-        Object.values(ssotEdges).forEach(edge => {
-          if (edge.v0 === vertexId || edge.v1 === vertexId) {
-             const presE = presEdges[edge.id];
-             if (presE) {
-                 presE.hasCutPoint = true;
-                 presE.isCutEdge = true;
-             }
+        const vertex = vertexMap.get(vertexId);
+        if (vertex) vertex.flags.isCutPoint = true;
+        edgeMap.forEach(edge => {
+          if (edge.vertices.some(v => v.id === vertexId)) {
+            edge.flags.hasCutPoint = true;
+            edge.flags.isCutEdge = true;
           }
         });
         return;
@@ -255,22 +215,18 @@ export class ObjectModelManager {
 
       if (parsed.type === 'edge') {
         const edgeId = `E:${parsed.edgeIndex}`;
-        const presE = presEdges[edgeId];
-        const ssotE = ssotEdges[edgeId];
-        
-        if (presE) {
-          presE.hasCutPoint = true;
-          presE.isCutEdge = true;
+        const edge = edgeMap.get(edgeId);
+        if (edge) {
+          edge.flags.hasCutPoint = true;
+          edge.flags.isCutEdge = true;
           const ratio = parsed.ratio;
           if (ratio && ratio.denominator) {
             const isMidpoint = ratio.numerator * 2 === ratio.denominator;
-            presE.isMidpointCut = isMidpoint;
-            
-            // If cut is at vertex (0/n or n/n)
+            edge.flags.isMidpointCut = isMidpoint;
             if (ratio.numerator === 0 || ratio.numerator === ratio.denominator) {
-              const vertexId = ratio.numerator === 0 ? ssotE.v0 : ssotE.v1;
-              const presV = presVertices[vertexId];
-              if (presV) presV.isCutPoint = true;
+              const vertexId = ratio.numerator === 0 ? edge.vertices[0].id : edge.vertices[1].id;
+              const vertex = vertexMap.get(vertexId);
+              if (vertex) vertex.flags.isCutPoint = true;
             }
           }
         }
@@ -280,30 +236,32 @@ export class ObjectModelManager {
 
   getEdgeHighlightColor(edgeId: string, fallback = 0x444444) {
     if (!this.model) return fallback;
-    const edge = this.model.presentation.edges[edgeId];
-    if (!edge || !edge.hasCutPoint) return fallback;
-    return edge.isMidpointCut ? 0x00cc66 : 0xff8800;
+    const edgeMap = this.edgeMap || new Map(this.model.solid.edges.map(edge => [edge.id, edge]));
+    const edge = edgeMap.get(edgeId);
+    if (!edge || !edge.flags.hasCutPoint) return fallback;
+    return edge.flags.isMidpointCut ? 0x00cc66 : 0xff8800;
   }
 
   clearCutIntersections() {
+    this.cutIntersections = [];
     this.resetCutFlags();
-    if (this.model) {
-      // Re-initialize derived.cut
-      this.model.derived.cut = createDefaultCutDerived();
-      // Restore showCutSurface setting
-      if (this.model.presentation.display) {
-          this.model.derived.cut.showCutSurface = this.model.presentation.display.showCutSurface;
-      }
+    this.cutSegments = [];
+    this.cutFacePolygons = [];
+    this.cutFaceAdjacency = [];
+    if (this.model && this.model.cut) {
+      this.model.cut.intersections = [];
+      this.model.cut.cutSegments = [];
+      this.model.cut.facePolygons = [];
+      this.model.cut.faceAdjacency = [];
     }
   }
 
   getCutIntersections() {
-    return this.model?.derived.cut?.intersections.slice() || [];
+    return this.cutIntersections.slice();
   }
 
   resolveCutIntersectionPositions() {
-    const intersections = this.getCutIntersections();
-    return intersections
+    return this.cutIntersections
       .map(ref => {
         if (!ref || !ref.id) return null;
         const position = this.resolver.resolveSnapPoint(ref.id);
@@ -316,23 +274,64 @@ export class ObjectModelManager {
   getModel() {
     return this.model;
   }
-  
-  // Helpers to ensure derived objects exist
-  private ensureCutDerived() {
-      if (this.model && !this.model.derived.cut) {
-          this.model.derived.cut = createDefaultCutDerived();
+
+  createDefaultNetState(): ObjectNetState {
+    return {
+      state: 'closed',
+      progress: 0,
+      duration: 0,
+      faceDuration: 0,
+      stagger: 0,
+      scale: 1,
+      scaleTarget: 1,
+      startAt: 0,
+      preScaleDelay: 0,
+      postScaleDelay: 0,
+      camera: {
+        startPos: null,
+        startTarget: null,
+        endPos: null,
+        endTarget: null
       }
+    };
   }
-  
-  private ensureNetDerived() {
-      if (this.model && !this.model.derived.net) {
-          this.model.derived.net = createDefaultNetDerived();
-      }
+
+  ensureNetModel() {
+    if (!this.model) return;
+    if (!this.model.net) {
+      this.model.net = {
+        faces: [],
+        animation: this.createDefaultNetState(),
+        visible: false
+      };
+      return;
+    }
+    if (!this.model.net.faces) this.model.net.faces = [];
+    if (!this.model.net.animation) this.model.net.animation = this.createDefaultNetState();
+    if (typeof this.model.net.visible !== 'boolean') this.model.net.visible = false;
+  }
+
+  ensureCutModel() {
+    if (!this.model) return;
+    if (!this.model.cut) {
+      this.model.cut = {
+        showCutSurface: this.model.display.showCutSurface,
+        intersections: [],
+        cutSegments: [],
+        facePolygons: [],
+        faceAdjacency: []
+      };
+      return;
+    }
+    if (!this.model.cut.intersections) this.model.cut.intersections = [];
+    if (!this.model.cut.cutSegments) this.model.cut.cutSegments = [];
+    if (!this.model.cut.facePolygons) this.model.cut.facePolygons = [];
+    if (!this.model.cut.faceAdjacency) this.model.cut.faceAdjacency = [];
   }
 
   setCutSegments(segments: ObjectCutSegment[]) {
-    this.ensureCutDerived();
-    const normalized = Array.isArray(segments)
+    this.ensureCutModel();
+    this.cutSegments = Array.isArray(segments)
       ? segments
           .map(seg => {
             if (!seg || !seg.startId || !seg.endId) return null;
@@ -344,73 +343,31 @@ export class ObjectModelManager {
           })
           .filter(Boolean)
       : [];
-      
-    if (this.model && this.model.derived.cut) {
-      this.model.derived.cut.cutSegments = normalized as ObjectCutSegment[];
+    if (this.model && this.model.cut) {
+      this.model.cut.cutSegments = this.cutSegments.slice();
     }
   }
 
   setCutFacePolygons(polygons: CutFacePolygon[], adjacency: ObjectCutAdjacency[] = []) {
-    this.ensureCutDerived();
-    if (this.model && this.model.derived.cut) {
-        this.model.derived.cut.facePolygons = Array.isArray(polygons) ? polygons.slice() : [];
-        this.model.derived.cut.faceAdjacency = Array.isArray(adjacency)
-            ? adjacency.map(e => ({...e})).filter(Boolean) as ObjectCutAdjacency[]
-            : [];
+    this.ensureCutModel();
+    this.cutFacePolygons = Array.isArray(polygons) ? polygons.slice() : [];
+    this.cutFaceAdjacency = Array.isArray(adjacency)
+      ? adjacency
+          .map(entry => {
+            if (!entry || !entry.a || !entry.b) return null;
+            return {
+              a: entry.a,
+              b: entry.b,
+              sharedEdgeIds: entry.sharedEdgeIds ? [...entry.sharedEdgeIds] as [SnapPointID, SnapPointID] : undefined,
+              hingeType: entry.hingeType
+            };
+          })
+          .filter(Boolean)
+      : [];
+    if (this.model && this.model.cut) {
+      this.model.cut.facePolygons = this.cutFacePolygons.slice();
+      this.model.cut.faceAdjacency = this.cutFaceAdjacency.slice();
     }
-  }
-
-  private updateSolidFromCutResult() {
-    if (!this.model || !this.model.derived.cut) return;
-    const { facePolygons } = this.model.derived.cut;
-    if (!facePolygons || facePolygons.length === 0) return;
-
-    const newVertices: Record<VertexID, VertexSSOT> = {};
-    const newEdges: Record<EdgeID, EdgeSSOT> = {};
-    const newFaces: Record<FaceID, FaceSSOT> = {};
-    const newPresVertices: Record<VertexID, VertexPresentation> = {};
-    const newPresEdges: Record<EdgeID, EdgePresentation> = {};
-    const newPresFaces: Record<FaceID, FacePresentation> = {};
-
-    facePolygons.forEach(poly => {
-      const faceId = poly.faceId;
-      const vertexIds = poly.vertexIds || [];
-      newFaces[faceId] = { id: faceId, vertices: vertexIds };
-      
-      const presFace = createDefaultFacePresentation();
-      if (poly.type === 'cut') presFace.isCutFace = true;
-      newPresFaces[faceId] = presFace;
-
-      vertexIds.forEach((vId, i) => {
-        if (!newVertices[vId]) {
-          newVertices[vId] = { id: vId };
-          newPresVertices[vId] = this.model!.presentation.vertices[vId] || createDefaultVertexPresentation();
-        }
-
-        const nextVId = vertexIds[(i + 1) % vertexIds.length];
-        const v0Raw = vId.startsWith('V:') ? vId.slice(2) : vId;
-        const v1Raw = nextVId.startsWith('V:') ? nextVId.slice(2) : nextVId;
-        const sortedIndices = [v0Raw, v1Raw].sort((a, b) => {
-            const na = parseInt(a), nb = parseInt(b);
-            if (!isNaN(na) && !isNaN(nb)) return na - nb;
-            return a.localeCompare(b);
-        });
-        const edgeId = `E:${sortedIndices[0]}-${sortedIndices[1]}`;
-        
-        if (!newEdges[edgeId]) {
-          newEdges[edgeId] = { id: edgeId, v0: `V:${sortedIndices[0]}`, v1: `V:${sortedIndices[1]}` };
-          newPresEdges[edgeId] = this.model!.presentation.edges[edgeId] || createDefaultEdgePresentation();
-        }
-      });
-    });
-
-    this.model.ssot.faces = newFaces;
-    this.model.ssot.edges = newEdges;
-    this.model.ssot.vertices = newVertices;
-    
-    this.model.presentation.faces = newPresFaces;
-    this.model.presentation.edges = newPresEdges;
-    this.model.presentation.vertices = newPresVertices;
   }
 
   syncCutState({
@@ -425,40 +382,33 @@ export class ObjectModelManager {
     faceAdjacency?: ObjectCutAdjacency[];
   }) {
     if (!this.model) this.build();
-    
     if (intersections) {
       this.applyCutIntersections(intersections);
     } else {
       this.applyCutIntersections([]);
     }
-    
     if (cutSegments) {
       this.setCutSegments(cutSegments);
     } else {
       this.setCutSegments([]);
     }
-    
     if (facePolygons || faceAdjacency) {
       this.setCutFacePolygons(facePolygons || [], faceAdjacency || []);
     } else {
       this.setCutFacePolygons([], []);
     }
-
-    this.updateSolidFromCutResult();
-    
-    this.notify({ type: "CUT_RESULT_UPDATED", payload: { intersections, cutSegments, facePolygons } });
   }
 
   getCutSegments() {
-    return this.model?.derived.cut?.cutSegments.slice() || [];
+    return this.cutSegments.slice();
   }
 
   getCutFacePolygons() {
-    return this.model?.derived.cut?.facePolygons.slice() || [];
+    return this.cutFacePolygons.slice();
   }
 
   getCutFaceAdjacency() {
-    return this.model?.derived.cut?.faceAdjacency.slice() || [];
+    return this.cutFaceAdjacency.slice();
   }
 
   syncNetState({
@@ -471,37 +421,44 @@ export class ObjectModelManager {
     visible?: boolean;
   }) {
     if (!this.model) this.build();
-    this.ensureNetDerived();
-    const net = this.model!.derived.net!; // ensureNetDerived ensures this is not null/undefined if model exists
-    
+    this.ensureNetModel();
     if (faces) {
-      net.faces = faces.slice();
+      this.netFaces = faces.slice();
+      if (this.model && this.model.net) {
+        this.model.net.faces = this.netFaces.slice();
+      }
     }
     if (animation) {
-      net.animation = { ...net.animation, ...animation };
+      this.netState = { ...this.netState, ...animation };
+      if (this.model && this.model.net) {
+        this.model.net.animation = { ...this.netState };
+      }
     }
     if (typeof visible === 'boolean') {
-      net.visible = visible;
+      this.netVisible = visible;
+      if (this.model && this.model.net) {
+        this.model.net.visible = visible;
+      }
     }
-    this.notify({ type: "NET_DERIVED_UPDATED", payload: { faces, animation, visible } });
   }
 
   getNetState() {
-    return this.model?.derived.net?.animation || createDefaultNetDerived().animation; // Fallback if no model
+    return this.netState;
   }
 
   getNetFaces() {
-    return this.model?.derived.net?.faces.slice() || [];
+    return this.netFaces.slice();
   }
 
   getNetVisible() {
-    return this.model?.derived.net?.visible || false;
+    return this.netVisible;
   }
 
   setNetVisible(visible: boolean) {
-    this.ensureNetDerived();
-    if (this.model && this.model.derived.net) {
-      this.model.derived.net.visible = !!visible;
+    this.ensureNetModel();
+    this.netVisible = !!visible;
+    if (this.model && this.model.net) {
+      this.model.net.visible = this.netVisible;
     }
   }
 }
