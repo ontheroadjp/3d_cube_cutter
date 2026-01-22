@@ -4,6 +4,9 @@ import { getDefaultIndexMap } from './geometry/indexMap.js';
 import type { CubeSize } from './types.js';
 import type { GeometryResolver } from './geometry/GeometryResolver.js';
 import type { ObjectModel, VertexID, EdgeID, FaceID } from './model/objectModel.js';
+import type { buildCubeStructure } from './structure/structureModel.js';
+
+type StructureSnapshot = ReturnType<typeof buildCubeStructure>;
 
 export class Cube {
   scene: THREE.Scene;
@@ -31,11 +34,11 @@ export class Cube {
   vertexMeshes: THREE.Mesh[]; 
   edgeMeshes: THREE.Mesh[];
 
-  getVertexObjectById(vertexId: VertexID) {
+  getVertexObjectById(vertexId: VertexID): THREE.Mesh | undefined {
       return this.vertexHitboxes.get(vertexId);
   }
 
-  getEdgeObjectById(edgeId: EdgeID) {
+  getEdgeObjectById(edgeId: EdgeID): THREE.Mesh | undefined {
       if (!edgeId) return undefined;
       const normalized = edgeId.startsWith('E:') ? edgeId : `E:${edgeId}`;
       return this.edgeHitboxes.get(normalized);
@@ -49,12 +52,12 @@ export class Cube {
       return `E:${index}`; // Temporary mapping
   }
 
-  getVertexObjectByName(name: string) {
+  getVertexObjectByName(name: string): THREE.Mesh | undefined {
       // Mapping name back to ID would require presentation model
       return undefined; 
   }
 
-  getEdgeObjectByName(name: string) {
+  getEdgeObjectByName(name: string): THREE.Mesh | undefined {
       return undefined;
   }
 
@@ -548,6 +551,6 @@ export class Cube {
       return this.displayLabelMap ? this.displayLabelMap[`V:${index}`] : `V:${index}`; 
   }
   getIndexMap() { return this.indexMap; }
-  getStructure() { return null; }
+  getStructure(): StructureSnapshot | null { return null; }
   getSize() { return this.edgeLengths; }
 }

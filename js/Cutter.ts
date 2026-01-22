@@ -1581,7 +1581,7 @@ export class Cutter {
     const cutSegments: CutSegmentMeta[] = cutPoints.map((p, i) => ({
         startId: p.ref.id,
         endId: cutPoints[(i+1)%cutPoints.length].ref.id,
-        faceIds: [] 
+        faceIds: [] as string[]
     }));
     
     const faceAdjacency = buildFaceAdjacency(polygons); 
