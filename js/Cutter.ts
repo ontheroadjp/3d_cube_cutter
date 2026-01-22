@@ -104,7 +104,7 @@ export class Cutter {
   private refreshNormalHelper(mesh: THREE.Mesh) {
     if (!this.showNormalHelper) return;
     this.clearNormalHelper();
-    const helper = new VertexNormalsHelper(mesh, 0.3, 0x00ff00);
+    const helper = new VertexNormalsHelper(mesh, 0.3, 0x003366);
     helper.visible = this.visible;
     this.scene.add(helper);
     this.normalHelper = helper;
