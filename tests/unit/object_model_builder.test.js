@@ -7,37 +7,49 @@ vi.mock('../../dist/js/utils.js', () => ({
 
 import { Cube } from '../../dist/js/Cube.js';
 import { GeometryResolver } from '../../dist/js/geometry/GeometryResolver.js';
-import { buildObjectSolidModel } from '../../dist/js/model/objectModelBuilder.js';
+import { buildObjectModelData } from '../../dist/js/model/objectModelBuilder.js';
+import { buildCubeStructure } from '../../dist/js/structure/structureModel.js';
+import { getDefaultIndexMap } from '../../dist/js/geometry/indexMap.js';
 
 describe('object model builder', () => {
   it('builds a solid model from structure and resolver', () => {
     const scene = new THREE.Scene();
     const cube = new Cube(scene, 10);
+    // resolver is not needed for buildObjectModelData but kept for context if needed later
     const resolver = new GeometryResolver({ size: cube.getSize(), indexMap: cube.getIndexMap() });
-    const structure = cube.getStructure();
+    const structure = buildCubeStructure({ indexMap: getDefaultIndexMap() });
 
-    const model = buildObjectSolidModel({
+    const modelData = buildObjectModelData({
       structure,
-      resolver,
-      size: cube.getSize()
+      size: cube.getSize(),
+      display: { showVertexLabels: true }
     });
 
-    expect(model).not.toBeNull();
-    expect(model.vertices).toHaveLength(8);
-    expect(model.edges).toHaveLength(12);
-    expect(model.faces).toHaveLength(6);
+    expect(modelData).not.toBeNull();
+    const { ssot, presentation } = modelData;
 
-    const v0 = model.vertices.find(vertex => vertex.id === 'V:0');
+    expect(Object.keys(ssot.vertices)).toHaveLength(8);
+    expect(Object.keys(ssot.edges)).toHaveLength(12);
+    expect(Object.keys(ssot.faces)).toHaveLength(6);
+
+    const v0 = ssot.vertices['V:0'];
     expect(v0).toBeTruthy();
+    // position is derived, not in SSOT
     expect(v0.position).toBeUndefined();
 
-    const edge = model.edges.find(e => e.id === 'E:01');
+    const edge = ssot.edges['E:0-1'];
     expect(edge).toBeTruthy();
+    // length is derived
     expect(edge.length).toBeUndefined();
 
-    const face = model.faces.find(f => f.id === 'F:0154');
+    const face = ssot.faces['F:0-1-5-4'];
     expect(face).toBeTruthy();
     expect(face.vertices).toHaveLength(4);
+    // normal is derived
     expect(face.normal).toBeUndefined();
+    
+    // Check presentation
+    expect(presentation).toBeTruthy();
+    expect(presentation.vertices['V:0']).toBeTruthy();
   });
 });

@@ -1,64 +1,56 @@
-import type { GeometryResolver } from '../geometry/GeometryResolver.js';
 import type { Edge as StructureEdge, Face as StructureFace, Vertex as StructureVertex } from '../structure/structureModel.js';
 import {
-  createDefaultEdgeFlags,
-  createDefaultFaceFlags,
-  createDefaultVertexFlags,
-  type ObjectEdge,
-  type ObjectFace,
-  type ObjectSolid,
-  type ObjectVertex
+  createDefaultEdgePresentation,
+  createDefaultFacePresentation,
+  createDefaultVertexPresentation,
+  type EdgeSSOT,
+  type FaceSSOT,
+  type SolidSSOT,
+  type PresentationModel,
+  type VertexSSOT,
+  type EdgePresentation,
+  type FacePresentation,
+  type VertexPresentation,
+  type VertexID,
+  type EdgeID,
+  type FaceID
 } from './objectModel.js';
+import type { DisplayState } from '../types.js';
 
-const buildVertex = (vertex: StructureVertex): ObjectVertex => {
+// Internal builders for SSOT
+const buildVertexSSOT = (vertex: StructureVertex): VertexSSOT => {
   return {
-    id: vertex.id,
-    index: vertex.index,
-    label: vertex.label || null,
-    flags: createDefaultVertexFlags()
+    id: vertex.id
   };
 };
 
-const buildEdge = (
-  edge: StructureEdge,
-  vertexMap: Map<string, ObjectVertex>
-): ObjectEdge | null => {
-  const v1 = vertexMap.get(edge.vertices[0]);
-  const v2 = vertexMap.get(edge.vertices[1]);
-  if (!v1 || !v2) return null;
+const buildEdgeSSOT = (edge: StructureEdge): EdgeSSOT => {
   return {
     id: edge.id,
-    vertices: [v1, v2],
-    faces: edge.faces.slice(),
-    flags: createDefaultEdgeFlags()
+    v0: edge.vertices[0],
+    v1: edge.vertices[1]
   };
 };
 
-const buildFace = (
-  face: StructureFace,
-  vertexMap: Map<string, ObjectVertex>,
-  edgeMap: Map<string, ObjectEdge>
-): ObjectFace | null => {
-  const vertices = face.vertices
-    .map(id => vertexMap.get(id))
-    .filter((vertex): vertex is ObjectVertex => !!vertex);
-  const edges = face.edges
-    .map(id => edgeMap.get(id))
-    .filter((edge): edge is ObjectEdge => !!edge);
-  if (vertices.length !== face.vertices.length) return null;
+const buildFaceSSOT = (face: StructureFace): FaceSSOT => {
   return {
     id: face.id,
-    vertices,
-    edges,
-    flags: createDefaultFaceFlags(),
-    polygons: []
+    vertices: [...face.vertices]
   };
 };
 
-export const buildObjectSolidModel = ({
+// Internal builders for Presentation
+const buildVertexPresentation = (vertex: StructureVertex): VertexPresentation => {
+  return {
+    ...createDefaultVertexPresentation(),
+    label: vertex.label || null
+  };
+};
+
+export const buildObjectModelData = ({
   structure,
-  resolver,
   size,
+  display,
   solidId = 'solid:primary'
 }: {
   structure: {
@@ -66,29 +58,54 @@ export const buildObjectSolidModel = ({
     edges: StructureEdge[];
     faces: StructureFace[];
   } | null;
-  resolver: GeometryResolver | null;
   size: { lx: number; ly: number; lz: number };
+  display: DisplayState;
   solidId?: string;
-}): ObjectSolid | null => {
-  if (!structure || !resolver) return null;
-  const vertices = structure.vertices
-    .map(vertex => buildVertex(vertex));
-  if (!vertices.length) return null;
+}): { ssot: SolidSSOT; presentation: PresentationModel } | null => {
+  if (!structure) return null;
 
-  const vertexMap = new Map(vertices.map(vertex => [vertex.id, vertex]));
-  const edges = structure.edges
-    .map(edge => buildEdge(edge, vertexMap))
-    .filter((edge): edge is ObjectEdge => !!edge);
-  const edgeMap = new Map(edges.map(edge => [edge.id, edge]));
-  const faces = structure.faces
-    .map(face => buildFace(face, vertexMap, edgeMap))
-    .filter((face): face is ObjectFace => !!face);
+  // SSOT Construction
+  const ssotVertices: Record<VertexID, VertexSSOT> = {};
+  const ssotEdges: Record<EdgeID, EdgeSSOT> = {};
+  const ssotFaces: Record<FaceID, FaceSSOT> = {};
 
-  return {
+  // Presentation Construction
+  const presVertices: Record<VertexID, VertexPresentation> = {};
+  const presEdges: Record<EdgeID, EdgePresentation> = {};
+  const presFaces: Record<FaceID, FacePresentation> = {};
+
+  // Process Vertices
+  structure.vertices.forEach(v => {
+    ssotVertices[v.id] = buildVertexSSOT(v);
+    presVertices[v.id] = buildVertexPresentation(v);
+  });
+
+  // Process Edges
+  structure.edges.forEach(e => {
+    ssotEdges[e.id] = buildEdgeSSOT(e);
+    presEdges[e.id] = createDefaultEdgePresentation();
+  });
+
+  // Process Faces
+  structure.faces.forEach(f => {
+    ssotFaces[f.id] = buildFaceSSOT(f);
+    presFaces[f.id] = createDefaultFacePresentation();
+  });
+
+  const ssot: SolidSSOT = {
     id: solidId,
-    vertices,
-    edges,
-    faces,
+    vertices: ssotVertices,
+    edges: ssotEdges,
+    faces: ssotFaces,
     meta: { size }
   };
+
+  const presentation: PresentationModel = {
+    display,
+    vertices: presVertices,
+    edges: presEdges,
+    faces: presFaces
+  };
+
+  return { ssot, presentation };
 };
