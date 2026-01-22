@@ -9,7 +9,7 @@ import { NetManager } from './js/net/NetManager.js';
 import { GeometryResolver } from './js/geometry/GeometryResolver.js';
 import { buildUserPresetState } from './js/presets/userPresetState.js';
 import { NoopStorageAdapter, IndexedDbStorageAdapter } from './js/storage/storageAdapter.js';
-import { generateExplanation } from './js/education/explanationGenerator.js';
+import { CutService } from './js/cutter/CutService.js';
 import { initReactApp } from './js/ui/reactApp.js';
 import { ObjectModelManager, type EngineEvent } from './js/model/objectModelManager.js';
 import type { CutFacePolygon, DisplayState, LearningProblem, UserPresetState } from './js/types.js';
@@ -70,6 +70,7 @@ class App {
     resolver: GeometryResolver;
     cutter: Cutter;
     netManager: NetManager;
+    cutService: CutService;
     selection: SelectionManager;
     presetManager: PresetManager;
     objectModelManager: ObjectModelManager;
@@ -197,6 +198,13 @@ class App {
             resolver: this.resolver,
             ui: this.ui,
             selection: this.selection
+        });
+        this.cutService = new CutService({
+            cutter: this.cutter,
+            objectModelManager: this.objectModelManager,
+            selection: this.selection,
+            resolver: this.resolver,
+            ui: this.ui
         });
         this.cube.setResolver(this.resolver); // NEW
         this.cutter.setEdgeHighlightColorResolver((edgeId: string) => this.objectModelManager.getEdgeHighlightColor(edgeId));
@@ -353,50 +361,8 @@ class App {
 
     // --- Core Logic Methods ---
     executeCut() {
-        const snapIds = this.selection.getSelectedSnapIds();
-        if (snapIds.length < 3) return;
-
-        const solid = this.objectModelManager.getModel()?.ssot;
-        if (!solid) return;
-        const topologyIndex = this.objectModelManager.getModel()?.derived.topologyIndex || null;
-
-        const success = this.cutter.cut(solid, snapIds, this.resolver, { topologyIndex });
-        if (!success) {
-            console.warn("切断処理に失敗しました。点を選択し直してください。");
-            this.isCutExecuted = false;
-            this.selection.reset();
-            return;
-        }
-        this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
-        const modelDisplay = this.objectModelManager.getDisplayState();
-        this.cutter.setTransparency(modelDisplay.cubeTransparent);
-
-        const cutState = this.cutter.computeCutState(solid, snapIds, this.resolver, topologyIndex);
-
-        if (cutState) {
-            this.objectModelManager.syncCutState({
-                intersections: cutState.intersections,
-                cutSegments: cutState.cutSegments,
-                facePolygons: cutState.facePolygons,
-                faceAdjacency: cutState.faceAdjacency
-            });
-        } else {
-            console.warn("Structure-first cut failed, falling back to legacy CSG result.");
-            this.objectModelManager.syncCutState({
-                intersections: this.cutter.getIntersectionRefs(),
-                cutSegments: this.cutter.getCutSegments(),
-                facePolygons: this.cutter.getResultFacePolygons(),
-                faceAdjacency: this.cutter.getResultFaceAdjacency()
-            });
-        }
-
-        const explanation = generateExplanation({
-            snapIds,
-            outlineRefs: this.cutter.getOutlineRefs(),
-            structure: solid // Pass SSOT directly to explanation generator too
-        });
-        this.ui.setExplanation(explanation);
-        this.isCutExecuted = true;
+        const success = this.cutService.executeCut();
+        this.isCutExecuted = !!success;
     }
 
     resetScene() {
@@ -615,28 +581,12 @@ class App {
         this.cutter.setCutInverted(inverted, false);
 
         if (snapIds.length >= 3) {
-            this.executeCut();
+            const solid = this.objectModelManager.getModel()?.ssot || null;
+            const success = this.cutService.executeCut({ snapIds, structure: solid || null });
+            this.isCutExecuted = !!success;
             if (state.cut && state.cut.result) {
-                this.cutter.applyCutResultMeta(state.cut.result, this.resolver);
-                this.objectModelManager.syncCutState({
-                    intersections: this.cutter.getIntersectionRefs(),
-                    cutSegments: this.cutter.getCutSegments(),
-                    facePolygons: this.cutter.getResultFacePolygons() as any,
-                    faceAdjacency: this.cutter.getResultFaceAdjacency()
-                });
-                this.cutter.refreshEdgeHighlightColors();
-                this.cutter.updateCutPointMarkers(this.objectModelManager.resolveCutIntersectionPositions());
-                const model = this.objectModelManager.getModel();
-                if (model) {
-                    this.netManager.update(this.objectModelManager.getCutSegments(), model.ssot, this.resolver);
-                }
-                this.selection.updateSplitLabels(this.objectModelManager.getCutIntersections());
-                const explanation = generateExplanation({
-                    snapIds,
-                    outlineRefs: this.cutter.getOutlineRefs(),
-                    structure: this.cube.getStructure ? this.cube.getStructure() : null
-                });
-                this.ui.setExplanation(explanation);
+                const structure = this.cube.getStructure ? this.cube.getStructure() : solid;
+                this.cutService.applyCutResultMeta(state.cut.result, snapIds, structure);
             }
         }
     }
@@ -1442,22 +1392,8 @@ class App {
 
     handleFlipCutClick() {
         this.cutter.flipCut();
-        this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
-        const display = this.objectModelManager.getDisplayState();
-        this.cutter.setTransparency(display.cubeTransparent);
-        this.objectModelManager.syncCutState({
-            intersections: this.cutter.getIntersectionRefs(),
-            cutSegments: this.cutter.getCutSegments(),
-            facePolygons: this.cutter.getResultFacePolygons() as any,
-            faceAdjacency: this.cutter.getResultFaceAdjacency()
-        });
-        this.cutter.refreshEdgeHighlightColors();
-        this.cutter.updateCutPointMarkers(this.objectModelManager.resolveCutIntersectionPositions());
-        const model = this.objectModelManager.getModel();
-        if (model) {
-            this.netManager.update(this.objectModelManager.getCutSegments(), model.ssot, this.resolver);
-        }
-        this.selection.updateSplitLabels(this.objectModelManager.getCutIntersections());
+        const solid = this.objectModelManager.getModel()?.ssot || null;
+        this.cutService.syncFromCutterResult(solid);
     }
 
     handleToggleNetClick() {

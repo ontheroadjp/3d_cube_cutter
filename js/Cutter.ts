@@ -52,6 +52,26 @@ export class Cutter {
     this.visible = true;
   }
 
+  get evaluator() {
+    return this.csg.evaluator;
+  }
+
+  get outline() {
+    return this.visualization.outline;
+  }
+
+  set outline(value: THREE.Line | null) {
+    this.visualization.outline = value;
+  }
+
+  get vertexMarkers() {
+    return this.visualization.vertexMarkers;
+  }
+
+  set vertexMarkers(value: THREE.Object3D[]) {
+    this.visualization.vertexMarkers = value;
+  }
+
   setDebug(debug: boolean) {
     this.debug = !!debug;
   }
