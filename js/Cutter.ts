@@ -76,6 +76,10 @@ export class Cutter {
     this.debug = !!debug;
   }
 
+  setTopologyIndex(topologyIndex: TopologyIndex | null) {
+    this.lastTopologyIndex = topologyIndex;
+  }
+
   setShowNormalHelper(visible: boolean) {
     this.visualization.setShowNormalHelper(visible, this.resultMesh);
   }
@@ -170,7 +174,6 @@ export class Cutter {
         previewOnly?: boolean;
         suppressOutline?: boolean;
         suppressMarkers?: boolean;
-        topologyIndex?: TopologyIndex | null;
       } = {}
   ) {
     this.reset();
@@ -178,7 +181,6 @@ export class Cutter {
     this.lastCube = cube;
     this.lastSnapIds = null;
     this.lastResolver = resolver || null;
-    this.lastTopologyIndex = options.topologyIndex || null;
     const previewOnly = !!options.previewOnly;
     const suppressOutline = !!options.suppressOutline;
     const suppressMarkers = !!options.suppressMarkers;
@@ -1145,8 +1147,7 @@ export class Cutter {
   computeCutState(
     solid: SolidSSOT | any,
     snapIds: SnapPointID[],
-    resolver: any,
-    topologyIndex: TopologyIndex | null = null
+    resolver: any
   ): {
     intersections: IntersectionPoint[];
     facePolygons: CutFacePolygon[];
@@ -1155,7 +1156,6 @@ export class Cutter {
     outlineRefs: IntersectionPoint[];
     cutPlane: THREE.Plane;
   } | null {
-    this.lastTopologyIndex = topologyIndex;
-    return computeCutState(solid, snapIds, resolver, topologyIndex);
+    return computeCutState(solid, snapIds, resolver, this.lastTopologyIndex);
   }
 }
