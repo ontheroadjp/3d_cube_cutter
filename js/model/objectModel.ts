@@ -136,6 +136,13 @@ export type NetDerived = {
   visible: boolean;
 };
 
+export type TopologyIndex = {
+  vertexToEdges: Record<VertexID, EdgeID[]>;
+  vertexToFaces: Record<VertexID, FaceID[]>;
+  edgeToFaces: Record<EdgeID, FaceID[]>;
+  faceAdjacency: Record<FaceID, FaceID[]>;
+};
+
 // --- Root Model ---
 
 export type ObjectModel = {
@@ -144,6 +151,7 @@ export type ObjectModel = {
   derived: {
     cut?: CutDerived;
     net?: NetDerived;
+    topologyIndex?: TopologyIndex;
   };
 };
 

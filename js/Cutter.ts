@@ -4,7 +4,7 @@ import { createMarker } from './utils.js';
 import { buildFaceAdjacency } from './cutter/cutFaceGraph.js';
 import { canonicalizeSnapPointId, normalizeSnapPointId, parseSnapPointId, stringifySnapPointId } from './geometry/snapPointId.js';
 import type { CutFacePolygon, CutResult, CutResultMeta, CutSegmentMeta, IntersectionPoint, Ratio, SnapPointID } from './types.js';
-import type { ObjectCutAdjacency, SolidSSOT } from './model/objectModel.js';
+import type { ObjectCutAdjacency, SolidSSOT, TopologyIndex } from './model/objectModel.js';
 
 export class Cutter {
   scene: THREE.Scene;
@@ -18,6 +18,7 @@ export class Cutter {
   cutInverted: boolean;
   lastSnapIds: SnapPointID[] | null;
   lastResolver: any;
+  lastTopologyIndex: TopologyIndex | null;
   lastCube: any;
   intersectionRefs: IntersectionPoint[];
   outlineRefs: IntersectionPoint[];
@@ -51,6 +52,7 @@ export class Cutter {
     this.cutInverted = false;
     this.lastSnapIds = null;
     this.lastResolver = null;
+    this.lastTopologyIndex = null;
     this.lastCube = null;
     this.intersectionRefs = [];
     this.outlineRefs = [];
@@ -76,6 +78,30 @@ export class Cutter {
 
   private isSolidSSOT(solid: any): solid is SolidSSOT {
     return !!(solid && solid.meta && solid.vertices && typeof solid.getStructure !== 'function');
+  }
+
+  private resolveEdgeIdFromVertices(
+    solid: SolidSSOT,
+    v0: string,
+    v1: string,
+    topologyIndex: TopologyIndex | null
+  ): string | null {
+    if (topologyIndex) {
+      const edgeIds = topologyIndex.vertexToEdges[v0] || [];
+      for (let i = 0; i < edgeIds.length; i++) {
+        const edge = solid.edges[edgeIds[i]];
+        if (!edge) continue;
+        if ((edge.v0 === v0 && edge.v1 === v1) || (edge.v0 === v1 && edge.v1 === v0)) {
+          return edge.id;
+        }
+      }
+      return null;
+    }
+    const edges = Object.values(solid.edges);
+    const match = edges.find((edge: any) =>
+      (edge.v0 === v0 && edge.v1 === v1) || (edge.v0 === v1 && edge.v1 === v0)
+    );
+    return match ? match.id : null;
   }
 
   resolveIntersectionPosition(ref: IntersectionPoint, resolverOverride: any = null): THREE.Vector3 | null {
@@ -138,13 +164,19 @@ export class Cutter {
       cube: any,
       snapIds: SnapPointID[],
       resolver: any = null,
-      options: { previewOnly?: boolean; suppressOutline?: boolean; suppressMarkers?: boolean } = {}
+      options: {
+        previewOnly?: boolean;
+        suppressOutline?: boolean;
+        suppressMarkers?: boolean;
+        topologyIndex?: TopologyIndex | null;
+      } = {}
   ) {
     this.reset();
     this.originalCube = cube;
     this.lastCube = cube;
     this.lastSnapIds = null;
     this.lastResolver = resolver || null;
+    this.lastTopologyIndex = options.topologyIndex || null;
     const previewOnly = !!options.previewOnly;
     const suppressOutline = !!options.suppressOutline;
     const suppressMarkers = !!options.suppressMarkers;
@@ -200,6 +232,7 @@ export class Cutter {
     let solidSize = 10;
     let isSSOT = this.isSolidSSOT(cube);
     let structure: any = null;
+    const topologyIndex = this.lastTopologyIndex;
 
     if (isSSOT) {
         // SSOT Mode
@@ -404,6 +437,22 @@ export class Cutter {
         
         if (isSSOT && cube.faces) {
             const foundFaces: string[] = [];
+            if (topologyIndex) {
+                if (ref.edgeId) {
+                    const edgeFaces = topologyIndex.edgeToFaces[ref.edgeId];
+                    if (edgeFaces && edgeFaces.length) return edgeFaces.slice();
+                } else if (ref.id) {
+                    const parsed = normalizeSnapPointId(parseSnapPointId(ref.id));
+                    if (parsed && parsed.type === 'vertex') {
+                        const vId = `V:${parsed.vertexIndex}`;
+                        const vertexFaces = topologyIndex.vertexToFaces[vId];
+                        if (vertexFaces && vertexFaces.length) return vertexFaces.slice();
+                    } else if (parsed && parsed.type === 'face') {
+                        return [`F:${parsed.faceIndex}`];
+                    }
+                }
+                return null;
+            }
             if (ref.edgeId && cube.edges) {
                 const edge = cube.edges[ref.edgeId];
                 if (edge) {
@@ -493,7 +542,12 @@ export class Cutter {
             if (parsed.type === 'vertex') {
                 const vId = `V:${parsed.vertexIndex}`;
                 if (isSSOT) {
-                    if (cube.edges) {
+                    const connectedEdges = topologyIndex ? topologyIndex.vertexToEdges[vId] : null;
+                    if (connectedEdges && connectedEdges.length) {
+                        connectedEdges.forEach(edgeId => {
+                            if (!edgeIds.has(edgeId)) edgeIds.set(edgeId, { hasMidpoint: false });
+                        });
+                    } else if (cube.edges) {
                         Object.values(cube.edges).forEach((edge: any) => {
                             if (edge.v0 === vId || edge.v1 === vId) {
                                 if (!edgeIds.has(edge.id)) edgeIds.set(edge.id, { hasMidpoint: false });
@@ -772,6 +826,7 @@ export class Cutter {
       let facesData: any[] = [];
       let solidSize = 10;
       let isSSOT = this.isSolidSSOT(cube);
+      const topologyIndex = this.lastTopologyIndex;
 
       if (isSSOT) {
           facesData = Object.values((cube as SolidSSOT).faces);
@@ -865,16 +920,11 @@ export class Cutter {
           let edgeIds: string[] = [];
           if (isSSOT) {
               const vIds = face.vertices;
-              const ssotEdges = (cube as SolidSSOT).edges;
               for(let i=0; i<vIds.length; i++) {
                   const v0 = vIds[i];
                   const v1 = vIds[(i+1)%vIds.length];
-                  
-                  const edge = ssotEdges ? Object.values(ssotEdges).find((e: any) => 
-                      (e.v0 === v0 && e.v1 === v1) || (e.v0 === v1 && e.v1 === v0)
-                  ) : null;
-                  
-                  if (edge) edgeIds.push(edge.id);
+                  const edgeId = this.resolveEdgeIdFromVertices(cube as SolidSSOT, v0, v1, topologyIndex);
+                  if (edgeId) edgeIds.push(edgeId);
               }
           } else {
               edgeIds = Array.isArray(face.edges) 
@@ -1230,6 +1280,7 @@ export class Cutter {
     this.lastCube = null;
     this.lastResolver = null;
     this.lastSnapIds = null;
+    this.lastTopologyIndex = null;
     this.outlineRefs = [];
     this.cutSegments = [];
     this.cutPlane = null;
@@ -1243,7 +1294,8 @@ export class Cutter {
   computeCutState(
     solid: SolidSSOT | any,
     snapIds: SnapPointID[],
-    resolver: any
+    resolver: any,
+    topologyIndex: TopologyIndex | null = null
   ): {
     intersections: IntersectionPoint[];
     facePolygons: CutFacePolygon[];
@@ -1253,6 +1305,7 @@ export class Cutter {
     cutPlane: THREE.Plane;
   } | null {
     if (!solid || !snapIds || snapIds.length < 3 || !resolver) return null;
+    this.lastTopologyIndex = topologyIndex;
 
     const resolvedPoints = snapIds
       .map(id => resolver.resolveSnapPoint(id))
@@ -1347,25 +1400,30 @@ export class Cutter {
         if (ref.faceIds && ref.faceIds.length) return ref.faceIds;
         const foundFaces: string[] = [];
         if (ref.edgeId) {
-            const facesList = Array.isArray(solid.faces) ? solid.faces : Object.values(solid.faces);
-            facesList.forEach((face: any) => {
-                 if (solid.meta && solid.edges) { // SSOT
-                     const edge = solid.edges[ref.edgeId!];
-                     if (edge && face.vertices) {
-                         for(let i=0; i<face.vertices.length; i++) {
-                             const v0 = face.vertices[i];
-                             const v1 = face.vertices[(i+1)%face.vertices.length];
-                             if ((edge.v0 === v0 && edge.v1 === v1) || (edge.v0 === v1 && edge.v1 === v0)) {
-                                 foundFaces.push(face.id);
-                                 break;
+            if (solid.meta && solid.edges && topologyIndex) { // SSOT
+                const edgeFaces = topologyIndex.edgeToFaces[ref.edgeId];
+                if (edgeFaces && edgeFaces.length) return edgeFaces.slice();
+            } else {
+                const facesList = Array.isArray(solid.faces) ? solid.faces : Object.values(solid.faces);
+                facesList.forEach((face: any) => {
+                     if (solid.meta && solid.edges) { // SSOT
+                         const edge = solid.edges[ref.edgeId!];
+                         if (edge && face.vertices) {
+                             for(let i=0; i<face.vertices.length; i++) {
+                                 const v0 = face.vertices[i];
+                                 const v1 = face.vertices[(i+1)%face.vertices.length];
+                                 if ((edge.v0 === v0 && edge.v1 === v1) || (edge.v0 === v1 && edge.v1 === v0)) {
+                                     foundFaces.push(face.id);
+                                     break;
+                                 }
                              }
                          }
+                     } else { // Legacy
+                         const edgeIds = Array.isArray(face.edges) ? face.edges.map((e:any) => typeof e === 'string'?e:e.id) : [];
+                         if (edgeIds.includes(ref.edgeId)) foundFaces.push(face.id);
                      }
-                 } else { // Legacy
-                     const edgeIds = Array.isArray(face.edges) ? face.edges.map((e:any) => typeof e === 'string'?e:e.id) : [];
-                     if (edgeIds.includes(ref.edgeId)) foundFaces.push(face.id);
-                 }
-            });
+                });
+            }
         }
         return foundFaces.length ? foundFaces : undefined;
     };
@@ -1399,10 +1457,8 @@ export class Cutter {
              for(let i=0; i<vIds.length; i++) {
                  const v0 = vIds[i];
                  const v1 = vIds[(i+1)%vIds.length];
-                 const edge = Object.values((solid as SolidSSOT).edges as Record<string, any>).find((e: any) => 
-                     (e.v0 === v0 && e.v1 === v1) || (e.v0 === v1 && e.v1 === v0)
-                 );
-                 if (edge) edgeIds.push(edge.id);
+                 const edgeId = this.resolveEdgeIdFromVertices(solid as SolidSSOT, v0, v1, topologyIndex);
+                 if (edgeId) edgeIds.push(edgeId);
              }
         } else {
              vertices = (face.vertices as any[]).map((v: any) => {

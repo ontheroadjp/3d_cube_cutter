@@ -356,8 +356,9 @@ class App {
 
         const solid = this.objectModelManager.getModel()?.ssot;
         if (!solid) return;
+        const topologyIndex = this.objectModelManager.getModel()?.derived.topologyIndex || null;
 
-        const success = this.cutter.cut(solid, snapIds, this.resolver);
+        const success = this.cutter.cut(solid, snapIds, this.resolver, { topologyIndex });
         if (!success) {
             console.warn("切断処理に失敗しました。点を選択し直してください。");
             this.isCutExecuted = false;
@@ -368,7 +369,7 @@ class App {
         const modelDisplay = this.objectModelManager.getDisplayState();
         this.cutter.setTransparency(modelDisplay.cubeTransparent);
 
-        const cutState = this.cutter.computeCutState(solid, snapIds, this.resolver);
+        const cutState = this.cutter.computeCutState(solid, snapIds, this.resolver, topologyIndex);
 
         if (cutState) {
             this.objectModelManager.syncCutState({

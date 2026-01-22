@@ -29,6 +29,7 @@ import {
   createDefaultNetDerived
 } from './objectModel.js';
 import { buildObjectModelData } from './objectModelBuilder.js';
+import { buildTopologyIndex } from './topologyIndex.js';
 import { normalizeSnapPointId, parseSnapPointId } from '../geometry/snapPointId.js';
 import { buildCubeStructure } from '../structure/structureModel.js';
 
@@ -102,6 +103,11 @@ export class ObjectModelManager {
     this.listeners.forEach(l => l(event));
   }
 
+  private rebuildTopologyIndex() {
+    if (!this.model) return;
+    this.model.derived.topologyIndex = buildTopologyIndex(this.model.ssot);
+  }
+
   build(displayOverride?: DisplayState) {
     const structure = this.cube.getStructure() || buildCubeStructure({ indexMap: this.cube.getIndexMap() });
     const display = displayOverride || (this.ui ? this.ui.getDisplayState() : DEFAULT_DISPLAY);
@@ -123,7 +129,8 @@ export class ObjectModelManager {
       presentation: built.presentation,
       derived: {
         cut: createDefaultCutDerived(),
-        net: createDefaultNetDerived()
+        net: createDefaultNetDerived(),
+        topologyIndex: buildTopologyIndex(built.ssot)
       }
     };
     
@@ -411,6 +418,8 @@ export class ObjectModelManager {
     this.model.presentation.faces = newPresFaces;
     this.model.presentation.edges = newPresEdges;
     this.model.presentation.vertices = newPresVertices;
+
+    this.rebuildTopologyIndex();
   }
 
   syncCutState({
