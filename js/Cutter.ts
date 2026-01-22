@@ -4,7 +4,7 @@ import { createMarker } from './utils.js';
 import { buildFaceAdjacency } from './cutter/cutFaceGraph.js';
 import { canonicalizeSnapPointId, normalizeSnapPointId, parseSnapPointId, stringifySnapPointId } from './geometry/snapPointId.js';
 import type { CutFacePolygon, CutResult, CutResultMeta, CutSegmentMeta, IntersectionPoint, Ratio, SnapPointID } from './types.js';
-import type { ObjectCutAdjacency } from './model/objectModel.js';
+import type { ObjectCutAdjacency, SolidSSOT } from './model/objectModel.js';
 
 export class Cutter {
   scene: THREE.Scene;
@@ -72,6 +72,10 @@ export class Cutter {
 
   setDebug(debug: boolean) {
     this.debug = !!debug;
+  }
+
+  private isSolidSSOT(solid: any): solid is SolidSSOT {
+    return !!(solid && solid.meta && solid.vertices && typeof solid.getStructure !== 'function');
   }
 
   resolveIntersectionPosition(ref: IntersectionPoint, resolverOverride: any = null): THREE.Vector3 | null {
@@ -190,10 +194,33 @@ export class Cutter {
     const positiveVertices: THREE.Vector3[] = [];
     const negativeVertices: THREE.Vector3[] = [];
     if (!resolver) return false;
-    const structure = cube.getStructure ? cube.getStructure() : null;
-    if (!structure || !structure.vertices || !structure.edges) return false;
-    const vertices = structure.vertices.map((v: { id: string }) => resolver.resolveVertex(v.id)).filter((v: THREE.Vector3 | null): v is THREE.Vector3 => v !== null);
-    if (vertices.length !== structure.vertices.length) return false;
+
+    let vertices: THREE.Vector3[] = [];
+    let edgesData: any[] = []; // Raw edge objects
+    let solidSize = 10;
+    let isSSOT = this.isSolidSSOT(cube);
+    let structure: any = null;
+
+    if (isSSOT) {
+        // SSOT Mode
+        vertices = Object.values((cube as SolidSSOT).vertices)
+            .map((v: any) => resolver.resolveVertex(v.id))
+            .filter((v: THREE.Vector3 | null): v is THREE.Vector3 => v !== null);
+        edgesData = Object.values((cube as SolidSSOT).edges);
+        const { lx, ly, lz } = (cube as SolidSSOT).meta.size;
+        solidSize = Math.max(lx, ly, lz);
+    } else {
+        // Legacy Mode
+        structure = cube.getStructure ? cube.getStructure() : null;
+        if (!structure || !structure.vertices || !structure.edges) return false;
+        vertices = structure.vertices
+            .map((v: { id: string }) => resolver.resolveVertex(v.id))
+            .filter((v: THREE.Vector3 | null): v is THREE.Vector3 => v !== null);
+        edgesData = structure.edges;
+        solidSize = typeof cube.size === 'number' ? cube.size : 10;
+    }
+
+    if (vertices.length === 0) return false;
     
     vertices.forEach((v: THREE.Vector3) => {
         const dist = plane.distanceToPoint(v);
@@ -239,7 +266,7 @@ export class Cutter {
             });
         }
 
-        const size = cube.size * 5;
+        const size = solidSize * 5;
         const geom = new THREE.BoxGeometry(size, size, size);
 
         const cutBrush = new (Brush as any)(geom) as any;
@@ -254,17 +281,33 @@ export class Cutter {
 
         cutBrush.updateMatrixWorld();
 
-        const cubeBrush = new (Brush as any)(cube.cubeMesh.geometry.clone()) as any;
-        cubeBrush.position.copy(cube.cubeMesh.position);
-        cubeBrush.rotation.copy(cube.cubeMesh.rotation);
-        cubeBrush.scale.copy(cube.cubeMesh.scale);
-        cubeBrush.updateMatrixWorld();
+        let cubeBrush: any;
+        let cubeMat: THREE.Material;
 
-        const cubeMat = cube.cubeMesh.material.clone();
-        cubeMat.side = THREE.DoubleSide;
-        cubeMat.transparent = this.isTransparent;
-        cubeMat.opacity = this.isTransparent ? 0.4 : 1.0;
-        cubeMat.depthWrite = !this.isTransparent;
+        if (isSSOT) {
+             const { lx, ly, lz } = (cube as SolidSSOT).meta.size;
+             const geometry = new THREE.BoxGeometry(lx, ly, lz);
+             cubeBrush = new (Brush as any)(geometry) as any;
+             cubeBrush.updateMatrixWorld();
+
+             cubeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+             cubeMat.side = THREE.DoubleSide;
+             cubeMat.transparent = this.isTransparent;
+             cubeMat.opacity = this.isTransparent ? 0.4 : 1.0;
+             cubeMat.depthWrite = !this.isTransparent;
+        } else {
+             cubeBrush = new (Brush as any)(cube.cubeMesh.geometry.clone()) as any;
+             cubeBrush.position.copy(cube.cubeMesh.position);
+             cubeBrush.rotation.copy(cube.cubeMesh.rotation);
+             cubeBrush.scale.copy(cube.cubeMesh.scale);
+             cubeBrush.updateMatrixWorld();
+
+             cubeMat = cube.cubeMesh.material.clone();
+             cubeMat.side = THREE.DoubleSide;
+             cubeMat.transparent = this.isTransparent;
+             cubeMat.opacity = this.isTransparent ? 0.4 : 1.0;
+             cubeMat.depthWrite = !this.isTransparent;
+        }
 
         const cutMat = new THREE.MeshBasicMaterial({
             color: 0xffcccc,
@@ -306,13 +349,13 @@ export class Cutter {
         });
     }
 
-    const edgeLines = structure.edges.map((edge: { id: string }) => {
+    const edgeLines = edgesData.map((edge: { id: string }) => {
         const resolved = resolver.resolveEdge(edge.id);
         return resolved ? new THREE.Line3(resolved.start, resolved.end) : null;
     }).filter((l: THREE.Line3 | null): l is THREE.Line3 => l !== null);
-    if (edgeLines.length !== structure.edges.length) return false;
+    if (edgeLines.length !== edgesData.length) return false;
 
-    const edgeEntries = structure.edges.map((edge: { id: string }, index: number) => ({ edgeId: edge.id, line: edgeLines[index] })).filter((e: any) => e.line);
+    const edgeEntries = edgesData.map((edge: { id: string }, index: number) => ({ edgeId: edge.id, line: edgeLines[index] })).filter((e: any) => e.line);
     edgeEntries.forEach(({ edgeId, line }: { edgeId: string, line: THREE.Line3 }) => {
         const target = new THREE.Vector3();
         const lineStart = line.start;
@@ -357,7 +400,42 @@ export class Cutter {
     });
 
     const resolveFaceIdsForRef = (ref: IntersectionPoint) => {
-        if (!ref || !structure) return null;
+        if (!ref) return null;
+        
+        if (isSSOT && cube.faces) {
+            const foundFaces: string[] = [];
+            if (ref.edgeId && cube.edges) {
+                const edge = cube.edges[ref.edgeId];
+                if (edge) {
+                    Object.values(cube.faces).forEach((face: any) => {
+                        const vertices = face.vertices || [];
+                        for (let i = 0; i < vertices.length; i++) {
+                            const v0 = vertices[i];
+                            const v1 = vertices[(i + 1) % vertices.length];
+                            if ((edge.v0 === v0 && edge.v1 === v1) || (edge.v0 === v1 && edge.v1 === v0)) {
+                                foundFaces.push(face.id);
+                                break;
+                            }
+                        }
+                    });
+                }
+            } else if (ref.id) {
+                const parsed = normalizeSnapPointId(parseSnapPointId(ref.id));
+                if (parsed && parsed.type === 'vertex') {
+                    const vId = `V:${parsed.vertexIndex}`;
+                    Object.values(cube.faces).forEach((face: any) => {
+                        if (face.vertices && face.vertices.includes(vId)) {
+                            foundFaces.push(face.id);
+                        }
+                    });
+                } else if (parsed && parsed.type === 'face') {
+                    return [`F:${parsed.faceIndex}`];
+                }
+            }
+            return foundFaces.length ? foundFaces : null;
+        }
+
+        if (!structure) return null;
         if (ref.edgeId && structure.edgeMap) {
             const edge = (structure.edgeMap as Map<string, any>).get(ref.edgeId);
             return edge ? edge.faces : null;
@@ -391,7 +469,7 @@ export class Cutter {
         this.scene.remove(edge);
     });
     this.edgeHighlights = [];
-    if (resolver && structure) {
+    if (resolver && (structure || isSSOT)) {
         const edgeIds = new Map<string, { hasMidpoint: boolean }>();
         intersectionRefs.forEach(ref => {
             let edgeIdFromRef = ref.edgeId || null;
@@ -412,12 +490,23 @@ export class Cutter {
                 }
                 return;
             }
-            if (parsed.type === 'vertex' && (structure.vertexMap as Map<string, any>)) {
-                const vertex = (structure.vertexMap as Map<string, any>).get(`V:${parsed.vertexIndex}`);
-                if (vertex && vertex.edges) {
-                    (vertex.edges as string[]).forEach(edgeId => {
-                        if (!edgeIds.has(edgeId)) edgeIds.set(edgeId, { hasMidpoint: false });
-                    });
+            if (parsed.type === 'vertex') {
+                const vId = `V:${parsed.vertexIndex}`;
+                if (isSSOT) {
+                    if (cube.edges) {
+                        Object.values(cube.edges).forEach((edge: any) => {
+                            if (edge.v0 === vId || edge.v1 === vId) {
+                                if (!edgeIds.has(edge.id)) edgeIds.set(edge.id, { hasMidpoint: false });
+                            }
+                        });
+                    }
+                } else if (structure && (structure.vertexMap as Map<string, any>)) {
+                    const vertex = (structure.vertexMap as Map<string, any>).get(vId);
+                    if (vertex && vertex.edges) {
+                        (vertex.edges as string[]).forEach(edgeId => {
+                            if (!edgeIds.has(edgeId)) edgeIds.set(edgeId, { hasMidpoint: false });
+                        });
+                    }
                 }
                 return;
             }
@@ -629,7 +718,7 @@ export class Cutter {
         }
     }
 
-    if (!previewOnly) {
+    if (!previewOnly && cube.cubeMesh) {
         cube.cubeMesh.visible = false;
     }
     return true; 
@@ -679,8 +768,22 @@ export class Cutter {
       const cube = this.lastCube;
       const plane = this.cutPlane;
       if (!resolver || !cube || !plane) return [];
-      const structure = cube.getStructure ? cube.getStructure() : null;
-      if (!structure || !Array.isArray(structure.faces)) return [];
+
+      let facesData: any[] = [];
+      let solidSize = 10;
+      let isSSOT = this.isSolidSSOT(cube);
+
+      if (isSSOT) {
+          facesData = Object.values((cube as SolidSSOT).faces);
+          const { lx, ly, lz } = (cube as SolidSSOT).meta.size;
+          solidSize = Math.max(lx, ly, lz);
+      } else {
+          const structure = cube.getStructure ? cube.getStructure() : null;
+          if (!structure || !Array.isArray(structure.faces)) return [];
+          facesData = structure.faces;
+          solidSize = typeof cube.size === 'number' ? cube.size : 10;
+      }
+
       const cubeSize = typeof cube.getSize === 'function' ? cube.getSize() : null;
       const sizeScalar = (() => {
           if (typeof cubeSize === 'number') return cubeSize;
@@ -690,8 +793,7 @@ export class Cutter {
               const lz = typeof cubeSize.lz === 'number' ? cubeSize.lz : 1;
               return Math.max(lx, ly, lz);
           }
-          if (typeof cube.size === 'number') return cube.size;
-          return 1;
+          return solidSize;
       })();
       const planeEpsilon = Math.max(1e-6, sizeScalar * 1e-5);
       const tEpsilon = 1e-6;
@@ -759,9 +861,27 @@ export class Cutter {
               })
               .filter((v): v is { id: string, position: THREE.Vector3 } => v !== null);
           if (faceVertices.length < 3) return null;
-          const edgeIds = Array.isArray(face.edges) 
-            ? face.edges.map((e: any) => (typeof e === 'string') ? e : e.id) 
-            : [];
+          
+          let edgeIds: string[] = [];
+          if (isSSOT) {
+              const vIds = face.vertices;
+              const ssotEdges = (cube as SolidSSOT).edges;
+              for(let i=0; i<vIds.length; i++) {
+                  const v0 = vIds[i];
+                  const v1 = vIds[(i+1)%vIds.length];
+                  
+                  const edge = ssotEdges ? Object.values(ssotEdges).find((e: any) => 
+                      (e.v0 === v0 && e.v1 === v1) || (e.v0 === v1 && e.v1 === v0)
+                  ) : null;
+                  
+                  if (edge) edgeIds.push(edge.id);
+              }
+          } else {
+              edgeIds = Array.isArray(face.edges) 
+                ? face.edges.map((e: any) => (typeof e === 'string') ? e : e.id) 
+                : [];
+          }
+          
           if (edgeIds.length !== faceVertices.length) return null;
 
           const output: { id: string, position: THREE.Vector3 }[] = [];
@@ -812,10 +932,11 @@ export class Cutter {
       };
 
       const polygons: CutFacePolygon[] = [];
-      (structure.faces as any[]).forEach(face => {
+      facesData.forEach(face => {
           if (!face || !Array.isArray(face.vertices)) return;
           let vertexIds = clipFace(face);
           if (!vertexIds || vertexIds.length < 3) return;
+          
           vertexIds = canonicalizeVertexIds(vertexIds);
           const faceInfo = resolver.resolveFace(face.id);
           const targetNormal = faceInfo ? faceInfo.normal : null;
@@ -1120,7 +1241,7 @@ export class Cutter {
   }
 
   computeCutState(
-    solid: any,
+    solid: SolidSSOT | any,
     snapIds: SnapPointID[],
     resolver: any
   ): {
@@ -1171,13 +1292,21 @@ export class Cutter {
       });
     });
 
-    const edgeLines = (solid.edges as any[]).map((edge: any) => {
+    let edgesData: any[] = [];
+    const isSSOT = this.isSolidSSOT(solid);
+    if (isSSOT) {
+        edgesData = Object.values((solid as SolidSSOT).edges);
+    } else {
+        edgesData = solid.edges || [];
+    }
+
+    const edgeLines = edgesData.map((edge: any) => {
         const edgeId = typeof edge === 'string' ? edge : edge.id;
         const resolved = resolver.resolveEdge(edgeId);
         return resolved ? new THREE.Line3(resolved.start, resolved.end) : null;
     });
 
-    (solid.edges as any[]).forEach((edge: any, index: number) => {
+    edgesData.forEach((edge: any, index: number) => {
         const line = edgeLines[index];
         if (!line) return;
         const target = new THREE.Vector3();
@@ -1218,9 +1347,24 @@ export class Cutter {
         if (ref.faceIds && ref.faceIds.length) return ref.faceIds;
         const foundFaces: string[] = [];
         if (ref.edgeId) {
-            Object.values(solid.faces).forEach((face: any) => {
-                 const edgeIds = Array.isArray(face.edges) ? face.edges.map((e:any) => typeof e === 'string'?e:e.id) : [];
-                 if (edgeIds.includes(ref.edgeId)) foundFaces.push(face.id);
+            const facesList = Array.isArray(solid.faces) ? solid.faces : Object.values(solid.faces);
+            facesList.forEach((face: any) => {
+                 if (solid.meta && solid.edges) { // SSOT
+                     const edge = solid.edges[ref.edgeId!];
+                     if (edge && face.vertices) {
+                         for(let i=0; i<face.vertices.length; i++) {
+                             const v0 = face.vertices[i];
+                             const v1 = face.vertices[(i+1)%face.vertices.length];
+                             if ((edge.v0 === v0 && edge.v1 === v1) || (edge.v0 === v1 && edge.v1 === v0)) {
+                                 foundFaces.push(face.id);
+                                 break;
+                             }
+                         }
+                     }
+                 } else { // Legacy
+                     const edgeIds = Array.isArray(face.edges) ? face.edges.map((e:any) => typeof e === 'string'?e:e.id) : [];
+                     if (edgeIds.includes(ref.edgeId)) foundFaces.push(face.id);
+                 }
             });
         }
         return foundFaces.length ? foundFaces : undefined;
@@ -1243,20 +1387,39 @@ export class Cutter {
     };
 
     const polygons: CutFacePolygon[] = [];
-    Object.values(solid.faces).forEach((face: any) => {
-        const vertices = (face.vertices as any[]).map((v: any) => {
-            const id = typeof v === 'string' ? v : v.id;
-            return { id, position: resolver.resolveVertex(id) };
-        }).filter((v:any) => v.position);
-        
-        const edges = Array.isArray(face.edges) ? face.edges.map((e:any) => typeof e === 'string'?e:e.id) : [];
-        if (vertices.length < 3 || edges.length !== vertices.length) return;
+    const facesData = isSSOT ? Object.values((solid as SolidSSOT).faces) : (Array.isArray(solid.faces) ? solid.faces : Object.values(solid.faces));
+    
+    facesData.forEach((face: any) => {
+        let vertices: any[] = [];
+        let edgeIds: string[] = [];
+
+        if (isSSOT) {
+             vertices = (face.vertices as string[]).map(vid => ({ id: vid, position: resolver.resolveVertex(vid) }));
+             const vIds = face.vertices;
+             for(let i=0; i<vIds.length; i++) {
+                 const v0 = vIds[i];
+                 const v1 = vIds[(i+1)%vIds.length];
+                 const edge = Object.values((solid as SolidSSOT).edges as Record<string, any>).find((e: any) => 
+                     (e.v0 === v0 && e.v1 === v1) || (e.v0 === v1 && e.v1 === v0)
+                 );
+                 if (edge) edgeIds.push(edge.id);
+             }
+        } else {
+             vertices = (face.vertices as any[]).map((v: any) => {
+                const id = typeof v === 'string' ? v : v.id;
+                return { id, position: resolver.resolveVertex(id) };
+             });
+             edgeIds = Array.isArray(face.edges) ? face.edges.map((e:any) => typeof e === 'string'?e:e.id) : [];
+        }
+
+        vertices = vertices.filter((v:any) => v.position);
+        if (vertices.length < 3 || edgeIds.length !== vertices.length) return;
 
         const output: any[] = [];
         for (let i = 0; i < vertices.length; i++) {
             const current = vertices[i];
             const next = vertices[(i + 1) % vertices.length];
-            const edgeId = edges[i];
+            const edgeId = edgeIds[i];
             const d1 = plane.distanceToPoint(current.position);
             const d2 = plane.distanceToPoint(next.position);
             const inside1 = isInside(d1);

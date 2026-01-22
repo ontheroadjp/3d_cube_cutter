@@ -6,27 +6,64 @@ type StructureSummary = {
   vertexMap?: Map<string, { label?: string }>;
   edgeMap?: Map<string, { vertices?: string[] }>;
   faceMap?: Map<string, { vertices?: string[] }>;
+  vertices?: Record<string, any>;
+  edges?: Record<string, any>;
+  faces?: Record<string, any>;
 };
 
 function getVertexLabel(structure: StructureSummary | null, vertexId: string) {
-  if (!structure || !structure.vertexMap) return vertexId;
-  const vertex = structure.vertexMap.get(vertexId);
-  if (vertex && vertex.label) return vertex.label;
+  if (!structure) return vertexId;
+  if (structure.vertexMap) {
+    const vertex = structure.vertexMap.get(vertexId);
+    if (vertex && vertex.label) return vertex.label;
+  }
+  if (structure.vertices) {
+    const vertex = structure.vertices[vertexId];
+    if (vertex && vertex.label) return vertex.label;
+  }
   return vertexId;
 }
 
 function getEdgeLabels(structure: StructureSummary | null, edgeId: string) {
-  if (!structure || !structure.edgeMap) return [edgeId, edgeId];
-  const edge = structure.edgeMap.get(edgeId);
-  if (!edge || !edge.vertices) return [edgeId, edgeId];
-  return edge.vertices.map(vId => getVertexLabel(structure, vId));
+  const fallback = [edgeId, edgeId];
+  if (!structure) return fallback;
+  
+  if (structure.edgeMap) {
+    const edge = structure.edgeMap.get(edgeId);
+    if (edge && edge.vertices) {
+       return edge.vertices.map(vId => getVertexLabel(structure, vId));
+    }
+  }
+  
+  if (structure.edges) {
+    const edge = structure.edges[edgeId];
+    if (edge) {
+       return [getVertexLabel(structure, edge.v0), getVertexLabel(structure, edge.v1)];
+    }
+  }
+  
+  return fallback;
 }
 
 function getFaceLabels(structure: StructureSummary | null, faceId: string) {
-  if (!structure || !structure.faceMap) return [faceId];
-  const face = structure.faceMap.get(faceId);
-  if (!face || !face.vertices) return [faceId];
-  return face.vertices.map(vId => getVertexLabel(structure, vId));
+  const fallback = [faceId];
+  if (!structure) return fallback;
+
+  if (structure.faceMap) {
+    const face = structure.faceMap.get(faceId);
+    if (face && face.vertices) {
+      return face.vertices.map(vId => getVertexLabel(structure, vId));
+    }
+  }
+  
+  if (structure.faces) {
+    const face = structure.faces[faceId];
+    if (face && face.vertices) {
+      return face.vertices.map(vId => getVertexLabel(structure, vId));
+    }
+  }
+
+  return fallback;
 }
 
 function describeSnapPoint(snapId: SnapPointID, structure: StructureSummary | null) {
@@ -110,11 +147,17 @@ function classifyShape(
   if (parsed.length < 3) return null;
   if (parsed.length === 3) return '三角形';
   if (parsed.length === 4) {
-    if (structure && structure.faceMap) {
+    // Check square logic with new structure support
+    if (structure) {
       const vertexIds = new Set(parsed.filter(p => p.type === 'vertex').map(p => `V:${(p as any).vertexIndex}`));
       if (vertexIds.size === 4) {
         const faceKey = Array.from(vertexIds).map(v => v.split(':')[1]).join('-');
-        if (structure.faceMap.has(`F:${faceKey}`)) return '正方形';
+        const faceId = `F:${faceKey}`;
+        let hasFace = false;
+        if(structure.faceMap && structure.faceMap.has(faceId)) hasFace = true;
+        if(structure.faces && structure.faces[faceId]) hasFace = true;
+        
+        if (hasFace) return '正方形';
       }
     }
     return '四角形';

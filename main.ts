@@ -357,57 +357,7 @@ class App {
         const solid = this.objectModelManager.getModel()?.ssot;
         if (!solid) return;
 
-        // Adapt SSOT to Legacy Structure expected by Cutter
-        const { lx, ly, lz } = solid.meta.size;
-        
-        // Create a temporary mesh for CSG operations
-        const geometry = new THREE.BoxGeometry(lx, ly, lz);
-        const material = new THREE.MeshBasicMaterial();
-        const proxyMesh = new THREE.Mesh(geometry, material);
-        
-        // Build legacy array-based structure from SSOT records
-        const structure = {
-            vertices: Object.values(solid.vertices).map(v => ({ id: v.id })),
-            edges: Object.values(solid.edges).map(e => ({ id: e.id })),
-            faces: Object.values(solid.faces).map(f => ({
-                id: f.id,
-                vertices: f.vertices.map(id => ({ id })),
-                edges: [] // Edges in face not strictly used by main cutter logic loop if vertices present? 
-                          // Actually Cutter.clipFace uses edges array. We need to reconstruct it.
-            }))
-        };
-
-        // Reconstruct face edges map for the structure adapter
-        structure.faces.forEach(face => {
-            const vIds = face.vertices.map(v => v.id);
-            const edges = [];
-            for(let i=0; i<vIds.length; i++) {
-                const v0 = vIds[i];
-                const v1 = vIds[(i+1)%vIds.length];
-                // Find edge in solid.edges that connects v0 and v1
-                const edge = Object.values(solid.edges).find(e => 
-                    (e.v0 === v0 && e.v1 === v1) || (e.v0 === v1 && e.v1 === v0)
-                );
-                if (edge) edges.push({ id: edge.id });
-            }
-            (face as any).edges = edges;
-        });
-
-        // Add Maps for resolving references (Cutter uses these if available)
-        (structure as any).vertexMap = new Map(Object.entries(solid.vertices).map(([k, v]) => [k, { ...v, faces: [] }]));
-        (structure as any).edgeMap = new Map(Object.entries(solid.edges).map(([k, v]) => [k, { ...v, faces: [] }]));
-
-        // Proxy Cube object
-        const proxyCube = {
-            size: Math.max(lx, ly, lz),
-            cubeMesh: proxyMesh,
-            getStructure: () => structure,
-            getSize: () => solid.meta.size,
-            // Legacy helpers potentially called by Cutter
-            getEdgeMeshIndexById: (id: string) => id
-        };
-
-        const success = this.cutter.cut(proxyCube, snapIds, this.resolver);
+        const success = this.cutter.cut(solid, snapIds, this.resolver);
         if (!success) {
             console.warn("切断処理に失敗しました。点を選択し直してください。");
             this.isCutExecuted = false;
@@ -418,7 +368,7 @@ class App {
         const modelDisplay = this.objectModelManager.getDisplayState();
         this.cutter.setTransparency(modelDisplay.cubeTransparent);
 
-        const cutState = this.cutter.computeCutState(proxyCube, snapIds, this.resolver);
+        const cutState = this.cutter.computeCutState(solid, snapIds, this.resolver);
 
         if (cutState) {
             this.objectModelManager.syncCutState({
@@ -440,7 +390,7 @@ class App {
         const explanation = generateExplanation({
             snapIds,
             outlineRefs: this.cutter.getOutlineRefs(),
-            structure: this.cube.getStructure ? this.cube.getStructure() : null
+            structure: solid // Pass SSOT directly to explanation generator too
         });
         this.ui.setExplanation(explanation);
         this.isCutExecuted = true;
