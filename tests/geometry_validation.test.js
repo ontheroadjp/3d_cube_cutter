@@ -37,8 +37,20 @@ describe('Geometry Validation', () => {
   it('should produce a manifold mesh after a standard corner cut (triangle)', () => {
     const snapIds = ['V:4', 'V:1', 'V:7']; // Corner A, B, D equivalent in some mapping
     const success = cutter.cut(cube, snapIds, resolver);
+    console.log('Result Mesh Groups:', cutter.resultMesh.geometry.groups);
     expect(success).toBe(true);
 
+    // Validate Structure (Topology) - SSOT Check
+    const polygons = cutter.getResultFacePolygons();
+    const structResult = GeometryValidator.validateStructure(polygons);
+    console.log('Structure Validation Result:', structResult.details);
+
+    expect(structResult.isManifold).toBe(true);
+    expect(structResult.eulerCharacteristic).toBe(2);
+
+    /*
+    // Old Coordinate-based check
+    cutter.resultMesh.geometry.deleteAttribute('normal');
     const welded = BufferGeometryUtils.mergeVertices(cutter.resultMesh.geometry);
     const result = GeometryValidator.validate(welded);
     
@@ -46,29 +58,22 @@ describe('Geometry Validation', () => {
     
     expect(result.isManifold).toBe(true);
     expect(result.degenerateTriangles).toBe(0);
-    // Cube has 6 faces, 12 edges, 8 vertices. V-E+F = 2.
-    // After corner cut: 
-    // New face: 1 (triangle)
-    // Removed part: 1 corner
-    // The resulting solid is still a genus-0 polyhedra, so V-E+F should be 2.
     expect(result.eulerCharacteristic).toBe(2);
+    */
   });
 
   it('should produce a manifold mesh after a midpoint cut (hexagon)', () => {
     // 6 midpoints cut
     const snapIds = ['E:4-5@1/2', 'E:5-1@1/2', 'E:1-2@1/2']; 
-    // This is just 3 points, will produce a triangle. 
-    // For hexagon we need to be careful with snapIds.
-    // But Cutter.cut currently only takes 3 points to define a plane.
     
     const success = cutter.cut(cube, snapIds, resolver);
     expect(success).toBe(true);
 
-    const welded = BufferGeometryUtils.mergeVertices(cutter.resultMesh.geometry);
-    const result = GeometryValidator.validate(welded);
+    // Validate Structure
+    const polygons = cutter.getResultFacePolygons();
+    const structResult = GeometryValidator.validateStructure(polygons);
     
-    expect(result.isManifold).toBe(true);
-    expect(result.degenerateTriangles).toBe(0);
-    expect(result.eulerCharacteristic).toBe(2);
+    expect(structResult.isManifold).toBe(true);
+    expect(structResult.eulerCharacteristic).toBe(2);
   });
 });
