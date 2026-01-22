@@ -5,7 +5,6 @@ import { GeometryResolver } from '../js/geometry/GeometryResolver.ts';
 import { getDefaultIndexMap } from '../js/geometry/indexMap.ts';
 import { buildCubeStructure } from '../js/structure/structureModel.ts';
 import { GeometryValidator } from '../scripts/GeometryValidator.ts';
-import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 describe('Geometry Validation', () => {
   let cutter;
@@ -34,46 +33,93 @@ describe('Geometry Validation', () => {
     };
   });
 
-  it('should produce a manifold mesh after a standard corner cut (triangle)', () => {
+  it('should produce a manifold and oriented mesh after a standard corner cut (triangle)', () => {
     const snapIds = ['V:4', 'V:1', 'V:7']; // Corner A, B, D equivalent in some mapping
     const success = cutter.cut(cube, snapIds, resolver);
-    console.log('Result Mesh Groups:', cutter.resultMesh.geometry.groups);
     expect(success).toBe(true);
 
-    // Validate Structure (Topology) - SSOT Check
+    // Validate Structure (Topology & Geometry)
     const polygons = cutter.getResultFacePolygons();
-    const structResult = GeometryValidator.validateStructure(polygons);
-    console.log('Structure Validation Result:', structResult.details);
+    const structResult = GeometryValidator.validateStructure(polygons, resolver);
+    console.log('Structure Validation Result (Triangle):', structResult.details);
 
     expect(structResult.isManifold).toBe(true);
+    expect(structResult.isOriented).toBe(true);
+    expect(structResult.hasDegenerateFaces).toBe(false);
+    expect(structResult.hasNonPlanarFaces).toBe(false);
     expect(structResult.eulerCharacteristic).toBe(2);
-
-    /*
-    // Old Coordinate-based check
-    cutter.resultMesh.geometry.deleteAttribute('normal');
-    const welded = BufferGeometryUtils.mergeVertices(cutter.resultMesh.geometry);
-    const result = GeometryValidator.validate(welded);
-    
-    console.log('Validation Result (Triangle Cut):', result.details);
-    
-    expect(result.isManifold).toBe(true);
-    expect(result.degenerateTriangles).toBe(0);
-    expect(result.eulerCharacteristic).toBe(2);
-    */
   });
 
-  it('should produce a manifold mesh after a midpoint cut (hexagon)', () => {
-    // 6 midpoints cut
+  it('should produce a manifold and oriented mesh after a midpoint cut (hexagon)', () => {
+    // 6 midpoints cut (passes through midpoints of edges forming a hexagon)
+    // Note: The Cutter.cut logic infers the plane from 3 points.
+    // Specifying 3 midpoints that define the hexagonal cut plane is enough.
     const snapIds = ['E:4-5@1/2', 'E:5-1@1/2', 'E:1-2@1/2']; 
     
     const success = cutter.cut(cube, snapIds, resolver);
     expect(success).toBe(true);
 
-    // Validate Structure
     const polygons = cutter.getResultFacePolygons();
-    const structResult = GeometryValidator.validateStructure(polygons);
+    const structResult = GeometryValidator.validateStructure(polygons, resolver);
+    console.log('Structure Validation Result (Hexagon):', structResult.details);
     
     expect(structResult.isManifold).toBe(true);
+    expect(structResult.isOriented).toBe(true);
+    expect(structResult.hasDegenerateFaces).toBe(false);
     expect(structResult.eulerCharacteristic).toBe(2);
+  });
+
+  it('should handle parallel cut correctly (Parallel to Face)', () => {
+    // Cut parallel to top/bottom face, through midpoints of vertical edges
+    // Vertical edges usually connect top and bottom vertices.
+    // Assuming standard cube indexing: 0-4, 1-5, 2-6, 3-7 are vertical edges
+    const snapIds = ['E:0-4@1/2', 'E:1-5@1/2', 'E:2-6@1/2'];
+    const success = cutter.cut(cube, snapIds, resolver);
+    expect(success).toBe(true);
+
+    const polygons = cutter.getResultFacePolygons();
+    const structResult = GeometryValidator.validateStructure(polygons, resolver);
+    console.log('Structure Validation Result (Parallel):', structResult.details);
+
+    expect(structResult.isManifold).toBe(true);
+    expect(structResult.isOriented).toBe(true);
+    expect(structResult.hasDegenerateFaces).toBe(false);
+    expect(structResult.eulerCharacteristic).toBe(2);
+  });
+
+  it.skip('should handle tiny corner cut (Degeneracy Check) - TODO: Fix Cutter ID normalization', () => {
+    // Cut very close to corner V:4
+    // E:4-5, E:4-0, E:4-7
+    const snapIds = ['E:4-5@1/10', 'E:4-0@1/10', 'E:4-7@1/10'];
+    const success = cutter.cut(cube, snapIds, resolver);
+    expect(success).toBe(true);
+
+    const polygons = cutter.getResultFacePolygons();
+    const structResult = GeometryValidator.validateStructure(polygons, resolver);
+    console.log('Structure Validation Result (Tiny):', structResult.details);
+
+    expect(structResult.isManifold).toBe(true);
+    expect(structResult.isOriented).toBe(true);
+    expect(structResult.hasDegenerateFaces).toBe(false);
+    expect(structResult.eulerCharacteristic).toBe(2);
+  });
+
+  it.skip('should handle coplanar cut (Existing Face) - TODO: Fix Coplanar handling', () => {
+    // Cut defined by 3 corners of the top face: V:0, V:1, V:5
+    // This defines the top face plane exactly.
+    const snapIds = ['V:0', 'V:1', 'V:5'];
+    const success = cutter.cut(cube, snapIds, resolver);
+    
+    // Coplanar cut might return false or handle it gracefully
+    // If it returns true, the result should be valid (e.g., empty cut or same cube)
+    if (success) {
+        const polygons = cutter.getResultFacePolygons();
+        const structResult = GeometryValidator.validateStructure(polygons, resolver);
+        console.log('Structure Validation Result (Coplanar):', structResult.details);
+        
+        // Coplanar cut usually results in the same cube or empty, 
+        // but it should be a valid manifold if returned.
+        expect(structResult.isManifold).toBe(true);
+    }
   });
 });
