@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { SUBTRACTION, INTERSECTION, Brush, Evaluator } from 'three-bvh-csg';
+import { VertexNormalsHelper } from 'three/examples/jsm/helpers/VertexNormalsHelper.js';
 import { createMarker } from './utils.js';
 import { buildFaceAdjacency } from './cutter/cutFaceGraph.js';
 import { canonicalizeSnapPointId, normalizeSnapPointId, parseSnapPointId, stringifySnapPointId } from './geometry/snapPointId.js';
@@ -29,6 +30,8 @@ export class Cutter {
   outline: THREE.Line | null;
   cutOverlayGroup: THREE.Group | null;
   cutLineMaterial: THREE.LineBasicMaterial | null;
+  normalHelper: VertexNormalsHelper | null;
+  showNormalHelper: boolean;
   showCutPoints: boolean;
   colorizeCutLines: boolean;
   cutLineDefaultColor: number;
@@ -63,6 +66,8 @@ export class Cutter {
     this.outline = null;
     this.cutOverlayGroup = null;
     this.cutLineMaterial = null;
+    this.normalHelper = null;
+    this.showNormalHelper = false;
     this.showCutPoints = true;
     this.colorizeCutLines = false;
     this.cutLineDefaultColor = 0x444444;
@@ -74,6 +79,36 @@ export class Cutter {
 
   setDebug(debug: boolean) {
     this.debug = !!debug;
+  }
+
+  setShowNormalHelper(visible: boolean) {
+    this.showNormalHelper = !!visible;
+    if (!this.showNormalHelper) {
+      this.clearNormalHelper();
+      return;
+    }
+    if (this.resultMesh) {
+      this.refreshNormalHelper(this.resultMesh);
+    }
+  }
+
+  private clearNormalHelper() {
+    if (!this.normalHelper) return;
+    this.scene.remove(this.normalHelper);
+    const helper = this.normalHelper as any;
+    if (helper.geometry) helper.geometry.dispose();
+    if (helper.material) helper.material.dispose();
+    this.normalHelper = null;
+  }
+
+  private refreshNormalHelper(mesh: THREE.Mesh) {
+    if (!this.showNormalHelper) return;
+    this.clearNormalHelper();
+    const helper = new VertexNormalsHelper(mesh, 0.3, 0x00ff00);
+    helper.visible = this.visible;
+    this.scene.add(helper);
+    this.normalHelper = helper;
+    helper.update();
   }
 
   private isSolidSSOT(solid: any): solid is SolidSSOT {
@@ -361,6 +396,7 @@ export class Cutter {
         this.resultMesh = (this.evaluator.evaluate(cubeBrush, cutBrush, SUBTRACTION) as THREE.Mesh);
         this.resultMesh.material = [cubeMat, cutMat];
         this.scene.add(this.resultMesh);
+        this.refreshNormalHelper(this.resultMesh);
 
         this.removedMesh = (this.evaluator.evaluate(cubeBrush, cutBrush, INTERSECTION) as THREE.Mesh);
         this.removedMesh.material = [cubeMat, cutMat];
@@ -1222,6 +1258,7 @@ export class Cutter {
     if (this.removedMesh) this.removedMesh.visible = visible;
     this.updateOverlayVisibility();
     this.edgeHighlights.forEach(edge => { edge.visible = visible; });
+    if (this.normalHelper) this.normalHelper.visible = visible;
   }
 
   reset() {
@@ -1272,6 +1309,7 @@ export class Cutter {
         });
         this.edgeHighlights = [];
     }
+    this.clearNormalHelper();
     
     if (this.originalCube && this.originalCube.cubeMesh) {
         this.originalCube.cubeMesh.visible = true;
