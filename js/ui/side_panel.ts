@@ -223,7 +223,7 @@ export function SidePanel() {
 }
 
 // --- Icon Component ---
-function Icon({ name }) {
+function Icon({ name }: { name: string }) {
   const shared = {
     width: 20,
     height: 20,
@@ -234,7 +234,7 @@ function Icon({ name }) {
     strokeLinecap: 'round',
     strokeLinejoin: 'round',
     className: 'chatgpt-icon'
-  };
+  } as React.SVGProps<SVGSVGElement>;
   switch (name) {
     case 'pencil':
       return React.createElement(
@@ -323,7 +323,7 @@ function Icon({ name }) {
 }
 
 // --- ModeButton Component ---
-function ModeButton({ mode, currentMode, onClick, icon }) {
+function ModeButton({ mode, currentMode, onClick, icon }: { mode: string, currentMode: string, onClick: (mode: string) => void, icon: string }) {
   const isActive = mode === currentMode;
   const className = `chatgpt-btn ${isActive ? 'chatgpt-btn--active' : ''}`;
   return React.createElement(
@@ -339,7 +339,7 @@ function ModeButton({ mode, currentMode, onClick, icon }) {
 }
 
 // --- ActionButton Component ---
-function ActionButton({ onClick, icon, title, variant = 'soft', isActive = false }) {
+function ActionButton({ onClick, icon, title, variant = 'soft', isActive = false }: { onClick: () => void, icon: string, title: string, variant?: string, isActive?: boolean }) {
   const className = `chatgpt-btn chatgpt-btn--${variant} ${isActive ? 'chatgpt-btn--active' : ''}`;
   return React.createElement(
     'button',
@@ -354,7 +354,7 @@ function ActionButton({ onClick, icon, title, variant = 'soft', isActive = false
 }
 
 // --- Content Components (placeholders) ---
-function PresetContent({ currentMode }) {
+function PresetContent({ currentMode }: { currentMode: string }) {
   // Logic for preset selection
   const [presets, setPresets] = useState<Preset[]>([]);
   const [userPresets, setUserPresets] = useState<UserPresetState[]>([]);
@@ -365,7 +365,7 @@ function PresetContent({ currentMode }) {
   const [saveForm, setSaveForm] = useState<UserPresetForm>({ name: '', category: '', description: '' });
 
   const refreshUserPresets = () => {
-    const engine = globalThis.__engine;
+    const engine = (globalThis as any).__engine as Engine;
     if (engine && typeof engine.listUserPresets === 'function') {
       setUserPresets(engine.listUserPresets() || []);
     }
@@ -375,14 +375,14 @@ function PresetContent({ currentMode }) {
   };
 
   useEffect(() => {
-    const engine = globalThis.__engine;
+    const engine = (globalThis as any).__engine as Engine;
     if (engine && typeof engine.getPresets === 'function') {
       setPresets(engine.getPresets() || []);
     }
     refreshUserPresets();
-    globalThis.__refreshUserPresets = refreshUserPresets;
+    (globalThis as any).__refreshUserPresets = refreshUserPresets;
     return () => {
-      if (globalThis.__refreshUserPresets) delete globalThis.__refreshUserPresets;
+      if ((globalThis as any).__refreshUserPresets) delete (globalThis as any).__refreshUserPresets;
     };
   }, []);
 
@@ -391,13 +391,13 @@ function PresetContent({ currentMode }) {
     : presets;
 
   const applyPreset = (name: string) => {
-    if (globalThis.__engine && typeof globalThis.__engine.applyPreset === 'function') {
-      globalThis.__engine.applyPreset(name);
+    if ((globalThis as any).__engine && typeof (globalThis as any).__engine.applyPreset === 'function') {
+      (globalThis as any).__engine.applyPreset(name);
     }
   };
 
   const applyUserPreset = (id: string) => {
-    const engine = globalThis.__engine;
+    const engine = (globalThis as any).__engine as Engine;
     if (engine && typeof engine.applyUserPreset === 'function') {
       engine.applyUserPreset(id);
     }
@@ -414,7 +414,7 @@ function PresetContent({ currentMode }) {
 
   const saveUserPreset = async () => {
     if (!saveForm.name) return;
-    const engine = globalThis.__engine;
+    const engine = (globalThis as any).__engine as Engine;
     if (engine && typeof engine.saveUserPreset === 'function') {
       await engine.saveUserPreset(saveForm);
       refreshUserPresets();
@@ -425,7 +425,7 @@ function PresetContent({ currentMode }) {
   };
 
   const editUserPreset = (id: string) => {
-    const engine = globalThis.__engine;
+    const engine = (globalThis as any).__engine as Engine;
     if (engine && typeof engine.editUserPreset === 'function') {
       engine.editUserPreset(id);
     }
@@ -438,7 +438,7 @@ function PresetContent({ currentMode }) {
   };
 
   const cancelEdit = () => {
-    const engine = globalThis.__engine;
+    const engine = (globalThis as any).__engine as Engine;
     if (engine && typeof engine.cancelUserPresetEdit === 'function') {
       engine.cancelUserPresetEdit();
     }
@@ -448,7 +448,7 @@ function PresetContent({ currentMode }) {
   };
 
   const deleteUserPreset = (id: string) => {
-    const engine = globalThis.__engine;
+    const engine = (globalThis as any).__engine as Engine;
     if (engine && typeof engine.deleteUserPreset === 'function') {
       engine.deleteUserPreset(id);
       refreshUserPresets();
@@ -475,8 +475,8 @@ function PresetContent({ currentMode }) {
       React.createElement('select', {
         className: 'form-select form-select-sm',
         value: category,
-        onChange: (e) => setCategory(e.target.value)
-      },
+        onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setCategory(e.target.value)
+      } as React.SelectHTMLAttributes<HTMLSelectElement>,
         React.createElement('option', { value: 'triangle' }, '三角形'),
         React.createElement('option', { value: 'quad' }, '四角形'),
         React.createElement('option', { value: 'poly' }, '多角形'),
@@ -563,7 +563,7 @@ function PresetContent({ currentMode }) {
   );
 }
 
-function LearningContent({ currentMode }) {
+function LearningContent({ currentMode }: { currentMode: string }) {
   // Logic for learning problems
   return React.createElement(
     'div',
@@ -573,7 +573,7 @@ function LearningContent({ currentMode }) {
   );
 }
 
-function SettingsContent({ activePanel, onPanelChange }) {
+function SettingsContent({ activePanel, onPanelChange }: { activePanel: string, onPanelChange: (panel: string) => void }) {
   return React.createElement(
     'div',
     null,
@@ -600,14 +600,14 @@ function DisplaySettingsPanel() {
   const [showModal, setShowModal] = useState<boolean>(false);
 
   useEffect(() => {
-    if (globalThis.__engine && typeof globalThis.__engine.getDisplayState === 'function') {
-      setDisplay(globalThis.__engine.getDisplayState());
+    if ((globalThis as any).__engine && typeof (globalThis as any).__engine.getDisplayState === 'function') {
+      setDisplay((globalThis as any).__engine.getDisplayState());
     }
-    globalThis.__setDisplayState = (next) => {
+    (globalThis as any).__setDisplayState = (next: DisplayState | null) => {
       setDisplay(next || null);
     };
     return () => {
-      if (globalThis.__setDisplayState) delete globalThis.__setDisplayState;
+      if ((globalThis as any).__setDisplayState) delete (globalThis as any).__setDisplayState;
     };
   }, []);
 
@@ -615,8 +615,8 @@ function DisplaySettingsPanel() {
     if (!display) return;
     const next = { ...display, ...patch };
     setDisplay(next);
-    if (globalThis.__engine && typeof globalThis.__engine.setDisplayState === 'function') {
-      globalThis.__engine.setDisplayState(next);
+    if ((globalThis as any).__engine && typeof (globalThis as any).__engine.setDisplayState === 'function') {
+      (globalThis as any).__engine.setDisplayState(next);
     }
   };
 
@@ -686,8 +686,8 @@ function DisplaySettingsPanel() {
         React.createElement('select', {
           className: 'form-select form-select-sm',
           value: display.edgeLabelMode || 'visible',
-          onChange: (e) => updateDisplayState({ edgeLabelMode: e.target.value as DisplayState['edgeLabelMode'] })
-        },
+          onChange: (e: React.ChangeEvent<HTMLSelectElement>) => updateDisplayState({ edgeLabelMode: e.target.value as DisplayState['edgeLabelMode'] })
+        } as React.SelectHTMLAttributes<HTMLSelectElement>,
           React.createElement('option', { value: 'visible' }, '常に表示'),
           React.createElement('option', { value: 'popup' }, 'ポップアップ'),
           React.createElement('option', { value: 'hidden' }, '表示しない')
@@ -702,15 +702,16 @@ function DisplaySettingsPanel() {
 }
 
 // --- VertexLabelModal Component ---
-export function VertexLabelModal({ show, onClose }) {
+export function VertexLabelModal({ show, onClose }: { show: boolean, onClose: () => void }) {
   const defaultLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
   const [labels, setLabels] = useState<string[]>(defaultLabels);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
   useEffect(() => {
     if (show) {
-      if (globalThis.__engine && typeof globalThis.__engine.getVertexLabelMap === 'function') {
-        const labelMap = globalThis.__engine.getVertexLabelMap();
+      const engine = (globalThis as any).__engine as Engine;
+      if (engine && typeof engine.getVertexLabelMap === 'function') {
+        const labelMap = engine.getVertexLabelMap();
         if (labelMap) {
           const currentLabels = Array(8).fill('').map((_, i) => labelMap[`V:${i}`] || defaultLabels[i]);
           setLabels(currentLabels);
@@ -737,11 +738,12 @@ export function VertexLabelModal({ show, onClose }) {
     }
     const unique = new Set(labels);
     if (unique.size !== labels.length) {
-      setErrorMessage("頂点ラベルは重複できません。", "warning");
+      setErrorMessage("頂点ラベルは重複できません。");
       return;
     }
-    if (globalThis.__engine && typeof globalThis.__engine.configureVertexLabels === 'function') {
-      globalThis.__engine.configureVertexLabels(labels);
+    const engine = (globalThis as any).__engine as Engine;
+    if (engine && typeof engine.configureVertexLabels === 'function') {
+      engine.configureVertexLabels(labels);
       onClose();
     }
   };

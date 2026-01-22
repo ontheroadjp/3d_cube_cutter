@@ -42,7 +42,7 @@ export class PresetManager {
                 console.warn(`Invalid snapId in preset: ${name}`);
                 return;
             }
-            const point = this.resolver.resolveSnapPointRef(parsed);
+            const point = this.resolver ? this.resolver.resolveSnapPointRef(parsed) : null;
             if (!point) {
                 console.warn(`Failed to resolve snapId: ${snapId}`);
                 return;

@@ -34,6 +34,10 @@ export class GeometryValidator {
     let degenerateTriangles = 0;
     const faceCount = index ? index.count / 3 : position.count / 3;
 
+    const getVertexKey = (i: number) => {
+      return `${position.getX(i).toFixed(6)},${position.getY(i).toFixed(6)},${position.getZ(i).toFixed(6)}`;
+    };
+
     for (let i = 0; i < faceCount; i++) {
       const a = index ? index.getX(i * 3) : i * 3;
       const b = index ? index.getX(i * 3 + 1) : i * 3 + 1;
@@ -45,14 +49,23 @@ export class GeometryValidator {
         continue;
       }
 
+      const keyA = getVertexKey(a);
+      const keyB = getVertexKey(b);
+      const keyC = getVertexKey(c);
+
+      if (keyA === keyB || keyB === keyC || keyC === keyA) {
+        degenerateTriangles++;
+        continue;
+      }
+
       // 辺を記録 (向きを無視してソート)
-      const addEdge = (v1: number, v2: number) => {
-        const key = [v1, v2].sort((x, y) => x - y).join('-');
+      const addEdge = (k1: string, k2: string) => {
+        const key = [k1, k2].sort().join('|');
         edges.set(key, (edges.get(key) || 0) + 1);
       };
-      addEdge(a, b);
-      addEdge(b, c);
-      addEdge(c, a);
+      addEdge(keyA, keyB);
+      addEdge(keyB, keyC);
+      addEdge(keyC, keyA);
     }
 
     // 3. 多様体チェック (すべての辺が2つの面に共有されているか)

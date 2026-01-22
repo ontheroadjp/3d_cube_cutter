@@ -82,12 +82,20 @@ export class Cube {
     this.resolver = resolver;
   }
 
+  // Cache for the last synced model state to avoid redundant updates
+  private lastModelHash: string | null = null;
+
   /**
    * Main entry point for updating the 3D scene from the ObjectModel.
    * This implements the structure-first rendering pipeline.
    */
   syncWithModel(model: ObjectModel | null) {
     if (!model || !this.resolver) return;
+
+    // Check if we actually need to sync
+    const modelHash = this.computeModelHash(model);
+    if (modelHash === this.lastModelHash) return;
+    this.lastModelHash = modelHash;
 
     const { ssot, presentation, derived } = model;
     this.size = Math.max(ssot.meta.size.lx, ssot.meta.size.ly, ssot.meta.size.lz);
@@ -99,7 +107,7 @@ export class Cube {
     
     // Apply net unfolding if active
     if (derived.net && derived.net.visible) {
-        // (WIP: applyNetPlan will be called here or from main.ts)
+        // (applyNetPlan is called from main.ts animation loop)
     }
 
     // Update raycast arrays
@@ -152,74 +160,26 @@ export class Cube {
       if (parentFaceInfo && childFaceInfo) {
           const np = parentFaceInfo.normal;
           const nc = childFaceInfo.normal;
-          // Dihedral angle alpha
-          // cos(alpha) = np . nc
-          // However, for unfolding, we want to rotate child so nc aligns with np (coplanar)
-          // The rotation required is (PI - alpha)
-          // Direction depends on the hinge axis direction vs cross product
           
           const dot = THREE.MathUtils.clamp(np.dot(nc), -1, 1);
           const alpha = Math.acos(dot);
           const unfoldAngle = Math.PI - alpha;
           
-          // Determine sign
-          // cross(np, nc) should align with axis for positive rotation?
-          const cross = new THREE.Vector3().crossVectors(np, nc);
-          const sign = cross.dot(axis) >= 0 ? 1 : -1;
+          // Determine sign by testing a small rotation
+          // We want to rotate nc towards np (so dot product increases)
+          const testRot = new THREE.Quaternion().setFromAxisAngle(axis, 0.1);
+          const testNc = nc.clone().applyQuaternion(testRot);
+          const sign = np.dot(testNc) > dot ? 1 : -1;
           
           angle = sign * unfoldAngle * progress;
       } else {
           angle = (Math.PI / 2) * progress;
       }
       
-      const rotation = new THREE.Quaternion().setFromAxisAngle(axis, angle);
-      
-      const childQuat = parentPose.quaternion.clone().multiply(rotation);
-      // Position needs to be offset based on rotation around pivot (hinge edge start)
-      // P_child_new = P_pivot + Q_rot * (P_child_old - P_pivot)
-      // But P_child_old is relative to parent pose? No, we need to chain transforms properly.
-      
-      // Correct approach:
-      // The child face is logically attached to the parent face at the hinge.
-      // 1. Start at parent position/rotation.
-      // 2. Move to hinge position (relative to parent).
-      // 3. Apply rotation.
-      // 4. Child's origin is maintained relative to the hinge.
-      
-      // Since our faces are defined in global coordinates initially (mesh.position=0,0,0),
-      // we need to rotate the child mesh around the hinge axis in the parent's frame.
-      
-      // Let's rely on the accumulated quaternion for rotation.
-      // For position, we simply need to ensure the hinge stays connected.
-      // Since "worldPoses" tracks the transform of the face frame (initially identity),
-      // and we rotate around the hinge axis (which is constant in the initial frame if we assume
-      // the hinge definition edge.start/end are from the initial static geometry),
-      // we need to rotate the "center of the child face" around the hinge axis.
-      
-      // Actually, simply applying the rotation to the mesh quaternion rotates it around the mesh origin (0,0,0).
-      // This is WRONG if the mesh origin is at the center of the cube.
-      // We need to rotate around the hinge.
-      
-      // Correction:
-      // The hinge axis 'axis' and point 'edge.start' are in the LOCAL frame of the initial cube (model space).
-      // The child face mesh is also in model space.
-      // We want to rotate the child face around 'edge.start'/'axis' by 'angle'.
-      // AND we want to apply the parent's accumulated transform.
-      
-      // Transform chain:
-      // T_child = T_parent * T_hinge_rotation
-      // Where T_hinge_rotation rotates around the hinge line.
-      
-      // T_hinge_rotation:
-      // Translate(-pivot) -> Rotate(angle, axis) -> Translate(pivot)
+      const qRot = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+      const childQuat = parentPose.quaternion.clone().multiply(qRot);
       
       const pivot = edge.start;
-      const qRot = new THREE.Quaternion().setFromAxisAngle(axis, angle);
-      
-      // Apply parent transform to the pivot-rotated frame
-      // Final Pos = ParentPos + ParentQuat * (Pivot + qRot * (-Pivot))
-      // Final Quat = ParentQuat * qRot
-      
       const localOffset = pivot.clone().add(
           pivot.clone().negate().applyQuaternion(qRot)
       );
@@ -238,6 +198,17 @@ export class Cube {
         mesh.position.copy(pose.position);
       }
     });
+  }
+
+  private computeModelHash(model: ObjectModel): string {
+      const { ssot, presentation } = model;
+      // Simple hash based on geometry structure and visibility settings
+      const faceIds = Object.keys(ssot.faces).sort().join(',');
+      const edgeIds = Object.keys(ssot.edges).sort().join(',');
+      const vertexIds = Object.keys(ssot.vertices).sort().join(',');
+      const display = presentation.display;
+      const displayHash = `${display.showVertexLabels},${display.showFaceLabels},${display.edgeLabelMode},${display.cubeTransparent}`;
+      return `${faceIds}|${edgeIds}|${vertexIds}|${ssot.meta.size.lx},${ssot.meta.size.ly},${ssot.meta.size.lz}|${displayHash}`;
   }
 
   private syncFaces(model: ObjectModel) {
@@ -262,7 +233,7 @@ export class Cube {
     // Update or add faces
     Object.values(ssot.faces).forEach(face => {
       let mesh = this.faceMeshes.get(face.id);
-      const vertices = face.vertices.map(vId => this.resolver!.resolveSnapPoint(vId)).filter(Boolean) as THREE.Vector3[];
+      const vertices = face.vertices.map(vId => this.resolver!.resolveSnapPoint(vId)).filter((v): v is THREE.Vector3 => v !== null);
       
       if (vertices.length < 3) return;
 
@@ -279,6 +250,9 @@ export class Cube {
         mesh.geometry.dispose();
         mesh.geometry = geometry;
         mesh.material = material;
+        // Reset transform since geometry is world-space
+        mesh.position.set(0, 0, 0);
+        mesh.quaternion.set(0, 0, 0, 1);
       }
 
       // Sync labels

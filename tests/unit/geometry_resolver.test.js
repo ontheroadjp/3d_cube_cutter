@@ -39,7 +39,7 @@ describe('GeometryResolver', () => {
       size: { lx: 10, ly: 20, lz: 30 },
       indexMap: getDefaultIndexMap()
     });
-    const face = resolver.resolveFace('F:0154');
+    const face = resolver.resolveFace('F:0-1-5-4');
     const normal = face.normal;
     expect(normal.x).toBeCloseTo(0);
     expect(normal.y).toBeCloseTo(0);

@@ -1,4 +1,5 @@
 import type { Ratio, SnapPointID } from '../types.js';
+export type { SnapPointID };
 
 export type SnapPointRef =
   | { type: 'vertex'; vertexIndex: string }

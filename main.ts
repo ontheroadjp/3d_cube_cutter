@@ -14,7 +14,7 @@ import { initReactApp } from './js/ui/reactApp.js';
 import { ObjectModelManager, type EngineEvent } from './js/model/objectModelManager.js';
 import type { CutFacePolygon, DisplayState, LearningProblem, UserPresetState } from './js/types.js';
 import type { ObjectNetState, NetPlan } from './js/model/objectModel.js';
-import { normalizeSnapPointId, parseSnapPointId } from './js/geometry/snapPointId.js';
+import { normalizeSnapPointId, parseSnapPointId, type SnapPointID } from './js/geometry/snapPointId.js';
 import { createLabel, createMarker } from './js/utils.js';
 
 const DEBUG = false;
@@ -253,23 +253,17 @@ class App {
     handleEngineEvent(event: EngineEvent) {
         switch (event.type) {
             case "SSOT_UPDATED": {
-                const model = this.objectModelManager.getModel(); // NEW
+                const model = this.objectModelManager.getModel();
                 const display = this.objectModelManager.getDisplayState();
                 
-                // Sync the 3D scene from ObjectModel
-                this.cube.syncWithModel(model); // NEW
+                this.cube.syncWithModel(model);
                 
                 this.objectModelManager.applyDisplayToView(display);
                 this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
                 this.cutter.setTransparency(display.cubeTransparent);
                 this.selection.toggleVertexLabels(display.showVertexLabels);
-                this.updateNetOverlayDisplay(display);
-                this.updateNetLabelDisplay(display);
                 
                 // Sync global/React state
-                if (typeof globalThis.__setDisplayState === 'function') {
-                    globalThis.__setDisplayState(display);
-                }
                 break;
             }
             case "CUT_RESULT_UPDATED": {
@@ -360,7 +354,60 @@ class App {
         const snapIds = this.selection.getSelectedSnapIds();
         if (snapIds.length < 3) return;
 
-        const success = this.cutter.cut(this.cube, snapIds, this.resolver);
+        const solid = this.objectModelManager.getModel()?.ssot;
+        if (!solid) return;
+
+        // Adapt SSOT to Legacy Structure expected by Cutter
+        const { lx, ly, lz } = solid.meta.size;
+        
+        // Create a temporary mesh for CSG operations
+        const geometry = new THREE.BoxGeometry(lx, ly, lz);
+        const material = new THREE.MeshBasicMaterial();
+        const proxyMesh = new THREE.Mesh(geometry, material);
+        
+        // Build legacy array-based structure from SSOT records
+        const structure = {
+            vertices: Object.values(solid.vertices).map(v => ({ id: v.id })),
+            edges: Object.values(solid.edges).map(e => ({ id: e.id })),
+            faces: Object.values(solid.faces).map(f => ({
+                id: f.id,
+                vertices: f.vertices.map(id => ({ id })),
+                edges: [] // Edges in face not strictly used by main cutter logic loop if vertices present? 
+                          // Actually Cutter.clipFace uses edges array. We need to reconstruct it.
+            }))
+        };
+
+        // Reconstruct face edges map for the structure adapter
+        structure.faces.forEach(face => {
+            const vIds = face.vertices.map(v => v.id);
+            const edges = [];
+            for(let i=0; i<vIds.length; i++) {
+                const v0 = vIds[i];
+                const v1 = vIds[(i+1)%vIds.length];
+                // Find edge in solid.edges that connects v0 and v1
+                const edge = Object.values(solid.edges).find(e => 
+                    (e.v0 === v0 && e.v1 === v1) || (e.v0 === v1 && e.v1 === v0)
+                );
+                if (edge) edges.push({ id: edge.id });
+            }
+            (face as any).edges = edges;
+        });
+
+        // Add Maps for resolving references (Cutter uses these if available)
+        (structure as any).vertexMap = new Map(Object.entries(solid.vertices).map(([k, v]) => [k, { ...v, faces: [] }]));
+        (structure as any).edgeMap = new Map(Object.entries(solid.edges).map(([k, v]) => [k, { ...v, faces: [] }]));
+
+        // Proxy Cube object
+        const proxyCube = {
+            size: Math.max(lx, ly, lz),
+            cubeMesh: proxyMesh,
+            getStructure: () => structure,
+            getSize: () => solid.meta.size,
+            // Legacy helpers potentially called by Cutter
+            getEdgeMeshIndexById: (id: string) => id
+        };
+
+        const success = this.cutter.cut(proxyCube, snapIds, this.resolver);
         if (!success) {
             console.warn("切断処理に失敗しました。点を選択し直してください。");
             this.isCutExecuted = false;
@@ -371,8 +418,7 @@ class App {
         const modelDisplay = this.objectModelManager.getDisplayState();
         this.cutter.setTransparency(modelDisplay.cubeTransparent);
 
-        const solid = this.objectModelManager.getModel()?.ssot;
-        const cutState = solid ? this.cutter.computeCutState(solid, snapIds, this.resolver) : null;
+        const cutState = this.cutter.computeCutState(proxyCube, snapIds, this.resolver);
 
         if (cutState) {
             this.objectModelManager.syncCutState({
@@ -574,7 +620,7 @@ class App {
         });
     }
 
-    applyDisplayState(display = {}) {
+    applyDisplayState(display: Partial<DisplayState> = {}) {
         const current = this.objectModelManager.getDisplayState();
         const next = { ...current, ...display };
         this.ui.applyDisplayState(next);
@@ -586,7 +632,7 @@ class App {
         }
     }
 
-    applyUserPresetState(state) {
+    applyUserPresetState(state: UserPresetState) {
         if (!state) return;
         this.resetScene();
 
@@ -604,13 +650,13 @@ class App {
         this.objectModelManager.syncFromCube();
 
         this.applyDisplayState(state.display || {});
-        if (typeof globalThis.__setDisplayState === 'function') {
-            globalThis.__setDisplayState(this.ui.getDisplayState());
+        if (typeof (globalThis as any).__setDisplayState === 'function') {
+            (globalThis as any).__setDisplayState(this.ui.getDisplayState());
         }
 
         const snapIds = state.cut && Array.isArray(state.cut.snapPoints) ? state.cut.snapPoints : [];
         this.selection.reset();
-        snapIds.forEach(snapId => this.selection.addPointFromSnapId(snapId));
+        snapIds.forEach((snapId: string) => this.selection.addPointFromSnapId(snapId));
 
         const inverted = state.cut ? !!state.cut.inverted : false;
         this.cutter.setCutInverted(inverted, false);
@@ -622,12 +668,15 @@ class App {
                 this.objectModelManager.syncCutState({
                     intersections: this.cutter.getIntersectionRefs(),
                     cutSegments: this.cutter.getCutSegments(),
-                    facePolygons: this.cutter.getResultFacePolygons(),
+                    facePolygons: this.cutter.getResultFacePolygons() as any,
                     faceAdjacency: this.cutter.getResultFaceAdjacency()
                 });
                 this.cutter.refreshEdgeHighlightColors();
                 this.cutter.updateCutPointMarkers(this.objectModelManager.resolveCutIntersectionPositions());
-                this.netManager.update(this.objectModelManager.getCutSegments(), this.objectModelManager.getModel()?.ssot, this.resolver);
+                const model = this.objectModelManager.getModel();
+                if (model) {
+                    this.netManager.update(this.objectModelManager.getCutSegments(), model.ssot, this.resolver);
+                }
                 this.selection.updateSplitLabels(this.objectModelManager.getCutIntersections());
                 const explanation = generateExplanation({
                     snapIds,
@@ -640,7 +689,7 @@ class App {
     }
 
     // --- Event Handlers ---
-    handleClick(e) {
+    handleClick(e: MouseEvent) {
         if (this.isCutExecuted) return;
         if (this.currentMode !== 'free') return;
         if (!this.snappedPointInfo) return;
@@ -668,7 +717,7 @@ class App {
         if (this.selection.selected.length === 3) this.executeCut();
     }
 
-    handleMouseMove(e) {
+    handleMouseMove(e: MouseEvent) {
         if (this.isCutExecuted || this.currentMode !== 'free') {
             this.highlightMarker.visible = false;
             this.snappedPointInfo = null;
@@ -696,22 +745,23 @@ class App {
                 return;
             }
 
-            let snappedPoint;
+            let snappedPoint: THREE.Vector3;
             let isMidpoint = false;
             let edgeLength = null;
             let snappedLength = null;
 
             if (userData.type === 'vertex') {
-                if (userData.vertexId) {
-                    snappedPoint = this.resolver.resolveVertex(userData.vertexId);
-                }
-                if (!snappedPoint) {
+                const pos = userData.vertexId ? this.resolver.resolveVertex(userData.vertexId) : null;
+                if (!pos) {
                     this.highlightMarker.visible = false;
                     this.snappedPointInfo = null;
                     document.body.style.cursor = 'auto';
                     return;
                 }
-                this.highlightMarker.material.color.set(0x808080);
+                snappedPoint = pos;
+                if (this.highlightMarker.material instanceof THREE.MeshBasicMaterial) {
+                    this.highlightMarker.material.color.set(0x808080);
+                }
             } else {
                 if (!userData.edgeId) {
                     this.highlightMarker.visible = false;
@@ -737,13 +787,15 @@ class App {
                 snappedLength = Math.max(0, Math.min(edgeLength, snappedLength));
                 snappedPoint = edgeStart.clone().add(edgeDir.multiplyScalar(snappedLength));
                 isMidpoint = Math.abs(snappedLength - edgeLength / 2) < 0.1;
-                this.highlightMarker.material = isMidpoint ? this.midPointHighlightMaterial : this.highlightMarker.material;
-                this.highlightMarker.material.color.set(isMidpoint ? 0x00ff00 : 0x808080);
+                
+                if (this.highlightMarker.material instanceof THREE.MeshBasicMaterial) {
+                    this.highlightMarker.material.color.set(isMidpoint ? 0x00ff00 : 0x808080);
+                }
                 this.selection.previewSplit(userData.edgeId || userData.index, snappedPoint);
             }
             this.highlightMarker.position.copy(snappedPoint);
             this.highlightMarker.visible = true;
-            let snapId = null;
+            let snapId: string | null = null;
             if (userData.type === 'vertex') {
                 snapId = userData.vertexId || null;
             } else if (userData.type === 'edge' && edgeLength !== null && snappedLength !== null) {
@@ -851,10 +903,10 @@ class App {
         this.layoutTransitionActive = true;
     }
     
-    handleModeChange(mode) {
+    handleModeChange(mode: string) {
         this.currentMode = mode;
-        if (typeof globalThis.__setReactMode === 'function') {
-            globalThis.__setReactMode(mode);
+        if (typeof (globalThis as any).__setReactMode === 'function') {
+            (globalThis as any).__setReactMode(mode);
         }
         if (mode !== 'settings') {
             this.resetScene();
@@ -876,17 +928,17 @@ class App {
         }
     }
 
-    handlePresetCategoryChange(category) {
+    handlePresetCategoryChange(category: string) {
         if (category && !this.useReactPresets) this.ui.filterPresetButtons(category);
     }
     
-    handleSettingsCategoryChange(category) {
+    handleSettingsCategoryChange(category: string) {
         if (!this.useReactPresets) {
             this.ui.showSettingsPanel(category);
         }
     }
 
-    handlePresetChange(name) {
+    handlePresetChange(name: string) {
         this.resetScene();
         this.presetManager.applyPreset(name);
         this.executeCut();
@@ -903,7 +955,7 @@ class App {
         this.selection.toggleVertexLabels(display.showVertexLabels);
     }
 
-    previewLearningProblem(problem) {
+    previewLearningProblem(problem: LearningProblem | SnapPointID[]) {
         const snapIds = Array.isArray(problem)
             ? problem
             : (problem && Array.isArray(problem.snapIds) ? problem.snapIds : []);
@@ -911,14 +963,14 @@ class App {
         this.resetScene();
     }
 
-    startLearningSolution(problem) {
+    startLearningSolution(problem: LearningProblem | SnapPointID[]) {
         const snapIds = Array.isArray(problem)
             ? problem
             : (problem && Array.isArray(problem.snapIds) ? problem.snapIds : []);
         if (!Array.isArray(snapIds) || snapIds.length < 3) return { totalSteps: 0 };
         this.cancelLearningAnimation();
         this.resetScene();
-        const highlightPlane = problem && !Array.isArray(problem) ? problem.highlightPlane : null;
+        const highlightPlane = problem && !Array.isArray(problem) ? (problem as LearningProblem).highlightPlane : null;
         if (highlightPlane) {
             this.setLearningPlane(highlightPlane);
         }
@@ -960,19 +1012,19 @@ class App {
             };
         }> = [];
 
-        if (!Array.isArray(problem) && Array.isArray(problem?.learningSteps)) {
-            steps = [...problem.learningSteps];
+        if (!Array.isArray(problem) && Array.isArray((problem as LearningProblem)?.learningSteps)) {
+            steps = [...((problem as LearningProblem).learningSteps!)];
         } else {
-            const givenSnapIds = !Array.isArray(problem) && Array.isArray(problem?.givenSnapIds)
-                ? problem.givenSnapIds
+            const givenSnapIds = !Array.isArray(problem) && Array.isArray((problem as LearningProblem)?.givenSnapIds)
+                ? (problem as LearningProblem).givenSnapIds!
                 : snapIds;
             const markSteps = givenSnapIds.map(snapId => ({
                 instruction: `まずは問題文から分かる条件を図に書き込もう。${this.formatSnapInstruction(snapId)}`,
                 reason: '問題文に書いてある条件は、最初に必ず書き込むよ。',
                 action: { type: 'mark' as const, snapId }
             }));
-            const hintSteps = !Array.isArray(problem) && Array.isArray(problem?.highlightSegments)
-                ? problem.highlightSegments.map(segment => ({
+            const hintSteps = !Array.isArray(problem) && Array.isArray((problem as LearningProblem)?.highlightSegments)
+                ? (problem as LearningProblem).highlightSegments!.map(segment => ({
                     instruction: segment.kind === 'diagonal'
                         ? '対角線を引こう。'
                         : '辺をなぞって確かめよう。',
@@ -988,8 +1040,8 @@ class App {
             steps = [...baseIntro, ...markSteps, ...hintSteps];
         }
 
-        const segmentInstructions = !Array.isArray(problem) && Array.isArray(problem?.segmentInstructions)
-            ? problem.segmentInstructions
+        const segmentInstructions = !Array.isArray(problem) && Array.isArray((problem as LearningProblem)?.segmentInstructions)
+            ? (problem as LearningProblem).segmentInstructions!
             : [
                 '同じ面にある点をまっすぐ結んでみよう。',
                 'となりの面でも線をつないでいこう。',
@@ -998,8 +1050,8 @@ class App {
                 '最後の面まで線をつなげよう。',
                 'もう一度、同じ面の点を結んでいこう。'
             ];
-        const segmentReasons = !Array.isArray(problem) && Array.isArray(problem?.segmentReasons)
-            ? problem.segmentReasons
+        const segmentReasons = !Array.isArray(problem) && Array.isArray((problem as LearningProblem)?.segmentReasons)
+            ? (problem as LearningProblem).segmentReasons!
             : [
                 '同じ面にある点は直線で結んでいいんだ。',
                 '切断線は面と面の境目を通って移動するよ。',
@@ -1026,7 +1078,6 @@ class App {
         const step = this.learningSteps[this.learningStepIndex];
         if (!step) return { done: true };
         this.learningStepRunning = true;
-        if (!step) return { done: true };
         this.ui.setExplanation(step.instruction);
         const action = step.action;
         if (!action || action.type === 'message') {
@@ -1068,7 +1119,7 @@ class App {
         };
     }
 
-    animateLearningSegment(segment, token) {
+    animateLearningSegment(segment: { startId: string; endId: string }, token: { cancelled: boolean }) {
         return new Promise((resolve) => {
             const start = this.resolver.resolveSnapPoint(segment.startId);
             const end = this.resolver.resolveSnapPoint(segment.endId);
@@ -1089,7 +1140,7 @@ class App {
 
             const duration = 5000;
             const startTime = performance.now();
-            const step = (now) => {
+            const step = (now: number) => {
                 if (token.cancelled) {
                     resolve(null);
                     return;
@@ -1119,24 +1170,29 @@ class App {
 
 
     handleConfigureClick() {
-        const lx = parseFloat(prompt("辺ABの長さ(cm)", "10"));
-        const ly = parseFloat(prompt("辺ADの長さ(cm)", "10"));
-        const lz = parseFloat(prompt("辺AEの長さ(cm)", "10"));
-        if (!isNaN(lx) && !isNaN(ly) && !isNaN(lz)) {
-            this.resetScene();
-            if (!this.useReactPresets) {
-                this.ui.resetToFreeSelectMode();
+        const lxStr = prompt("辺ABの長さ(cm)", "10");
+        const lyStr = prompt("辺ADの長さ(cm)", "10");
+        const lzStr = prompt("辺AEの長さ(cm)", "10");
+        if (lxStr !== null && lyStr !== null && lzStr !== null) {
+            const lx = parseFloat(lxStr);
+            const ly = parseFloat(lyStr);
+            const lz = parseFloat(lzStr);
+            if (!isNaN(lx) && !isNaN(ly) && !isNaN(lz)) {
+                this.resetScene();
+                if (!this.useReactPresets) {
+                    this.ui.resetToFreeSelectMode();
+                }
+                this.cube.createCube([lx, ly, lz]);
+                this.resolver.setSize(this.cube.getSize());
+                this.objectModelManager.syncFromCube();
+                if (this.currentLabelMap) {
+                    this.cube.setVertexLabelMap(this.currentLabelMap);
+                    this.resolver.setLabelMap(this.currentLabelMap);
+                }
+                const display = this.objectModelManager.getDisplayState();
+                this.objectModelManager.applyDisplayToView(display);
+                this.cutter.setTransparency(display.cubeTransparent);
             }
-            this.cube.createCube([lx, ly, lz]);
-            this.resolver.setSize(this.cube.getSize());
-            this.objectModelManager.syncFromCube();
-            if (this.currentLabelMap) {
-                this.cube.setVertexLabelMap(this.currentLabelMap);
-                this.resolver.setLabelMap(this.currentLabelMap);
-            }
-            const display = this.objectModelManager.getDisplayState();
-            this.objectModelManager.applyDisplayToView(display);
-            this.cutter.setTransparency(display.cubeTransparent);
         }
     }
 
@@ -1167,7 +1223,6 @@ class App {
             this.ui.showMessage("頂点ラベルは重複できません。", "warning");
             return;
         }
-        /** @type {Record<string, string>} */
         const labelMap: Record<string, string> = {};
         labels.forEach((label, index) => {
             labelMap[`V:${index}`] = label;
@@ -1189,7 +1244,7 @@ class App {
         }
     }
 
-    async handleSaveUserPreset(formOverride = null) {
+    async handleSaveUserPreset(formOverride: any = null) {
         if (!this.userPresetStorage.isEnabled()) {
             this.ui.showMessage('保存機能は利用できません。', 'warning');
             return;
@@ -1221,14 +1276,14 @@ class App {
         this.ui.showMessage(existing ? 'ユーザープリセットを更新しました。' : 'ユーザープリセットを保存しました。', 'success');
     }
 
-    handleUserPresetApply(id) {
+    handleUserPresetApply(id: string) {
         const state = this.userPresets.find(p => p.id === id);
         if (!state) return;
         this.applyUserPresetState(state);
         this.ui.showMessage('ユーザープリセットを適用しました。', 'success');
     }
 
-    handleUserPresetEdit(id) {
+    handleUserPresetEdit(id: string) {
         const state = this.userPresets.find(p => p.id === id);
         if (!state) return;
         this.editingUserPresetId = state.id;
@@ -1242,7 +1297,7 @@ class App {
         }
     }
 
-    async handleUserPresetDelete(id) {
+    async handleUserPresetDelete(id: string) {
         const target = this.userPresets.find(p => p.id === id);
         if (!target) return;
         const ok = confirm(`「${target.name}」を削除しますか？`);
@@ -1259,69 +1314,7 @@ class App {
         this.ui.showMessage('ユーザープリセットを削除しました。', 'success');
     }
 
-    buildNetUnfoldGroup() {
-        // Legacy method removed. Unfolding is now handled by NetManager (NetPlan) and Cube (applyNetPlan).
-    }
-
-    // computeUnfoldDepths, analyzeCutAdjacency, buildCubeNetUnfoldGroup, buildCutNetUnfoldGroup removed.
-
-    updateNetOverlayDisplay(display: DisplayState) {
-        if (!this.netUnfoldGroup) return;
-        const showPoints = !!display.showCutPoints;
-        const colorizeLines = !!display.colorizeCutLines;
-        this.netUnfoldGroup.traverse((obj) => {
-            const type = obj.userData && obj.userData.type;
-            if (type === 'net-cut-point') {
-                obj.visible = showPoints;
-            }
-            if (type === 'net-cut-line' && obj instanceof THREE.Line) {
-                const material = obj.material;
-                const highlightColor = obj.userData ? obj.userData.highlightColor : null;
-                const defaultColor = obj.userData ? obj.userData.defaultColor : null;
-                if (material instanceof THREE.LineBasicMaterial) {
-                    const color = colorizeLines && typeof highlightColor === 'number'
-                        ? highlightColor
-                        : (typeof defaultColor === 'number' ? defaultColor : 0x333333);
-                    material.color.setHex(color);
-                    material.needsUpdate = true;
-                }
-                obj.visible = true;
-            }
-        });
-    }
-
-    updateNetLabelDisplay(display: DisplayState) {
-        if (!this.netUnfoldGroup) return;
-        this.netUnfoldGroup.traverse((obj) => {
-            const type = obj.userData && obj.userData.type;
-            if (type === 'net-face-label') {
-                obj.visible = !!display.showFaceLabels;
-            }
-            if (type === 'net-vertex-label') {
-                obj.visible = !!display.showVertexLabels;
-            }
-        });
-    }
-
-    updateNetLabelScale() {
-        if (!this.netUnfoldGroup) return;
-        const scale = this.netUnfoldGroup.scale.x;
-        if (!Number.isFinite(scale) || scale <= 0) return;
-        const inverse = THREE.MathUtils.clamp(1 / scale, 1, 2.5);
-        this.netUnfoldGroup.traverse((obj) => {
-            const type = obj.userData && obj.userData.type;
-            if (type !== 'net-face-label' && type !== 'net-vertex-label') return;
-            if (!(obj instanceof THREE.Sprite)) return;
-            const baseScale = obj.userData.baseScale;
-            const basePosition = obj.userData.basePosition;
-            if (!(baseScale instanceof THREE.Vector3)) return;
-            obj.scale.copy(baseScale).multiplyScalar(inverse);
-            if (type === 'net-vertex-label' && basePosition instanceof THREE.Vector3) {
-                obj.position.copy(basePosition);
-                obj.position.z += 0.04 * inverse;
-            }
-        });
-    }
+    // Removed legacy netUnfoldGroup methods: updateNetOverlayDisplay, updateNetLabelDisplay, updateNetLabelScale
 
     applyNetStateFromModel() {
         const state = this.objectModelManager.getNetState();
@@ -1361,49 +1354,8 @@ class App {
         });
     }
 
-    syncNetModelState() {
-        const faces = this.netUnfoldFaces.map(face => ({
-            faceId: face.faceId,
-            delayIndex: face.delayIndex
-        }));
-        const current = this.objectModelManager.getNetState();
-        const animation = {
-            state: current.state,
-            progress: current.progress,
-            duration: this.netUnfoldDuration,
-            faceDuration: this.netUnfoldFaceDuration,
-            stagger: this.netUnfoldStagger,
-            scale: current.scale,
-            scaleTarget: current.scaleTarget,
-            startAt: current.startAt,
-            preScaleDelay: this.netUnfoldPreScaleDelay,
-            postScaleDelay: this.netUnfoldPostScaleDelay,
-            camera: current.camera
-        };
-        this.objectModelManager.syncNetState({ faces, animation });
-    }
-
-    // buildCutNetUnfoldGroup removed (legacy logic)
-
     clearNetUnfoldGroup() {
-        if (!this.netUnfoldGroup) return;
-        const materials = new Set<THREE.Material>();
-        this.netUnfoldGroup.traverse((obj) => {
-            const anyObj = obj as THREE.Object3D & { material?: THREE.Material | THREE.Material[]; geometry?: THREE.BufferGeometry };
-            if (anyObj.geometry) {
-                anyObj.geometry.dispose();
-            }
-            const material = anyObj.material;
-            if (Array.isArray(material)) {
-                material.forEach(mat => materials.add(mat));
-            } else if (material instanceof THREE.Material) {
-                materials.add(material);
-            }
-        });
-        materials.forEach(mat => mat.dispose());
-        this.scene.remove(this.netUnfoldGroup);
-        this.netUnfoldGroup = null;
-        this.netUnfoldFaces = [];
+        // No-op or cleanup if needed, but netUnfoldGroup is removed
         this.setNetAnimationState({
             state: 'closed',
             progress: 0,
@@ -1424,12 +1376,7 @@ class App {
         this.isCameraAnimating = false;
         this.cameraTargetPosition = null;
         
-        // Disable old group building
-        // this.clearNetUnfoldGroup();
-        // this.buildNetUnfoldGroup();
-        
         const startAt = performance.now();
-        // Keep main cube visible for new pipeline
         this.cube.setVisible(true); 
         this.cutter.setVisible(false);
         this.highlightMarker.visible = false;
@@ -1441,13 +1388,7 @@ class App {
             endTarget: new THREE.Vector3(0, 0, 0)
         };
         this.netUnfoldScaleReadyAt = null;
-        if (this.netUnfoldGroup) {
-            this.netUnfoldGroup.position.set(0, 0, 0);
-        }
-        const display = this.objectModelManager.getDisplayState();
-        this.updateNetOverlayDisplay(display);
-        this.updateNetLabelDisplay(display);
-        this.updateNetUnfoldScale();
+
         const nextState = this.objectModelManager.getNetState();
         const duration = nextState.duration || this.netUnfoldDuration;
         const faceDuration = nextState.faceDuration || this.netUnfoldFaceDuration;
@@ -1506,7 +1447,6 @@ class App {
         }
         const duration = netState.duration;
         const faceDuration = netState.faceDuration;
-        const stagger = netState.stagger;
         const progress = Math.min(1, elapsed / duration);
         const netProgress = netState.state === 'opening' ? progress : 1 - progress;
 
@@ -1520,8 +1460,8 @@ class App {
             const cameraEased = cameraT < 0.5
                 ? 2 * cameraT * cameraT
                 : 1 - Math.pow(-2 * cameraT + 2, 2) / 2;
-            this.camera.position.lerpVectors(netState.camera.startPos, netState.camera.endPos, cameraEased);
-            this.controls.target.lerpVectors(netState.camera.startTarget, netState.camera.endTarget, cameraEased);
+            this.camera.position.lerpVectors(netState.camera.startPos!, netState.camera.endPos!, cameraEased);
+            this.controls.target.lerpVectors(netState.camera.startTarget!, netState.camera.endTarget!, cameraEased);
             this.camera.up.set(0, 1, 0);
             this.camera.lookAt(this.controls.target);
         }
@@ -1540,7 +1480,6 @@ class App {
             progress: netProgress,
             duration,
             faceDuration,
-            stagger,
             scale: netState.scale,
             scaleTarget: nextState === 'postscale' ? 1 : netState.scaleTarget,
             preScaleDelay: netState.preScaleDelay,
@@ -1556,12 +1495,15 @@ class App {
         this.objectModelManager.syncCutState({
             intersections: this.cutter.getIntersectionRefs(),
             cutSegments: this.cutter.getCutSegments(),
-            facePolygons: this.cutter.getResultFacePolygons(),
+            facePolygons: this.cutter.getResultFacePolygons() as any,
             faceAdjacency: this.cutter.getResultFaceAdjacency()
         });
         this.cutter.refreshEdgeHighlightColors();
         this.cutter.updateCutPointMarkers(this.objectModelManager.resolveCutIntersectionPositions());
-        this.netManager.update(this.objectModelManager.getCutSegments(), this.objectModelManager.getModel()?.ssot, this.resolver);
+        const model = this.objectModelManager.getModel();
+        if (model) {
+            this.netManager.update(this.objectModelManager.getCutSegments(), model.ssot, this.resolver);
+        }
         this.selection.updateSplitLabels(this.objectModelManager.getCutIntersections());
     }
 
@@ -1569,8 +1511,8 @@ class App {
         const wasVisible = this.objectModelManager.getNetVisible();
         const nextVisible = !wasVisible;
         this.objectModelManager.setNetVisible(nextVisible);
-        if (typeof globalThis.__setNetVisible === 'function') {
-            globalThis.__setNetVisible(nextVisible);
+        if (typeof (globalThis as any).__setNetVisible === 'function') {
+            (globalThis as any).__setNetVisible(nextVisible);
         }
         if (nextVisible) {
             const model = this.objectModelManager.getModel();
@@ -1583,7 +1525,10 @@ class App {
             this.netManager.hide();
             this.startNetFold();
         }
-        this.netManager.update(this.objectModelManager.getCutSegments(), this.objectModelManager.getModel()?.ssot, this.resolver);
+        const model = this.objectModelManager.getModel();
+        if (model) {
+            this.netManager.update(this.objectModelManager.getCutSegments(), model.ssot, this.resolver);
+        }
     }
 
     // --- Animation Loop ---
@@ -1603,9 +1548,9 @@ class App {
                 this.updateLayout(this.layoutPanelOffset);
             }
         }
-        if (this.netUnfoldGroup) {
-            this.applyNetStateFromModel();
-            let netState = this.objectModelManager.getNetState();
+        
+        let netState = this.objectModelManager.getNetState();
+        if (netState.state !== 'closed') {
             if (!Number.isFinite(netState.scaleTarget) || !Number.isFinite(netState.scale)) {
                 this.logNetUnfoldInvalid('invalid net animation state', {
                     state: netState.state,
@@ -1624,23 +1569,10 @@ class App {
             } else {
                 nextScale = netState.scaleTarget;
             }
-            this.netUnfoldGroup.scale.setScalar(nextScale);
-            this.updateNetLabelScale();
-            if (netState.state === 'prescale') {
-                this.netUnfoldFaces.forEach(face => face.pivot.quaternion.copy(face.startQuat));
-            }
-            if (this.netUnfoldPositionTarget) {
-                const target = this.netUnfoldPositionTarget;
-                const scale = nextScale;
-                const scaledTarget = new THREE.Vector3(target.x * scale, target.y * scale, 0);
-                if (netState.state === 'postscale') {
-                    this.netUnfoldGroup.position.lerp(new THREE.Vector3(0, 0, 0), 0.15);
-                } else if (netState.state === 'prescale') {
-                    this.netUnfoldGroup.position.lerp(scaledTarget, 0.12);
-                } else {
-                    this.netUnfoldGroup.position.copy(scaledTarget);
-                }
-            }
+            
+            // Note: netUnfoldGroup scale was handled here. In new pipeline, we might want to scale the whole Cube?
+            // For now, let's keep the logic if we decide to scale the cube during net view.
+            
             if (netState.state === 'prescale') {
                 if (Math.abs(netState.scaleTarget - nextScale) <= 0.001) {
                     if (!this.netUnfoldScaleReadyAt) {
@@ -1669,9 +1601,8 @@ class App {
                 this.setNetAnimationState({
                     state: netState.state,
                     progress: netState.progress,
-            duration: netState.duration,
-            faceDuration: netState.faceDuration,
-            stagger: netState.stagger,
+                    duration: netState.duration,
+                    faceDuration: netState.faceDuration,
                     scale: nextScale,
                     scaleTarget: netState.scaleTarget,
                     preScaleDelay: netState.preScaleDelay,

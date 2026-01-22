@@ -64,7 +64,7 @@ describe('NetManager', () => {
     const segment = {
       startId: 'E:0-1@1/2',
       endId: 'E:0-4@1/2',
-      faceIds: ['F:0154']
+      faceIds: ['F:0-1-5-4']
     };
 
     const resolveSpy = vi.spyOn(resolver, 'resolveSnapPoint');
@@ -81,7 +81,7 @@ describe('NetManager', () => {
     const segment = {
       startId: 'E:0-1@1/2',
       endId: 'E:0-4@1/2',
-      faceIds: ['F:0154']
+      faceIds: ['F:0-1-5-4']
     };
 
     netManager.update([segment], cube.getStructure(), resolver);
@@ -101,7 +101,7 @@ describe('NetManager', () => {
     const segment = {
       startId: 'E:0-1@1/2',
       endId: 'E:0-4@1/2',
-      faceIds: ['F:0154', 'F:0321']
+      faceIds: ['F:0-1-5-4', 'F:0-3-2-1']
     };
 
     netManager.update([segment], cube.getStructure(), resolver);

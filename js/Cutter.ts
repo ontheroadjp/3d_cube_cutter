@@ -74,7 +74,7 @@ export class Cutter {
     this.debug = !!debug;
   }
 
-  resolveIntersectionPosition(ref: IntersectionPoint, resolverOverride: any = null) {
+  resolveIntersectionPosition(ref: IntersectionPoint, resolverOverride: any = null): THREE.Vector3 | null {
     if (!ref) return null;
     const resolver = resolverOverride || this.lastResolver;
     if (!resolver || !ref.id) return null;
@@ -96,7 +96,7 @@ export class Cutter {
       const updateMat = (mesh: THREE.Mesh | null) => {
           if (!mesh) return;
           const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-          materials.forEach(mat => {
+          materials.forEach((mat: THREE.Material) => {
               if (mat.name !== 'cutFace') {
                   mat.transparent = transparent;
                   mat.opacity = transparent ? 0.4 : 1.0;
@@ -151,12 +151,10 @@ export class Cutter {
 
     const resolvedPoints = snapIds
         .map(id => resolver.resolveSnapPoint(id))
-        .filter((p: THREE.Vector3 | null) => p);
+        .filter((p: THREE.Vector3 | null): p is THREE.Vector3 => p !== null);
     if (resolvedPoints.length < 3) return false;
     const points = resolvedPoints;
     this.lastSnapIds = snapIds.slice();
-
-    if (points.length < 3) return false;
 
     const plane = new THREE.Plane();
     this.cutPlane = plane;
@@ -189,12 +187,12 @@ export class Cutter {
 
     let positiveCount = 0;
     let negativeCount = 0;
-    const positiveVertices = [];
-    const negativeVertices = [];
+    const positiveVertices: THREE.Vector3[] = [];
+    const negativeVertices: THREE.Vector3[] = [];
     if (!resolver) return false;
     const structure = cube.getStructure ? cube.getStructure() : null;
     if (!structure || !structure.vertices || !structure.edges) return false;
-    const vertices = structure.vertices.map((v: { id: string }) => resolver.resolveVertex(v.id)).filter(Boolean);
+    const vertices = structure.vertices.map((v: { id: string }) => resolver.resolveVertex(v.id)).filter((v: THREE.Vector3 | null): v is THREE.Vector3 => v !== null);
     if (vertices.length !== structure.vertices.length) return false;
     
     vertices.forEach((v: THREE.Vector3) => {
@@ -211,7 +209,7 @@ export class Cutter {
 
     if (!previewOnly) {
         let normal = plane.normal.clone();
-        let targetVertices = [];
+        let targetVertices: THREE.Vector3[] = [];
 
         let cutNegative = false;
 
@@ -236,7 +234,7 @@ export class Cutter {
         if (!suppressMarkers && this.debug) {
             targetVertices.forEach(v => {
                 this.ensureCutOverlayGroup();
-                const m = createMarker(v, this.scene, 0xff0000, false, this.cutOverlayGroup);
+                const m = createMarker(v, this.scene, 0xff0000, false, this.cutOverlayGroup || undefined);
                 this.vertexMarkers.push(m);
             });
         }
@@ -244,7 +242,6 @@ export class Cutter {
         const size = cube.size * 5;
         const geom = new THREE.BoxGeometry(size, size, size);
 
-        /** @type {any} */
         const cutBrush = new (Brush as any)(geom) as any;
 
         const centerOffset = normal.clone().multiplyScalar(size / 2);
@@ -257,7 +254,6 @@ export class Cutter {
 
         cutBrush.updateMatrixWorld();
 
-        /** @type {any} */
         const cubeBrush = new (Brush as any)(cube.cubeMesh.geometry.clone()) as any;
         cubeBrush.position.copy(cube.cubeMesh.position);
         cubeBrush.rotation.copy(cube.cubeMesh.rotation);
@@ -286,19 +282,17 @@ export class Cutter {
         cubeBrush.material = cubeMat;
         cutBrush.material = cutMat;
 
-        this.resultMesh = /** @type {any} */ (this.evaluator.evaluate(cubeBrush, cutBrush, SUBTRACTION));
+        this.resultMesh = (this.evaluator.evaluate(cubeBrush, cutBrush, SUBTRACTION) as THREE.Mesh);
         this.resultMesh.material = [cubeMat, cutMat];
         this.scene.add(this.resultMesh);
 
-        this.removedMesh = /** @type {any} */ (this.evaluator.evaluate(cubeBrush, cutBrush, INTERSECTION));
+        this.removedMesh = (this.evaluator.evaluate(cubeBrush, cutBrush, INTERSECTION) as THREE.Mesh);
         this.removedMesh.material = [cubeMat, cutMat];
         this.scene.add(this.removedMesh);
     }
 
-    /** @type {THREE.Vector3[]} */
-    const intersections = points.slice();
-    /** @type {IntersectionPoint[]} */
-    const intersectionRefs = [];
+    const intersections: THREE.Vector3[] = points.slice();
+    const intersectionRefs: IntersectionPoint[] = [];
     if (this.lastSnapIds && this.lastSnapIds.length && this.lastResolver) {
         this.lastSnapIds.forEach(snapId => {
             const parsed = normalizeSnapPointId(parseSnapPointId(snapId));
@@ -312,14 +306,14 @@ export class Cutter {
         });
     }
 
-    const edgeLines = structure.edges.map(edge => {
+    const edgeLines = structure.edges.map((edge: { id: string }) => {
         const resolved = resolver.resolveEdge(edge.id);
         return resolved ? new THREE.Line3(resolved.start, resolved.end) : null;
-    }).filter(Boolean);
+    }).filter((l: THREE.Line3 | null): l is THREE.Line3 => l !== null);
     if (edgeLines.length !== structure.edges.length) return false;
 
-    const edgeEntries = structure.edges.map((edge, index) => ({ edgeId: edge.id, line: edgeLines[index] })).filter(e => e.line);
-    edgeEntries.forEach(({ edgeId, line }, lineIndex) => {
+    const edgeEntries = structure.edges.map((edge: { id: string }, index: number) => ({ edgeId: edge.id, line: edgeLines[index] })).filter((e: any) => e.line);
+    edgeEntries.forEach(({ edgeId, line }: { edgeId: string, line: THREE.Line3 }) => {
         const target = new THREE.Vector3();
         const lineStart = line.start;
         const lineEnd = line.end;
@@ -362,21 +356,21 @@ export class Cutter {
         }
     });
 
-    const resolveFaceIdsForRef = (ref) => {
+    const resolveFaceIdsForRef = (ref: IntersectionPoint) => {
         if (!ref || !structure) return null;
         if (ref.edgeId && structure.edgeMap) {
-            const edge = structure.edgeMap.get(ref.edgeId);
+            const edge = (structure.edgeMap as Map<string, any>).get(ref.edgeId);
             return edge ? edge.faces : null;
         }
         if (!ref.id) return null;
         const parsed = normalizeSnapPointId(parseSnapPointId(ref.id));
         if (!parsed) return null;
         if (parsed.type === 'vertex' && structure.vertexMap) {
-            const vertex = structure.vertexMap.get(`V:${parsed.vertexIndex}`);
+            const vertex = (structure.vertexMap as Map<string, any>).get(`V:${parsed.vertexIndex}`);
             return vertex ? vertex.faces : null;
         }
         if (parsed.type === 'edge' && structure.edgeMap) {
-            const edge = structure.edgeMap.get(`E:${parsed.edgeIndex}`);
+            const edge = (structure.edgeMap as Map<string, any>).get(`E:${parsed.edgeIndex}`);
             return edge ? edge.faces : null;
         }
         if (parsed.type === 'face') {
@@ -398,13 +392,13 @@ export class Cutter {
     });
     this.edgeHighlights = [];
     if (resolver && structure) {
-        const edgeIds = new Map();
+        const edgeIds = new Map<string, { hasMidpoint: boolean }>();
         intersectionRefs.forEach(ref => {
             let edgeIdFromRef = ref.edgeId || null;
             if (!ref.id) return;
             const parsed = normalizeSnapPointId(parseSnapPointId(ref.id));
             if (!parsed) return;
-            const isNearMidpoint = (ratio) => {
+            const isNearMidpoint = (ratio: Ratio | undefined) => {
                 if (!ratio || !ratio.denominator) return false;
                 return Math.abs(ratio.numerator * 2 - ratio.denominator) <= 1;
             };
@@ -413,14 +407,15 @@ export class Cutter {
                 edgeIdFromRef = `E:${parsed.edgeIndex}`;
                 if (!edgeIds.has(edgeIdFromRef)) edgeIds.set(edgeIdFromRef, { hasMidpoint: false });
                 if (isNearMidpoint(parsed.ratio)) {
-                    edgeIds.get(edgeIdFromRef).hasMidpoint = true;
+                    const entry = edgeIds.get(edgeIdFromRef);
+                    if (entry) entry.hasMidpoint = true;
                 }
                 return;
             }
-            if (parsed.type === 'vertex' && structure.vertexMap) {
-                const vertex = structure.vertexMap.get(`V:${parsed.vertexIndex}`);
+            if (parsed.type === 'vertex' && (structure.vertexMap as Map<string, any>)) {
+                const vertex = (structure.vertexMap as Map<string, any>).get(`V:${parsed.vertexIndex}`);
                 if (vertex && vertex.edges) {
-                    vertex.edges.forEach(edgeId => {
+                    (vertex.edges as string[]).forEach(edgeId => {
                         if (!edgeIds.has(edgeId)) edgeIds.set(edgeId, { hasMidpoint: false });
                     });
                 }
@@ -429,7 +424,8 @@ export class Cutter {
             if (edgeIdFromRef) {
                 if (!edgeIds.has(edgeIdFromRef)) edgeIds.set(edgeIdFromRef, { hasMidpoint: false });
                 if (ref.ratio && isNearMidpoint(ref.ratio)) {
-                    edgeIds.get(edgeIdFromRef).hasMidpoint = true;
+                    const entry = edgeIds.get(edgeIdFromRef);
+                    if (entry) entry.hasMidpoint = true;
                 }
             }
         });
@@ -457,11 +453,11 @@ export class Cutter {
         });
         const refs = Array.from(uniqueRefs.values());
         const refById = new Map(refs.map(ref => [ref.id, ref]));
-        const refPositions = new Map(
+        const refPositions = new Map<string, THREE.Vector3 | null>(
             refs.map(ref => [ref.id, this.resolveIntersectionPosition(ref, resolver)])
         );
 
-        const buildSegmentsFromFaces = () => {
+        const buildSegmentsFromFaces = (): CutSegmentMeta[] => {
             const faceBuckets = new Map<string, IntersectionPoint[]>();
             refs.forEach(ref => {
                 if (!ref.faceIds || !ref.faceIds.length) return;
@@ -470,8 +466,7 @@ export class Cutter {
                     faceBuckets.get(faceId)?.push(ref);
                 });
             });
-            /** @type {CutSegmentMeta[]} */
-            const segments = [];
+            const segments: CutSegmentMeta[] = [];
             faceBuckets.forEach((faceRefs, faceId) => {
                 const unique = Array.from(new Map(faceRefs.map(r => [r.id, r])).values());
                 if (unique.length < 2) return;
@@ -505,14 +500,14 @@ export class Cutter {
             return segments;
         };
 
-        const buildOrderedIdsFromSegments = (segments) => {
+        const buildOrderedIdsFromSegments = (segments: CutSegmentMeta[]): string[] | null => {
             if (!segments.length) return null;
-            const adjacency = new Map();
+            const adjacency = new Map<string, Set<string>>();
             segments.forEach(seg => {
                 if (!adjacency.has(seg.startId)) adjacency.set(seg.startId, new Set());
                 if (!adjacency.has(seg.endId)) adjacency.set(seg.endId, new Set());
-                adjacency.get(seg.startId).add(seg.endId);
-                adjacency.get(seg.endId).add(seg.startId);
+                adjacency.get(seg.startId)!.add(seg.endId);
+                adjacency.get(seg.endId)!.add(seg.startId);
             });
             const nodes = Array.from(adjacency.keys());
             if (nodes.length < 3) return null;
@@ -541,7 +536,7 @@ export class Cutter {
         const faceSegments = buildSegmentsFromFaces();
         const orderedIds = buildOrderedIdsFromSegments(faceSegments);
         if (orderedIds && orderedIds.length >= 3) {
-            orderedRefs = orderedIds.map(id => refById.get(id)).filter(Boolean);
+            orderedRefs = orderedIds.map(id => refById.get(id)).filter((r: IntersectionPoint | undefined): r is IntersectionPoint => r !== undefined);
         } else if (orderedRefs.length >= 3) {
             const center = new THREE.Vector3();
             orderedRefs.forEach(ref => {
@@ -566,11 +561,11 @@ export class Cutter {
         }
 
         if (orderedRefs.length >= 3) {
-            const segmentFaceIndex = new Map();
+            const segmentFaceIndex = new Map<string, string[]>();
             faceSegments.forEach(seg => {
                 const key = [seg.startId, seg.endId].sort().join('|');
                 if (!segmentFaceIndex.has(key)) segmentFaceIndex.set(key, []);
-                segmentFaceIndex.get(key).push(...(seg.faceIds || []));
+                segmentFaceIndex.get(key)!.push(...(seg.faceIds || []));
             });
             outlinePoints = orderedRefs
                 .map(ref => refPositions.get(ref.id))
@@ -578,12 +573,12 @@ export class Cutter {
             this.outlineRefs = orderedRefs.slice();
             this.cutSegments = orderedRefs.map((ref, i) => {
                 const next = orderedRefs[(i + 1) % orderedRefs.length];
-                let sharedFaces = [];
+                let sharedFaces: string[] = [];
                 const key = [ref.id, next.id].sort().join('|');
                 if (segmentFaceIndex.has(key)) {
                     sharedFaces = Array.from(new Set(segmentFaceIndex.get(key)));
                 } else if (ref.faceIds && next.faceIds) {
-                    sharedFaces = ref.faceIds.filter(faceId => next.faceIds.includes(faceId));
+                    sharedFaces = ref.faceIds.filter(faceId => next.faceIds!.includes(faceId));
                 }
                 return {
                     startId: ref.id,
@@ -602,7 +597,9 @@ export class Cutter {
                 linewidth: 2
             });
             this.outline = new THREE.Line(lineGeo, this.cutLineMaterial);
-            this.cutOverlayGroup.add(this.outline);
+            if (this.cutOverlayGroup) {
+                this.cutOverlayGroup.add(this.outline);
+            }
         }
 
         const selectionIds = new Set(
@@ -625,7 +622,7 @@ export class Cutter {
                     const isMidpoint = ratio ? ratio.numerator * 2 === ratio.denominator : false;
                     const markerColor = isMidpoint ? 0x00ff00 : 0xffff00;
                     this.ensureCutOverlayGroup();
-                    const m = createMarker(point, this.scene, markerColor, isMidpoint, this.cutOverlayGroup);
+                    const m = createMarker(point, this.scene, markerColor, isMidpoint, this.cutOverlayGroup || undefined);
                     this.vertexMarkers.push(m);
                     created.add(ref.id);
                 });
@@ -638,9 +635,9 @@ export class Cutter {
     return true; 
   }
   
-  toggleSurface(visible) {
+  toggleSurface(visible: boolean) {
     if (this.resultMesh && Array.isArray(this.resultMesh.material)) {
-        const mat = this.resultMesh.material[1];
+        const mat = this.resultMesh.material[1] as THREE.Material;
         if(mat) mat.visible = visible;
     }
   }
@@ -674,10 +671,10 @@ export class Cutter {
                   faceIds: seg.faceIds
               };
           })
-          .filter(Boolean);
+          .filter((s: any): s is NonNullable<any> => s !== null);
   }
 
-  getResultFacePolygons() {
+  getResultFacePolygons(): CutFacePolygon[] {
       const resolver = this.lastResolver;
       const cube = this.lastCube;
       const plane = this.cutPlane;
@@ -752,22 +749,22 @@ export class Cutter {
           return ids;
       };
 
-      const clipFace = (face) => {
-          const faceVertices = face.vertices
+      const clipFace = (face: any) => {
+          const faceVertices = (face.vertices as any[])
               .map((v) => {
                   const vertexId = (typeof v === 'string') ? v : v.id;
                   const position = resolver.resolveVertex(vertexId);
                   if (!position) return null;
                   return { id: vertexId, position };
               })
-              .filter(Boolean);
+              .filter((v): v is { id: string, position: THREE.Vector3 } => v !== null);
           if (faceVertices.length < 3) return null;
           const edgeIds = Array.isArray(face.edges) 
-            ? face.edges.map(e => (typeof e === 'string') ? e : e.id) 
+            ? face.edges.map((e: any) => (typeof e === 'string') ? e : e.id) 
             : [];
           if (edgeIds.length !== faceVertices.length) return null;
 
-          const output = [];
+          const output: { id: string, position: THREE.Vector3 }[] = [];
           for (let i = 0; i < faceVertices.length; i++) {
               const current = faceVertices[i];
               const next = faceVertices[(i + 1) % faceVertices.length];
@@ -800,7 +797,7 @@ export class Cutter {
               }
           }
           if (output.length < 3) return null;
-          const compact = [];
+          const compact: { id: string, position: THREE.Vector3 }[] = [];
           output.forEach(entry => {
               const last = compact[compact.length - 1];
               if (!last || last.id !== entry.id) {
@@ -814,8 +811,8 @@ export class Cutter {
           return compact.map(entry => entry.id);
       };
 
-      const polygons = [];
-      structure.faces.forEach(face => {
+      const polygons: CutFacePolygon[] = [];
+      (structure.faces as any[]).forEach(face => {
           if (!face || !Array.isArray(face.vertices)) return;
           let vertexIds = clipFace(face);
           if (!vertexIds || vertexIds.length < 3) return;
@@ -832,7 +829,7 @@ export class Cutter {
 
       const cutIds = (this.outlineRefs || [])
           .map(ref => (ref && ref.id ? ref.id : null))
-          .filter(Boolean);
+          .filter((id): id is string => id !== null);
       if (cutIds.length >= 3) {
           let vertexIds = canonicalizeVertexIds(cutIds);
           vertexIds = orientVertexIds(vertexIds, plane.normal);
@@ -866,7 +863,7 @@ export class Cutter {
       })();
       const planeEpsilon = Math.max(1e-6, sizeScalar * 1e-5);
 
-      const facePlanes = new Map();
+      const facePlanes = new Map<string, { plane: THREE.Plane, points: THREE.Vector3[] }>();
       polygons.forEach(face => {
           if (!face || !face.faceId || !Array.isArray(face.vertexIds) || face.vertexIds.length < 3) return;
           const points = face.vertexIds
@@ -883,17 +880,17 @@ export class Cutter {
           const faceB = facePlanes.get(entry.b);
           if (!faceA || !faceB) return entry;
           const dot = Math.abs(faceA.plane.normal.dot(faceB.plane.normal));
-          if (dot < 0.999) return { ...entry, hingeType: 'edge' };
+          if (dot < 0.999) return { ...entry, hingeType: 'edge' as const };
           const isCoplanar = faceB.points.every((point: THREE.Vector3) =>
               Math.abs(faceA.plane.distanceToPoint(point)) <= planeEpsilon
           );
-          return { ...entry, hingeType: isCoplanar ? 'coplanar' : 'edge' };
+          return { ...entry, hingeType: (isCoplanar ? 'coplanar' : 'edge') as 'edge' | 'coplanar' };
       });
   }
 
-  applyCutResultMeta(meta, resolver) {
+  applyCutResultMeta(meta: CutResultMeta, resolver: any) {
       if (!meta || !resolver) return false;
-      const intersectionRefs = Array.isArray(meta.intersections)
+      const intersectionRefs: IntersectionPoint[] = (Array.isArray(meta.intersections)
           ? meta.intersections.map(ref => {
               if (!ref || !ref.id) return null;
               let position = resolver.resolveSnapPoint(ref.id);
@@ -907,24 +904,24 @@ export class Cutter {
               if (!position) return null;
               return {
                   id: ref.id,
-                  type: /** @type {'snap' | 'intersection'} */ (ref.type || 'intersection'),
+                  type: (ref.type || 'intersection') as 'snap' | 'intersection',
                   edgeId: ref.edgeId,
                   ratio: ref.ratio ? { ...ref.ratio } : undefined,
                   faceIds: Array.isArray(ref.faceIds) ? [...ref.faceIds] : undefined
               };
-          }).filter(Boolean)
-          : [];
+          })
+          : []).filter(r => r !== null) as IntersectionPoint[];
       const byId = new Map(intersectionRefs.map(ref => [ref.id, ref]));
-      const outlineRefs = Array.isArray(meta.outline)
+      const outlineRefs: IntersectionPoint[] = (Array.isArray(meta.outline)
           ? meta.outline.map(id => {
               if (!id) return null;
               if (byId.has(id)) return byId.get(id);
               const position = resolver.resolveSnapPoint(id);
               if (!position) return null;
-              return /** @type {IntersectionPoint} */ ({ id, type: 'intersection' });
-          }).filter(Boolean)
-          : [];
-      const cutSegments = Array.isArray(meta.cutSegments)
+              return { id, type: 'intersection' } as IntersectionPoint;
+          })
+          : []).filter(r => r !== null) as IntersectionPoint[];
+      const cutSegments: CutSegmentMeta[] = (Array.isArray(meta.cutSegments)
           ? meta.cutSegments.map(seg => {
               if (!seg || !seg.startId || !seg.endId) return null;
               return {
@@ -932,8 +929,8 @@ export class Cutter {
                   endId: seg.endId,
                   faceIds: Array.isArray(seg.faceIds) ? [...seg.faceIds] : undefined
               };
-          }).filter(Boolean)
-          : [];
+          })
+          : []).filter(s => s !== null) as CutSegmentMeta[];
 
       this.intersectionRefs = intersectionRefs;
       this.outlineRefs = outlineRefs;
@@ -959,7 +956,7 @@ export class Cutter {
       };
   }
 
-  togglePyramid(visible) {
+  togglePyramid(visible: boolean) {
     if (this.removedMesh) {
         this.removedMesh.visible = visible;
     }
@@ -980,7 +977,8 @@ export class Cutter {
       } else {
         this.scene.remove(marker);
       }
-      if (marker.geometry) marker.geometry.dispose();
+      const m = marker as any;
+      if (m.geometry) m.geometry.dispose();
     });
     this.vertexMarkers = [];
   }
@@ -1004,7 +1002,7 @@ export class Cutter {
         const isMidpoint = ratio ? ratio.numerator * 2 === ratio.denominator : false;
         const markerColor = isMidpoint ? 0x00ff00 : 0xffff00;
         this.ensureCutOverlayGroup();
-        const marker = createMarker(position.clone(), this.scene, markerColor, isMidpoint, this.cutOverlayGroup);
+        const marker = createMarker(position.clone(), this.scene, markerColor, isMidpoint, this.cutOverlayGroup || undefined);
         this.vertexMarkers.push(marker);
       });
     this.setCutPointsVisible(this.showCutPoints);
@@ -1073,7 +1071,12 @@ export class Cutter {
             this.scene.remove(this.outline);
         }
         this.outline.geometry.dispose();
-        this.outline.material.dispose();
+        const mat = this.outline.material;
+        if (Array.isArray(mat)) {
+            mat.forEach(m => m.dispose());
+        } else {
+            mat.dispose();
+        }
         this.outline = null;
     }
     this.cutLineMaterial = null;
@@ -1086,8 +1089,15 @@ export class Cutter {
     if (this.edgeHighlights) {
         this.edgeHighlights.forEach(edge => {
             this.scene.remove(edge);
-            if (edge.geometry) edge.geometry.dispose();
-            if (edge.material) edge.material.dispose();
+            const e = edge as any;
+            if (e.geometry) e.geometry.dispose();
+            if (e.material) {
+                if (Array.isArray(e.material)) {
+                    e.material.forEach((m: THREE.Material) => m.dispose());
+                } else {
+                    e.material.dispose();
+                }
+            }
         });
         this.edgeHighlights = [];
     }
@@ -1125,7 +1135,7 @@ export class Cutter {
 
     const resolvedPoints = snapIds
       .map(id => resolver.resolveSnapPoint(id))
-      .filter((p: THREE.Vector3 | null) => p);
+      .filter((p: THREE.Vector3 | null): p is THREE.Vector3 => p !== null);
     if (resolvedPoints.length < 3) return null;
 
     const plane = new THREE.Plane();
@@ -1161,13 +1171,13 @@ export class Cutter {
       });
     });
 
-    const edgeLines = solid.edges.map((edge: any) => {
+    const edgeLines = (solid.edges as any[]).map((edge: any) => {
         const edgeId = typeof edge === 'string' ? edge : edge.id;
         const resolved = resolver.resolveEdge(edgeId);
         return resolved ? new THREE.Line3(resolved.start, resolved.end) : null;
     });
 
-    solid.edges.forEach((edge: any, index: number) => {
+    (solid.edges as any[]).forEach((edge: any, index: number) => {
         const line = edgeLines[index];
         if (!line) return;
         const target = new THREE.Vector3();
@@ -1195,7 +1205,7 @@ export class Cutter {
                                  id,
                                  type: 'intersection',
                                  edgeId,
-                                 ratio: parsed && parsed.type === 'edge' ? parsed.ratio : undefined
+                                 ratio: (parsed && parsed.type === 'edge' ? parsed.ratio : undefined) as Ratio | undefined
                              });
                          }
                      }
@@ -1209,7 +1219,6 @@ export class Cutter {
         const foundFaces: string[] = [];
         if (ref.edgeId) {
             Object.values(solid.faces).forEach((face: any) => {
-                 // Assume face.edges is list of IDs
                  const edgeIds = Array.isArray(face.edges) ? face.edges.map((e:any) => typeof e === 'string'?e:e.id) : [];
                  if (edgeIds.includes(ref.edgeId)) foundFaces.push(face.id);
             });
@@ -1220,8 +1229,7 @@ export class Cutter {
         if (!ref.faceIds) ref.faceIds = resolveFaceIds(ref);
     });
     
-    // --- Duplicate clipping logic for structure-first calculation ---
-    const keepPositive = true; // Default behavior
+    const keepPositive = true; 
     const isInside = (dist: number) => keepPositive ? dist >= -1e-5 : dist <= 1e-5;
     
     const buildEdgeSnapId = (edgeId: string, t: number, startId: string, endId: string) => {
@@ -1236,13 +1244,11 @@ export class Cutter {
 
     const polygons: CutFacePolygon[] = [];
     Object.values(solid.faces).forEach((face: any) => {
-        // Assume face.vertices is list of Vertex objects or IDs
-        const vertices = face.vertices.map((v: any) => {
+        const vertices = (face.vertices as any[]).map((v: any) => {
             const id = typeof v === 'string' ? v : v.id;
             return { id, position: resolver.resolveVertex(id) };
         }).filter((v:any) => v.position);
         
-        // Assume face.edges corresponds to vertices
         const edges = Array.isArray(face.edges) ? face.edges.map((e:any) => typeof e === 'string'?e:e.id) : [];
         if (vertices.length < 3 || edges.length !== vertices.length) return;
 
@@ -1290,7 +1296,7 @@ export class Cutter {
         }
     });
 
-    const cutPoints = intersectionRefs.map(ref => ({ ref, pos: resolver.resolveSnapPoint(ref.id) })).filter(p => p.pos);
+    const cutPoints = intersectionRefs.map(ref => ({ ref, pos: resolver.resolveSnapPoint(ref.id) })).filter((p): p is { ref: IntersectionPoint, pos: THREE.Vector3 } => p.pos !== null);
     if (cutPoints.length >= 3) {
         const center = new THREE.Vector3();
         cutPoints.forEach(p => center.add(p.pos));

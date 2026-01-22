@@ -32,7 +32,7 @@ export class SelectionManager {
     this.selectedObjects = new Set(); // 選択されたオブジェクトのuuidを管理
   }
 
-  getLabel(index) {
+  getLabel(index: number) {
       // 0->P, 1->Q, 2->R ...
       // ASCII code: P is 80
       return String.fromCharCode(80 + index);
@@ -80,7 +80,7 @@ export class SelectionManager {
 
     const parsed = normalizeSnapPointId(parseSnapPointId(snapId));
     let resolvedIsMidpoint = !!isMidpoint;
-    let edgeRef = null;
+    let edgeRef: string | null = null;
     if (parsed && parsed.type === 'edge') {
         edgeRef = `E:${parsed.edgeIndex}`;
         if (parsed.ratio && isMidpoint === undefined) {
@@ -131,10 +131,10 @@ export class SelectionManager {
   }
 
   getSelectedSnapIds() {
-      return this.selected.map(s => s.snapId).filter(Boolean);
+      return this.selected.map(s => s.snapId).filter((id): id is string => id !== null);
   }
 
-  _addSplitLabel(edgeRef, proj) {
+  _addSplitLabel(edgeRef: string | number, proj: THREE.Vector3) {
       const edgeId = typeof edgeRef === 'string' ? edgeRef : null;
       const edgeIdx = edgeId ? this.cube.getEdgeMeshIndexById(edgeId) : edgeRef;
       // 既に処理済みの辺なら何もしない
@@ -151,8 +151,8 @@ export class SelectionManager {
       if (edgeIdx !== null) this.hiddenEdgeLabels.push(edgeIdx);
 
       // 分割された辺の長さを表示
-      let start = null;
-      let end = null;
+      let start: THREE.Vector3 | null = null;
+      let end: THREE.Vector3 | null = null;
       if (this.resolver && edgeId) {
           const resolved = this.resolver.resolveEdge(edgeId);
           if (resolved) {
@@ -190,7 +190,7 @@ export class SelectionManager {
       s2.visible = showEdgeLabels;
   }
 
-  toggleVertexLabels(visible){
+  toggleVertexLabels(visible: boolean){
     this.markers.forEach(obj => {
       if(obj instanceof THREE.Sprite && !this.splitEdgeLabels.includes(obj)){
         obj.visible = visible;
@@ -198,13 +198,13 @@ export class SelectionManager {
     });
   }
 
-  setEdgeLabelMode(mode){
+  setEdgeLabelMode(mode: string){
     this.currentEdgeLabelMode = mode;
     const visible = (mode === 'visible');
     this.splitEdgeLabels.forEach(s => s.visible = visible);
   }
 
-  previewSplit(edgeRef, point) {
+  previewSplit(edgeRef: string | number, point: THREE.Vector3) {
     this.clearPreview(); // 既存のプレビューをクリア
 
     const edgeId = typeof edgeRef === 'string' ? edgeRef : null;
@@ -223,8 +223,8 @@ export class SelectionManager {
     }
 
     // 分割された辺の長さを計算・表示
-    let start = null;
-    let end = null;
+    let start: THREE.Vector3 | null = null;
+    let end: THREE.Vector3 | null = null;
     if (this.resolver && edgeId) {
         const resolved = this.resolver.resolveEdge(edgeId);
         if (resolved) {
@@ -272,7 +272,7 @@ export class SelectionManager {
     }
   }
 
-  isObjectSelected(object) {
+  isObjectSelected(object: THREE.Object3D) {
       return this.selectedObjects.has(object.uuid);
   }
 
