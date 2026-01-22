@@ -1,12 +1,17 @@
 import * as THREE from 'three';
 import { parseSnapPointId, normalizeSnapPointId } from '../geometry/snapPointId.js';
-import type { SnapPointID } from '../types.js';
+import type { SnapPointID, CutFacePolygon } from '../types.js';
+import type { SolidSSOT, NetPlan, NetHinge, NetDerived, VertexID, EdgeID, FaceID } from '../model/objectModel.js';
+import type { GeometryResolver } from '../geometry/GeometryResolver.js';
 
-// 展開図 (Development / Net) を管理するクラス
-// 立方体の展開図（十字型）を表示し、そこに切断線を描画する
-
+/**
+ * NetManager
+ * Manages both 2D net view (Canvas) and 3D net unfolding (NetPlan).
+ */
 export class NetManager {
-    resolver: any;
+    resolver: GeometryResolver | null;
+    
+    // 2D View properties
     container: HTMLDivElement;
     canvas: HTMLCanvasElement;
     ctx: CanvasRenderingContext2D | null;
@@ -25,7 +30,8 @@ export class NetManager {
 
     constructor() {
         this.resolver = null;
-        // コンテナの作成（初回のみ）
+        
+        // --- 2D View Initialization ---
         this.container = document.createElement('div');
         this.container.id = 'net-view';
         this.container.style.position = 'absolute';
@@ -36,17 +42,15 @@ export class NetManager {
         this.container.style.background = 'rgba(255, 255, 255, 0.9)';
         this.container.style.border = '1px solid #ccc';
         this.container.style.borderRadius = '8px';
-        this.container.style.display = 'none'; // 初期は非表示
+        this.container.style.display = 'none';
         this.container.style.zIndex = '50';
         this.container.style.padding = '10px';
         
-        // 閉じるボタン
         const closeBtn = document.createElement('button');
         closeBtn.textContent = '閉じる';
         closeBtn.onclick = () => this.hide();
         this.container.appendChild(closeBtn);
         
-        // キャンバス
         this.canvas = document.createElement('canvas');
         this.canvas.width = 280;
         this.canvas.height = 350;
@@ -55,52 +59,23 @@ export class NetManager {
         
         document.body.appendChild(this.container);
         
-        // 展開図のレイアウト定義 (単位: グリッド座標 1x1)
-        // 十字型展開図
-        //   T
-        // L F R B
-        //   D
-        // F:Front, B:Back, L:Left, R:Right, T:Top, D:Down(Bottom)
-        // インデックス対応 (Cube.jsと合わせる必要あり)
-        // Cube vertices: 
-        // 0:A(-,-,-), 1:B(+,-,-), 2:C(+,+,-), 3:D(-,+,-)  (Back Face? z negative) -> No, standard THREE BoxGeometry definition differs.
-        // Let's verify Cube.js vertices logic.
-        // vertices[0]: -x,-y,-z (Left,Bottom,Back) -> A
-        // vertices[1]: +x,-y,-z (Right,Bottom,Back) -> B
-        // vertices[2]: +x,+y,-z (Right,Top,Back) -> C
-        // vertices[3]: -x,+y,-z (Left,Top,Back) -> D
-        // vertices[4]: -x,-y,+z (Left,Bottom,Front) -> E
-        // vertices[5]: +x,-y,+z (Right,Bottom,Front) -> F
-        // vertices[6]: +x,+y,+z (Right,Top,Front) -> G
-        // vertices[7]: -x,+y,+z (Left,Top,Front) -> H
-        
-        // Faces definition by vertex indices (CCW from outside)
-        // Front (z+): E,F,G,H (4,5,6,7)
-        // Back (z-): B,A,D,C (1,0,3,2)
-        // Top (y+): D,C,G,H (3,2,6,7)
-        // Bottom (y-): A,B,F,E (0,1,5,4)
-        // Right (x+): B,C,G,F (1,2,6,5)
-        // Left (x-): E,H,D,A (4,7,3,0)
-        
-        // Layout on Canvas (Grid 4x3)
-        // Col: 0 1 2 3
-        // Row0: . T . .
-        // Row1: L F R B
-        // Row2: . D . .
-        
         this.layout = {
-            scale: 50, // 1マスのピクセルサイズ
+            scale: 50,
             offsetX: 20,
             offsetY: 20,
             faces: [
-                { name: 'Front', faceId: 'F:0154', grid: {x:1, y:1}, uvVertices: ['V:4', 'V:5', 'V:1', 'V:0'] },
-                { name: 'Back',  faceId: 'F:2376', grid: {x:3, y:1}, uvVertices: ['V:6', 'V:7', 'V:3', 'V:2'] },
-                { name: 'Top',   faceId: 'F:4567', grid: {x:1, y:0}, connectTo: 'Front', uvVertices: ['V:7', 'V:6', 'V:5', 'V:4'] },
-                { name: 'Bottom', faceId: 'F:0321', grid: {x:1, y:2}, uvVertices: ['V:0', 'V:1', 'V:2', 'V:3'] },
-                { name: 'Left',   faceId: 'F:0473', grid: {x:0, y:1}, uvVertices: ['V:7', 'V:4', 'V:0', 'V:3'] },
-                { name: 'Right',  faceId: 'F:1265', grid: {x:2, y:1}, uvVertices: ['V:5', 'V:6', 'V:2', 'V:1'] },
+                { name: 'Front', faceId: 'F:0-1-5-4', grid: {x:1, y:1}, uvVertices: ['V:4', 'V:5', 'V:1', 'V:0'] },
+                { name: 'Back',  faceId: 'F:2-3-7-6', grid: {x:3, y:1}, uvVertices: ['V:6', 'V:7', 'V:3', 'V:2'] },
+                { name: 'Top',   faceId: 'F:4-5-6-7', grid: {x:1, y:0}, connectTo: 'Front', uvVertices: ['V:7', 'V:6', 'V:5', 'V:4'] },
+                { name: 'Bottom', faceId: 'F:0-3-2-1', grid: {x:1, y:2}, uvVertices: ['V:0', 'V:1', 'V:2', 'V:3'] },
+                { name: 'Left',   faceId: 'F:0-4-7-3', grid: {x:0, y:1}, uvVertices: ['V:7', 'V:4', 'V:0', 'V:3'] },
+                { name: 'Right',  faceId: 'F:1-2-6-5', grid: {x:2, y:1}, uvVertices: ['V:5', 'V:6', 'V:2', 'V:1'] },
             ]
         };
+    }
+
+    setResolver(resolver: GeometryResolver) {
+        this.resolver = resolver;
     }
 
     show() {
@@ -112,17 +87,8 @@ export class NetManager {
         this.container.style.display = 'none';
     }
 
-    toggle() {
-        if (this.container.style.display === 'none') this.show();
-        else this.hide();
-    }
-
     isVisible() {
         return this.container.style.display !== 'none';
-    }
-
-    setResolver(resolver: any) {
-        this.resolver = resolver;
     }
 
     updatePosition() {
@@ -133,43 +99,143 @@ export class NetManager {
         this.container.style.top = `${offset + 10}px`;
     }
 
-    // 切断線を描画
-    // cutSegments: Array of {startId, endId, start?, end?} (座標は派生情報)
-    // cube: Cube instance (to get vertices and transform to local/face coords)
+    // --- 3D NetPlan Generation ---
+
     /**
-     * @param {Array<{ startId: SnapPointID, endId: SnapPointID, start?: THREE.Vector3, end?: THREE.Vector3, faceIds?: string[], faceId?: string }>} cutSegments
-     * @param {object} cube
-     * @param {object | null} resolver
+     * Generates a structural NetPlan from a solid.
+     * This logic determines which face unfolds through which edge.
      */
-    update(cutSegments, cube, resolver = null) {
-        if (this.container.style.display === 'none') return;
+    generateNetPlan(solid: SolidSSOT, rootFaceId?: FaceID): NetPlan {
+        const faceIds = Object.keys(solid.faces);
+        // Default to 'Bottom' face as root if available, otherwise first face
+        const root = rootFaceId && faceIds.includes(rootFaceId) ? rootFaceId : (faceIds.includes('F:0-3-2-1') ? 'F:0-3-2-1' : faceIds[0]);
+        
+        const hinges: NetHinge[] = [];
+        const visited = new Set<FaceID>([root]);
+        const queue: FaceID[] = [root];
+        const faceOrder: FaceID[] = [];
+
+        // Preferred connections for a cross layout (Bottom is root)
+        // Bottom -> Front, Back, Right, Left
+        // Front -> Top
+        // This avoids overlap for a standard cube.
+        const preferredChildren: Record<string, string[]> = {
+            'F:0-3-2-1': ['F:0-1-5-4', 'F:2-3-7-6', 'F:1-2-6-5', 'F:0-4-7-3'], // Bottom -> Front, Back, Right, Left
+            'F:0-1-5-4': ['F:4-5-6-7'], // Front -> Top
+        };
+
+        while (queue.length > 0) {
+            const parentId = queue.shift()!;
+            faceOrder.push(parentId);
+
+            const parentEdges = this.getFaceEdges(parentId, solid);
+            const children = preferredChildren[parentId] || faceIds;
+
+            // Prioritize preferred children, then others
+            const candidates = [...children, ...faceIds.filter(id => !children.includes(id))];
+            const uniqueCandidates = [...new Set(candidates)];
+
+            uniqueCandidates.forEach(childId => {
+                if (visited.has(childId) || childId === parentId) return;
+                // Check if child is actually adjacent
+                const childEdges = this.getFaceEdges(childId, solid);
+                const sharedEdgeId = parentEdges.find(eId => childEdges.includes(eId));
+
+                if (sharedEdgeId) {
+                    visited.add(childId);
+                    hinges.push({
+                        parentFaceId: parentId,
+                        childFaceId: childId,
+                        hingeEdgeId: sharedEdgeId
+                    });
+                    queue.push(childId);
+                }
+            });
+        }
+
+        // Add remaining disconnected faces (e.g. cut faces) using standard BFS
+        if (visited.size < faceIds.length) {
+             const remainingQueue = Array.from(visited);
+             while(remainingQueue.length > 0){
+                 const parentId = remainingQueue.shift()!;
+                 const parentEdges = this.getFaceEdges(parentId, solid);
+                 faceIds.forEach(childId => {
+                    if (visited.has(childId)) return;
+                    const childEdges = this.getFaceEdges(childId, solid);
+                    const sharedEdgeId = parentEdges.find(eId => childEdges.includes(eId));
+                    if (sharedEdgeId) {
+                        visited.add(childId);
+                        hinges.push({
+                            parentFaceId: parentId,
+                            childFaceId: childId,
+                            hingeEdgeId: sharedEdgeId
+                        });
+                        remainingQueue.push(childId);
+                        faceOrder.push(childId);
+                    }
+                 });
+             }
+        }
+
+        return {
+            id: `net-plan:${Date.now()}`,
+            targetSolidId: solid.id,
+            rootFaceId: root,
+            hinges,
+            faceOrder
+        };
+    }
+
+    private getFaceEdges(faceId: FaceID, solid: SolidSSOT): EdgeID[] {
+        const face = solid.faces[faceId];
+        const edges: EdgeID[] = [];
+        if (!face || !face.vertices) return edges;
+
+        // Iterate over all edges in the solid to find those that match the face's vertex pairs
+        // This is O(F * E) but safer than relying on ID naming conventions
+        const faceVertexPairs = new Set<string>();
+        for (let i = 0; i < face.vertices.length; i++) {
+            const v0 = face.vertices[i];
+            const v1 = face.vertices[(i + 1) % face.vertices.length];
+            faceVertexPairs.add([v0, v1].sort().join('|'));
+        }
+
+        Object.values(solid.edges).forEach(edge => {
+            const key = [edge.v0, edge.v1].sort().join('|');
+            if (faceVertexPairs.has(key)) {
+                edges.push(edge.id);
+            }
+        });
+        
+        return edges;
+    }
+
+    // --- 2D View Update (Legacy functionality) ---
+
+    update(cutSegments: any[], solid: any, resolver: GeometryResolver | null = null) {
+        if (!this.isVisible()) return;
         this.updatePosition();
         
         const ctx = this.ctx;
+        if (!ctx) return;
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
         const L = this.layout;
         const s = L.scale;
         const activeResolver = resolver || this.resolver;
-        const structure = cube && cube.getStructure ? cube.getStructure() : null;
-        const faceData = L.faces.map(face => {
-            if (structure && structure.faceMap && !structure.faceMap.has(face.faceId)) return null;
-            return {
-                name: face.name,
-                grid: face.grid,
-                faceId: face.faceId,
-                uvVertices: face.uvVertices || null,
-            };
-        }).filter(Boolean);
-        
-        // グリッド描画
+        if (!activeResolver) return;
+
+        // Draw grid
         ctx.strokeStyle = '#ccc';
         ctx.lineWidth = 1;
-        faceData.forEach(face => {
+        L.faces.forEach(face => {
+            // Check if face exists in solid
+            const exists = solid.faces[face.faceId] !== undefined;
+            if (!exists) return;
+
             const x = L.offsetX + face.grid.x * s;
             const y = L.offsetY + face.grid.y * s;
             ctx.strokeRect(x, y, s, s);
-            // 面の名前
             ctx.fillStyle = '#999';
             ctx.font = '10px Arial';
             ctx.fillText(face.name, x+2, y+10);
@@ -177,62 +243,37 @@ export class NetManager {
 
         if(!cutSegments || cutSegments.length === 0) return;
 
-        // 切断線の描画
-        // 各線分について、どの面の上にあるか判定し、その面の2D座標に変換して描画
+        // Draw cut segments on 2D net
         ctx.strokeStyle = 'red';
         ctx.lineWidth = 2;
         ctx.beginPath();
 
-        // 面の法線と中心点（判定用）
-        if (!activeResolver) return;
-        if (!structure) return;
-        const faceIndex = new Map(faceData.map(face => [face.faceId, face]));
-
-        /** @param {SnapPointID} snapId */
-        const getFacesForSnapId = (snapId) => {
-            const parsed = normalizeSnapPointId(parseSnapPointId(snapId));
-            if (!parsed) return [];
-            if (parsed.type === 'vertex') {
-                const vertex = structure.vertexMap.get(`V:${parsed.vertexIndex}`);
-                return vertex ? vertex.faces : [];
-            }
-            if (parsed.type === 'edge') {
-                const edge = structure.edgeMap.get(`E:${parsed.edgeIndex}`);
-                return edge ? edge.faces : [];
-            }
-            if (parsed.type === 'face') {
-                return [`F:${parsed.faceIndex}`];
-            }
-            return [];
-        };
-
-        /**
-         * @param {{ startId: SnapPointID, endId: SnapPointID, start: THREE.Vector3, end: THREE.Vector3, faceIds?: string[], faceId?: string }} segment
-         */
-        const resolveFaceForSegment = (segment) => {
-            if (!segment || !segment.startId || !segment.endId) return null;
-            if (segment.faceId) return segment.faceId;
-            if (segment.faceIds && segment.faceIds.length) return segment.faceIds[0];
-            const startFaces = getFacesForSnapId(segment.startId);
-            const endFaces = getFacesForSnapId(segment.endId);
-            const shared = startFaces.filter(faceId => endFaces.includes(faceId));
-            if (shared.length === 0) return null;
-            const unique = Array.from(new Set(shared));
-            unique.sort();
-            return unique[0];
-        };
+        const faceIndex = new Map(L.faces.map(face => [face.faceId, face]));
 
         cutSegments.forEach(segment => {
-            const faceId = resolveFaceForSegment(segment);
-            if (!faceId) return;
-            const face = faceIndex.get(faceId);
+            // Find which face this segment belongs to.
+            // segment.faceIds contains faces that share this segment.
+            // We need to find one that exists in our 2D layout.
+            let targetFaceId: string | null = null;
+            if (segment.faceIds && segment.faceIds.length > 0) {
+                targetFaceId = segment.faceIds.find((id: string) => faceIndex.has(id)) || null;
+            }
+            
+            // If explicit faceId not found, try to resolve from vertices (fallback)
+            // But for now, rely on faceIds populated by Cutter.
+            
+            if (!targetFaceId) return;
+            const face = faceIndex.get(targetFaceId);
             if (!face) return;
+
             const start = activeResolver.resolveSnapPoint(segment.startId);
             const end = activeResolver.resolveSnapPoint(segment.endId);
             if (!start || !end) return;
+
             const uv1 = this.map3Dto2D(start, face, activeResolver);
             const uv2 = this.map3Dto2D(end, face, activeResolver);
             if (!uv1 || !uv2) return;
+
             const ox = L.offsetX + face.grid.x * s;
             const oy = L.offsetY + face.grid.y * s;
             ctx.moveTo(ox + uv1.x * s, oy + uv1.y * s);
@@ -242,16 +283,10 @@ export class NetManager {
         ctx.stroke();
     }
     
-    /**
-     * @param {THREE.Vector3} p
-     * @param {{ faceId: string, name: string, uvVertices?: string[] }} face
-     * @param {object | null} resolver
-     */
-    map3Dto2D(p, face, resolver = null) {
-        if (!resolver) return null;
-        if (resolver && face.uvVertices && face.uvVertices.length === 4) {
-            const corners = face.uvVertices.map(id => resolver.resolveVertex(id));
-            if (corners.every(v => v)) {
+    map3Dto2D(p: THREE.Vector3, face: any, resolver: GeometryResolver) {
+        if (face.uvVertices && face.uvVertices.length === 4) {
+            const corners = face.uvVertices.map((id: string) => resolver.resolveSnapPoint(id));
+            if (corners.every((v: any) => v)) {
                 const [tl, tr, br, bl] = corners;
                 const uVec = new THREE.Vector3().subVectors(tr, tl);
                 const vVec = new THREE.Vector3().subVectors(bl, tl);
@@ -263,18 +298,6 @@ export class NetManager {
                     const v = vec.dot(vVec.clone().normalize()) / vLen;
                     return { x: u, y: v };
                 }
-            }
-        }
-        if (resolver && face.faceId) {
-            const resolvedFace = resolver.resolveFace(face.faceId);
-            if (resolvedFace) {
-                const origin = resolvedFace.vertices[0];
-                const uLen = origin.distanceTo(resolvedFace.vertices[1]);
-                const vLen = origin.distanceTo(resolvedFace.vertices[3]);
-                const vec = new THREE.Vector3().subVectors(p, origin);
-                const u = vec.dot(resolvedFace.basisU) / uLen;
-                const v = vec.dot(resolvedFace.basisV) / vLen;
-                return { x: u, y: v };
             }
         }
         return null;

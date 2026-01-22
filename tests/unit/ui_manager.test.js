@@ -79,7 +79,8 @@ describe('UIManager', () => {
       showPyramid: true,
       cubeTransparent: false,
       showCutPoints: false,
-      colorizeCutLines: true
+      colorizeCutLines: true,
+      showNormalHelper: false
     });
   });
 
@@ -108,7 +109,8 @@ describe('UIManager', () => {
       showPyramid: true,
       cubeTransparent: false,
       showCutPoints: true,
-      colorizeCutLines: true
+      colorizeCutLines: true,
+      showNormalHelper: false
     });
   });
 
@@ -128,7 +130,8 @@ describe('UIManager', () => {
       showPyramid: false,
       cubeTransparent: true,
       showCutPoints: true,
-      colorizeCutLines: false
+      colorizeCutLines: false,
+      showNormalHelper: false
     });
   });
 

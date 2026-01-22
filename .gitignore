@@ -1,6 +1,12 @@
 .DS_Store
 docs/DOCS_INDEX.md
 
+# gemini-cli settings
+.gemini/
+
+# GitHub App credentials
+gha-creds-*.json
+
 node_modules/
 package-lock.json
 coverage/
@@ -11,3 +17,5 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+

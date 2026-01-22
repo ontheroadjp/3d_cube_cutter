@@ -8,22 +8,22 @@ describe('buildUserPresetState', () => {
       getVertexLabelMap: () => ({ 'V:0': 'A' })
     };
     const selection = {
-      getSelectedSnapIds: () => ['V:0', 'E:01@1/2', 'E:12@1/4']
+      getSelectedSnapIds: () => ['V:0', 'E:0-1@1/2', 'E:1-2@1/4']
     };
     const cutter = {
       isCutInverted: () => true,
       getCutResult: () => ({
         outline: { points: [
           { id: 'V:0', type: /** @type {'snap'} */ ('snap') },
-          { id: 'E:01@1/2', type: /** @type {'intersection'} */ ('intersection') },
-          { id: 'E:12@1/4', type: /** @type {'intersection'} */ ('intersection') }
+          { id: 'E:0-1@1/2', type: /** @type {'intersection'} */ ('intersection') },
+          { id: 'E:1-2@1/4', type: /** @type {'intersection'} */ ('intersection') }
         ] },
         intersections: [
           { id: 'V:0', type: /** @type {'snap'} */ ('snap') },
-          { id: 'E:01@1/2', type: /** @type {'intersection'} */ ('intersection'), edgeId: 'E:01', ratio: { numerator: 1, denominator: 2 }, faceIds: ['F:0154'] }
+          { id: 'E:0-1@1/2', type: /** @type {'intersection'} */ ('intersection'), edgeId: 'E:0-1', ratio: { numerator: 1, denominator: 2 }, faceIds: ['F:0-1-5-4'] }
         ],
         cutSegments: [
-          { startId: 'V:0', endId: 'E:01@1/2', faceIds: ['F:0154'] }
+          { startId: 'V:0', endId: 'E:0-1@1/2', faceIds: ['F:0-1-5-4'] }
         ]
       })
     };
@@ -36,7 +36,8 @@ describe('buildUserPresetState', () => {
         showPyramid: false,
         cubeTransparent: true,
         showCutPoints: true,
-        colorizeCutLines: false
+        colorizeCutLines: false,
+        showNormalHelper: false
       })
     };
 
@@ -50,7 +51,7 @@ describe('buildUserPresetState', () => {
       idFactory: () => 'test-id'
     });
 
-    expect(state.cut.result.outline).toEqual(['V:0', 'E:01@1/2', 'E:12@1/4']);
+    expect(state.cut.result.outline).toEqual(['V:0', 'E:0-1@1/2', 'E:1-2@1/4']);
     expect(state.cut.result.intersections[0]).toEqual({
       id: 'V:0',
       type: 'snap',
@@ -59,16 +60,16 @@ describe('buildUserPresetState', () => {
       faceIds: undefined
     });
     expect(state.cut.result.intersections[1]).toEqual({
-      id: 'E:01@1/2',
+      id: 'E:0-1@1/2',
       type: 'intersection',
-      edgeId: 'E:01',
+      edgeId: 'E:0-1',
       ratio: { numerator: 1, denominator: 2 },
-      faceIds: ['F:0154']
+      faceIds: ['F:0-1-5-4']
     });
     expect(state.cut.result.cutSegments[0]).toEqual({
       startId: 'V:0',
-      endId: 'E:01@1/2',
-      faceIds: ['F:0154']
+      endId: 'E:0-1@1/2',
+      faceIds: ['F:0-1-5-4']
     });
   });
 
@@ -93,7 +94,8 @@ describe('buildUserPresetState', () => {
         showPyramid: true,
         cubeTransparent: false,
         showCutPoints: false,
-        colorizeCutLines: true
+        colorizeCutLines: true,
+        showNormalHelper: false
       })
     };
 
@@ -115,7 +117,8 @@ describe('buildUserPresetState', () => {
       showPyramid: true,
       cubeTransparent: false,
       showCutPoints: false,
-      colorizeCutLines: true
+      colorizeCutLines: true,
+      showNormalHelper: false
     });
     expect(state.name).toBe('User Preset');
     expect(state.description).toBeUndefined();

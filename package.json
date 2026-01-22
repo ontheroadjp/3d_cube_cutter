@@ -26,6 +26,9 @@
   "homepage": "https://github.com/ontheroadjp/3d_cube_cutter#readme",
   "devDependencies": {
     "@testing-library/react": "^16.3.1",
+    "@types/react": "^19.2.9",
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.182.0",
     "jsdom": "^27.4.0",
     "three": "^0.182.0",
     "three-bvh-csg": "^0.0.17",

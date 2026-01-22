@@ -63,7 +63,9 @@ export class GeometryResolver {
 
   resolveEdge(edgeId: string) {
     if (!edgeId || !edgeId.startsWith('E:')) return null;
-    const indices = edgeId.slice(2).split('');
+    const content = edgeId.slice(2);
+    const indices = content.split('-').map(s => s.replace(/^V:/, ''));
+
     if (indices.length !== 2) return null;
     const start = this.resolveVertex(`V:${indices[0]}`);
     const end = this.resolveVertex(`V:${indices[1]}`);
@@ -73,10 +75,10 @@ export class GeometryResolver {
 
   resolveFace(faceId: string) {
     if (!faceId || !faceId.startsWith('F:')) return null;
-    const indices = faceId.slice(2).split('');
-    if (indices.length !== 4) return null;
-    const vertices = indices.map(index => this.resolveVertex(`V:${index}`));
-    if (vertices.some(v => !v)) return null;
+    const indices = faceId.slice(2).split('-');
+    if (indices.length < 3) return null;
+    const vertices = indices.map(index => this.resolveVertex(index.startsWith('V:') ? index : `V:${index}`)).filter((v): v is THREE.Vector3 => v !== null);
+    if (vertices.length < 3) return null;
     const v0 = vertices[0];
     const v1 = vertices[1];
     const v2 = vertices[2];
@@ -100,7 +102,7 @@ export class GeometryResolver {
 
   getBasisForFace(faceId: string) {
     const face = this.resolveFace(faceId);
-    if (!face) return null;
+    if (!face || face.vertices.length === 0) return null;
     return { origin: face.vertices[0].clone(), basisU: face.basisU, basisV: face.basisV };
   }
 

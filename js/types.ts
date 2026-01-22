@@ -26,6 +26,7 @@ export type DisplayState = {
   cubeTransparent: boolean;
   showCutPoints: boolean;
   colorizeCutLines: boolean;
+  showNormalHelper: boolean;
 };
 
 export type IntersectionPoint = {
