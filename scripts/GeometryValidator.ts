@@ -1,0 +1,89 @@
+import * as THREE from 'three';
+
+export interface ValidationResult {
+  isManifold: boolean;
+  eulerCharacteristic: number;
+  degenerateTriangles: number;
+  duplicateVertices: number;
+  isolatedVertices: number;
+  details: string[];
+}
+
+export class GeometryValidator {
+  /**
+   * BufferGeometry の整合性を包括的にチェックする
+   */
+  static validate(geometry: THREE.BufferGeometry): ValidationResult {
+    const details: string[] = [];
+    const position = geometry.attributes.position;
+    const index = geometry.index;
+
+    if (!position) throw new Error("Position attribute is missing.");
+
+    // 1. 重複頂点のチェック
+    const uniqueVertices = new Set();
+    let duplicateCount = 0;
+    for (let i = 0; i < position.count; i++) {
+      const key = `${position.getX(i).toFixed(6)},${position.getY(i).toFixed(6)},${position.getZ(i).toFixed(6)}`;
+      if (uniqueVertices.has(key)) duplicateCount++;
+      else uniqueVertices.add(key);
+    }
+
+    // 2. 面と辺の解析
+    const edges = new Map<string, number>();
+    let degenerateTriangles = 0;
+    const faceCount = index ? index.count / 3 : position.count / 3;
+
+    for (let i = 0; i < faceCount; i++) {
+      const a = index ? index.getX(i * 3) : i * 3;
+      const b = index ? index.getX(i * 3 + 1) : i * 3 + 1;
+      const c = index ? index.getX(i * 3 + 2) : i * 3 + 2;
+
+      // 退化三角形チェック
+      if (a === b || b === c || c === a) {
+        degenerateTriangles++;
+        continue;
+      }
+
+      // 辺を記録 (向きを無視してソート)
+      const addEdge = (v1: number, v2: number) => {
+        const key = [v1, v2].sort((x, y) => x - y).join('-');
+        edges.set(key, (edges.get(key) || 0) + 1);
+      };
+      addEdge(a, b);
+      addEdge(b, c);
+      addEdge(c, a);
+    }
+
+    // 3. 多様体チェック (すべての辺が2つの面に共有されているか)
+    let isManifold = true;
+    let openEdges = 0;
+    edges.forEach((count, edge) => {
+      if (count !== 2) {
+        isManifold = false;
+        if (count === 1) openEdges++;
+      }
+    });
+
+    // 4. オイラー標数 (V - E + F)
+    const V = uniqueVertices.size;
+    const E = edges.size;
+    const F = faceCount - degenerateTriangles;
+    const euler = V - E + F;
+
+    return {
+      isManifold,
+      eulerCharacteristic: euler,
+      degenerateTriangles,
+      duplicateVertices: duplicateCount,
+      isolatedVertices: 0, // 簡易化のため
+      details: [
+        `Vertices: ${V}, Edges: ${E}, Faces: ${F}`,
+        `Euler Characteristic: ${euler} (Expected: 2 for simple closed mesh)`,
+        `Open Edges (Boundaries): ${openEdges}`,
+        `Degenerate Triangles: ${degenerateTriangles}`,
+        `Duplicate Vertices: ${duplicateCount}`
+      ]
+    };
+  }
+}
