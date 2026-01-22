@@ -8,22 +8,25 @@ assignees: []
 
 ## 目的
 
-## 完了条件
-- [ ] 
+## 完了条件(Exit Criteria)
+- [ ]
 
-## Authoritative links（認識合わせ・必須）
-1. docs/CURRENT.md
-2. docs/glossary.md（表記の正）
-3. <topic plan>（例: docs/technical/implementation/<topic>/<topic>_plan.md）
-4. <relevant specs>（例: docs/technical/specification/...）
-5. <relevant architecture>（例: docs/technical/architecture/...）
-6. <relevant education>（例: docs/education/...）
+## 作業手順
+
+### Phase 1 <内容>
+- [ ]
+
+### Phase 2 <内容>
+- [ ]
+
+### Phase 3 <内容>
+- [ ]
 
 ## 影響範囲
-- 
+-
 
 ## テスト観点
-- [ ] 
+- [ ]
 
 ## メモ
-- 
+-

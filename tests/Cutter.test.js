@@ -3,9 +3,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 
-// Mock utils.js to prevent DOM-related errors in Node.js environment
-// This mock creates plain objects with the same "shape" as the real ones,
-// without referencing out-of-scope variables like THREE.
 vi.mock('../dist/js/utils.js', () => ({
     createLabel: vi.fn(() => ({
         position: {
@@ -35,8 +32,9 @@ import { Cutter } from '../dist/js/Cutter.js';
 import { Cube } from '../dist/js/Cube.js';
 import { GeometryResolver } from '../dist/js/geometry/GeometryResolver.js';
 import { buildUserPresetState } from '../dist/js/presets/userPresetState.js';
+import { buildCubeStructure } from '../dist/js/structure/structureModel.js';
+import { getDefaultIndexMap } from '../dist/js/geometry/indexMap.js';
 
-// Helper function to create a simple scene for testing and spy on its methods
 const createTestScene = () => {
     const scene = new THREE.Scene();
     scene.add = vi.fn();
@@ -44,7 +42,6 @@ const createTestScene = () => {
     return scene;
 };
 
-// Helper function to calculate approximate volume for simple convex geometries
 const getVolumeOfMesh = (mesh) => {
     if (!mesh || !mesh.geometry || !mesh.geometry.attributes.position) return 0;
     
@@ -78,6 +75,14 @@ describe('Cutter', () => {
     beforeEach(() => {
         scene = createTestScene();
         cube = new Cube(scene, 10);
+        cube.getStructure = () => buildCubeStructure({ indexMap: getDefaultIndexMap() });
+        cube.cubeMesh = {
+            geometry: new THREE.BoxGeometry(10, 10, 10),
+            position: new THREE.Vector3(),
+            rotation: new THREE.Euler(),
+            scale: new THREE.Vector3(1, 1, 1),
+            material: new THREE.MeshBasicMaterial()
+        };
         resolver = new GeometryResolver({ size: cube.getSize(), indexMap: cube.getIndexMap() });
         cutter = new Cutter(scene);
         scene.add.mockClear();
@@ -111,7 +116,7 @@ describe('Cutter', () => {
 
     describe('cut method', () => {
         it('should perform a simple corner cut successfully and validate volume', () => {
-            const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
+            const snapIds = ['E:0-1@1/2', 'E:1-2@1/2', 'E:1-5@1/2'];
 
             const success = cutter.cut(cube, snapIds, resolver);
 
@@ -127,7 +132,7 @@ describe('Cutter', () => {
         });
 
         it('should expose cut result with outline refs and cut segments', () => {
-            const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
+            const snapIds = ['E:0-1@1/2', 'E:1-2@1/2', 'E:1-5@1/2'];
 
             const success = cutter.cut(cube, snapIds, resolver);
 
@@ -150,7 +155,7 @@ describe('Cutter', () => {
         });
 
         it('should assign faceIds to intersection refs for snapId inputs', () => {
-            const snapIds = ['V:1', 'V:3', 'E:47@3/10'];
+            const snapIds = ['V:1', 'V:3', 'E:4-7@3/10'];
 
             const success = cutter.cut(cube, snapIds, resolver);
 
@@ -164,7 +169,7 @@ describe('Cutter', () => {
         });
 
         it('should return false for collinear points', () => {
-            const snapIds = ['E:01@1/4', 'E:01@1/2', 'E:01@3/4'];
+            const snapIds = ['E:0-1@1/4', 'E:0-1@1/2', 'E:0-1@3/4'];
 
             const success = cutter.cut(cube, snapIds, resolver);
 
@@ -174,7 +179,7 @@ describe('Cutter', () => {
         });
 
         it('should find 4 intersection points for a square cut', () => {
-            const snapIds = ['E:04@1/2', 'E:15@1/2', 'E:26@1/2'];
+            const snapIds = ['E:0-4@1/2', 'E:1-5@1/2', 'E:2-6@1/2'];
             const success = cutter.cut(cube, snapIds, resolver);
 
             expect(success).toBe(true);
@@ -182,7 +187,7 @@ describe('Cutter', () => {
         });
 
         it('should assign faceIds for cut segments', () => {
-            const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
+            const snapIds = ['E:0-1@1/2', 'E:1-2@1/2', 'E:1-5@1/2'];
             const success = cutter.cut(cube, snapIds, resolver);
 
             expect(success).toBe(true);
@@ -195,7 +200,7 @@ describe('Cutter', () => {
         });
 
         it('should return face polygons with vertexIds after cut', () => {
-            const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
+            const snapIds = ['E:0-1@1/2', 'E:1-2@1/2', 'E:1-5@1/2'];
             const success = cutter.cut(cube, snapIds, resolver);
 
             expect(success).toBe(true);
@@ -227,7 +232,7 @@ describe('Cutter', () => {
         });
 
         it('should form a closed outline loop from cut segments', () => {
-            const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
+            const snapIds = ['E:0-1@1/2', 'E:1-2@1/2', 'E:1-5@1/2'];
             const success = cutter.cut(cube, snapIds, resolver);
 
             expect(success).toBe(true);
@@ -245,7 +250,7 @@ describe('Cutter', () => {
 
     describe('flipCut method', () => {
         it('should swap resultMesh and removedMesh volumes after flipping', () => {
-            const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
+            const snapIds = ['E:0-1@1/2', 'E:1-2@1/2', 'E:1-5@1/2'];
             cutter.cut(cube, snapIds, resolver);
 
             const initialResultVolume = getVolumeOfMesh(cutter.resultMesh);
@@ -263,7 +268,7 @@ describe('Cutter', () => {
         });
 
         it('should keep outline and cut segments consistent with intersection refs', () => {
-            const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
+            const snapIds = ['E:0-1@1/2', 'E:1-2@1/2', 'E:1-5@1/2'];
             const success = cutter.cut(cube, snapIds, resolver);
 
             expect(success).toBe(true);
@@ -287,7 +292,7 @@ describe('Cutter', () => {
         });
 
         it('should restore cut result meta from user preset state', () => {
-            const snapIds = ['E:01@1/2', 'E:12@1/2', 'E:15@1/2'];
+            const snapIds = ['E:0-1@1/2', 'E:1-2@1/2', 'E:1-5@1/2'];
             cutter.cut(cube, snapIds, resolver);
 
             const selection = { getSelectedSnapIds: () => snapIds };

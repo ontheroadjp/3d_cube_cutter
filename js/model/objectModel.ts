@@ -1,14 +1,46 @@
 import type * as THREE from 'three';
 import type { CutFacePolygon, DisplayState, IntersectionPoint, SnapPointID } from '../types.js';
 
-export type ObjectVertexFlags = {
+// --- SSOT Layer (Topology & Structure) ---
+
+export type VertexID = string;
+export type EdgeID = string;
+export type FaceID = string;
+
+export type VertexSSOT = {
+  id: VertexID;
+};
+
+export type EdgeSSOT = {
+  id: EdgeID;
+  v0: VertexID;
+  v1: VertexID;
+};
+
+export type FaceSSOT = {
+  id: FaceID;
+  vertices: VertexID[]; // CCW ordered vertex IDs
+};
+
+export type SolidSSOT = {
+  id: string;
+  vertices: Record<VertexID, VertexSSOT>;
+  edges: Record<EdgeID, EdgeSSOT>;
+  faces: Record<FaceID, FaceSSOT>;
+  meta: { size: { lx: number; ly: number; lz: number } };
+};
+
+// --- Presentation Metadata Layer ---
+
+export type VertexPresentation = {
+  label: string | null;
   selected: boolean;
   hovered: boolean;
   isCutPoint: boolean;
   isSnapPoint: boolean;
 };
 
-export type ObjectEdgeFlags = {
+export type EdgePresentation = {
   selected: boolean;
   hovered: boolean;
   isCutEdge: boolean;
@@ -16,42 +48,42 @@ export type ObjectEdgeFlags = {
   isMidpointCut: boolean;
 };
 
-export type ObjectFaceFlags = {
+export type FacePresentation = {
   selected: boolean;
   hovered: boolean;
   isCutFace: boolean;
   isOriginalFace: boolean;
 };
 
-export type ObjectVertex = {
-  id: string;
-  index: number;
-  label: string | null;
-  flags: ObjectVertexFlags;
+export type PresentationModel = {
+  display: DisplayState;
+  vertices: Record<VertexID, VertexPresentation>;
+  edges: Record<EdgeID, EdgePresentation>;
+  faces: Record<FaceID, FacePresentation>;
 };
 
-export type ObjectEdge = {
-  id: string;
-  vertices: [ObjectVertex, ObjectVertex];
-  faces: string[];
-  flags: ObjectEdgeFlags;
+// --- Net Plan (SSOT) ---
+
+export type NetPlanID = string;
+
+export type NetHinge = {
+  parentFaceId: FaceID;
+  childFaceId: FaceID;
+  hingeEdgeId: EdgeID;
 };
 
-export type ObjectFace = {
-  id: string;
-  vertices: ObjectVertex[];
-  edges: ObjectEdge[];
-  flags: ObjectFaceFlags;
-  polygons: unknown[];
+export type NetPlan = {
+  id: NetPlanID;
+  targetSolidId: string;
+  rootFaceId: FaceID;
+  hinges: NetHinge[];
+  faceOrder: FaceID[];
+  meta?: {
+    name?: string;
+  };
 };
 
-export type ObjectSolid = {
-  id: string;
-  vertices: ObjectVertex[];
-  edges: ObjectEdge[];
-  faces: ObjectFace[];
-  meta: { size: { lx: number; ly: number; lz: number } };
-};
+// --- Derived Layer (Calculated Results) ---
 
 export type ObjectCutSegment = {
   startId: SnapPointID;
@@ -66,19 +98,12 @@ export type ObjectCutAdjacency = {
   hingeType?: 'edge' | 'coplanar';
 };
 
-export type ObjectCut = {
-  showCutSurface: boolean;
+export type CutDerived = {
+  showCutSurface: boolean; // Note: This might belong to Presentation, but kept here for now as it toggles derived visibility
   intersections: IntersectionPoint[];
   cutSegments: ObjectCutSegment[];
   facePolygons: CutFacePolygon[];
   faceAdjacency: ObjectCutAdjacency[];
-};
-
-export type ObjectModel = {
-  solid: ObjectSolid;
-  display: DisplayState;
-  cut?: ObjectCut;
-  net?: ObjectNet;
 };
 
 export type ObjectNetFace = {
@@ -105,20 +130,52 @@ export type ObjectNetState = {
   };
 };
 
-export type ObjectNet = {
+export type NetDerived = {
   faces: ObjectNetFace[];
   animation: ObjectNetState;
   visible: boolean;
 };
 
-export const createDefaultVertexFlags = (): ObjectVertexFlags => ({
+// --- Root Model ---
+
+export type ObjectModel = {
+  ssot: SolidSSOT;
+  presentation: PresentationModel;
+  derived: {
+    cut?: CutDerived;
+    net?: NetDerived;
+  };
+};
+
+export const createDefaultNetDerived = (): NetDerived => ({
+  faces: [],
+  animation: {
+    state: 'closed' as const,
+    progress: 0,
+    duration: 0,
+    faceDuration: 0,
+    stagger: 0,
+    scale: 1,
+    scaleTarget: 1,
+    startAt: 0,
+    preScaleDelay: 0,
+    postScaleDelay: 0,
+    camera: undefined
+  },
+  visible: false
+});
+
+// --- Default Generators ---
+
+export const createDefaultVertexPresentation = (): VertexPresentation => ({
+  label: null,
   selected: false,
   hovered: false,
   isCutPoint: false,
   isSnapPoint: false
 });
 
-export const createDefaultEdgeFlags = (): ObjectEdgeFlags => ({
+export const createDefaultEdgePresentation = (): EdgePresentation => ({
   selected: false,
   hovered: false,
   isCutEdge: false,
@@ -126,7 +183,7 @@ export const createDefaultEdgeFlags = (): ObjectEdgeFlags => ({
   isMidpointCut: false
 });
 
-export const createDefaultFaceFlags = (): ObjectFaceFlags => ({
+export const createDefaultFacePresentation = (): FacePresentation => ({
   selected: false,
   hovered: false,
   isCutFace: false,

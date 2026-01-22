@@ -42,27 +42,19 @@ export class PresetManager {
                 console.warn(`Invalid snapId in preset: ${name}`);
                 return;
             }
-            const point = this.resolver.resolveSnapPointRef(parsed);
+            const point = this.resolver ? this.resolver.resolveSnapPointRef(parsed) : null;
             if (!point) {
                 console.warn(`Failed to resolve snapId: ${snapId}`);
                 return;
             }
-            let object: THREE.Object3D | null = null;
+            let object: THREE.Object3D | undefined = undefined;
             let isMidpoint = false;
             if (parsed.type === 'vertex') {
                 const vertexId = `V:${parsed.vertexIndex}`;
                 object = this.cube.getVertexObjectById(vertexId);
-                if (!object) {
-                    const label = this.cube.getVertexLabelByIndex(parsed.vertexIndex);
-                    if (label) object = this.cube.getVertexObjectByName(label);
-                }
             } else if (parsed.type === 'edge') {
                 const edgeId = `E:${parsed.edgeIndex}`;
                 object = this.cube.getEdgeObjectById(edgeId);
-                if (!object) {
-                    const edgeName = this.cube.getEdgeNameByIndex(parsed.edgeIndex);
-                    if (edgeName) object = this.cube.getEdgeObjectByName(edgeName);
-                }
                 if (parsed.ratio) {
                     isMidpoint = parsed.ratio.numerator * 2 === parsed.ratio.denominator;
                 }
