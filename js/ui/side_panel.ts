@@ -652,6 +652,14 @@ function DisplaySettingsPanel() {
     React.createElement('div', { className: 'form-check form-switch mb-2' },
       React.createElement('input', {
         className: 'form-check-input', type: 'checkbox',
+        checked: !!display.showNormalHelper,
+        onChange: (e) => updateDisplayState({ showNormalHelper: e.target.checked })
+      }),
+      React.createElement('label', { className: 'form-check-label' }, '法線ヘルパーを表示')
+    ),
+    React.createElement('div', { className: 'form-check form-switch mb-2' },
+      React.createElement('input', {
+        className: 'form-check-input', type: 'checkbox',
         checked: !!display.colorizeCutLines,
         onChange: (e) => updateDisplayState({ colorizeCutLines: e.target.checked })
       }),

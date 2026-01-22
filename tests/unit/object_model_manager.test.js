@@ -240,6 +240,7 @@ describe('object model manager', () => {
       togglePyramid: vi.fn(),
       setCutPointsVisible: vi.fn(),
       setCutLineColorize: vi.fn(),
+      setShowNormalHelper: vi.fn(),
     };
 
     manager.applyDisplayToView({
@@ -251,6 +252,7 @@ describe('object model manager', () => {
       cubeTransparent: true,
       showCutPoints: true,
       colorizeCutLines: false,
+      showNormalHelper: false,
     });
     manager.setDisplay({
       showVertexLabels: false,
@@ -261,6 +263,7 @@ describe('object model manager', () => {
       cubeTransparent: true,
       showCutPoints: true,
       colorizeCutLines: false,
+      showNormalHelper: false,
     });
     manager.applyCutDisplayToView({ cutter });
 
@@ -281,6 +284,7 @@ describe('object model manager', () => {
       cubeTransparent: true,
       showCutPoints: true,
       colorizeCutLines: false,
+      showNormalHelper: false,
     });
     manager.applyCutDisplayToView({ cutter });
     expect(cutter.toggleSurface).toHaveBeenCalledWith(false);

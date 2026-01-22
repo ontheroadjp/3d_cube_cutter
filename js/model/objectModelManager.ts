@@ -42,7 +42,8 @@ const DEFAULT_DISPLAY: DisplayState = {
   showPyramid: false,
   cubeTransparent: true,
   showCutPoints: true,
-  colorizeCutLines: false
+  colorizeCutLines: false,
+  showNormalHelper: false
 };
 
 // Helper to create default empty cut derived
@@ -192,7 +193,7 @@ export class ObjectModelManager {
     this.cube.toggleTransparency(display.cubeTransparent);
   }
 
-  applyCutDisplayToView({ cutter }: { cutter: { toggleSurface: (visible: boolean) => void; togglePyramid: (visible: boolean) => void; setCutPointsVisible: (visible: boolean) => void; setCutLineColorize: (enabled: boolean) => void } }) {
+  applyCutDisplayToView({ cutter }: { cutter: { toggleSurface: (visible: boolean) => void; togglePyramid: (visible: boolean) => void; setCutPointsVisible: (visible: boolean) => void; setCutLineColorize: (enabled: boolean) => void; setShowNormalHelper: (visible: boolean) => void } }) {
     const display = this.model ? this.model.presentation.display : null;
     if (!display) return;
     
@@ -201,6 +202,7 @@ export class ObjectModelManager {
     cutter.togglePyramid(display.showPyramid);
     cutter.setCutPointsVisible(display.showCutPoints);
     cutter.setCutLineColorize(display.colorizeCutLines);
+    cutter.setShowNormalHelper(display.showNormalHelper);
   }
 
   resetCutFlags() {

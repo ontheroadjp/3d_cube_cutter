@@ -29,7 +29,8 @@ describe('Geometry Validation', () => {
             showPyramid: false,
             cubeTransparent: true,
             showCutPoints: true,
-            colorizeCutLines: false
+            colorizeCutLines: false,
+            showNormalHelper: false
         }
     });
     if (!built) throw new Error("Failed to build model data");

@@ -36,7 +36,8 @@ describe('buildUserPresetState', () => {
         showPyramid: false,
         cubeTransparent: true,
         showCutPoints: true,
-        colorizeCutLines: false
+        colorizeCutLines: false,
+        showNormalHelper: false
       })
     };
 
@@ -93,7 +94,8 @@ describe('buildUserPresetState', () => {
         showPyramid: true,
         cubeTransparent: false,
         showCutPoints: false,
-        colorizeCutLines: true
+        colorizeCutLines: true,
+        showNormalHelper: false
       })
     };
 
@@ -115,7 +117,8 @@ describe('buildUserPresetState', () => {
       showPyramid: true,
       cubeTransparent: false,
       showCutPoints: false,
-      colorizeCutLines: true
+      colorizeCutLines: true,
+      showNormalHelper: false
     });
     expect(state.name).toBe('User Preset');
     expect(state.description).toBeUndefined();

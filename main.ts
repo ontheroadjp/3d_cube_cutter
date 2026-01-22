@@ -18,7 +18,6 @@ import { normalizeSnapPointId, parseSnapPointId, type SnapPointID } from './js/g
 import { createLabel, createMarker } from './js/utils.js';
 
 const DEBUG = false;
-const SHOW_NORMAL_HELPER = true;
 
 class App {
     isCutExecuted: boolean;
@@ -188,7 +187,6 @@ class App {
         this.resolver = new GeometryResolver({ size: this.cube.getSize(), indexMap: this.cube.getIndexMap() });
         this.cutter = new Cutter(this.scene);
         this.cutter.setDebug(DEBUG);
-        this.cutter.setShowNormalHelper(SHOW_NORMAL_HELPER);
         this.netManager = new NetManager();
         this.netManager.setResolver(this.resolver);
         this.selection = new SelectionManager(this.scene, this.cube, this.ui, this.resolver);

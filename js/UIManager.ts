@@ -146,7 +146,8 @@ export class UIManager {
       showPyramid: this.togglePyramid ? this.togglePyramid.checked : false,
       cubeTransparent: this.toggleCubeTransparency ? this.toggleCubeTransparency.checked : true,
       showCutPoints: this.toggleCutPoints ? this.toggleCutPoints.checked : true,
-      colorizeCutLines: this.toggleCutLineColor ? this.toggleCutLineColor.checked : false
+      colorizeCutLines: this.toggleCutLineColor ? this.toggleCutLineColor.checked : false,
+      showNormalHelper: false
     };
     this.currentMode = this.modeSelector ? this.modeSelector.value : 'free';
     this.currentSettingsCategory = this.settingsCategorySelector ? this.settingsCategorySelector.value : 'display';
@@ -205,7 +206,8 @@ export class UIManager {
       showPyramid: this.displayState.showPyramid,
       cubeTransparent: this.displayState.cubeTransparent,
       showCutPoints: this.displayState.showCutPoints,
-      colorizeCutLines: this.displayState.colorizeCutLines
+      colorizeCutLines: this.displayState.colorizeCutLines,
+      showNormalHelper: this.displayState.showNormalHelper
     };
   }
 
