@@ -1,6 +1,9 @@
 name: '🔎 Gemini Review'
 
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
   workflow_call:
     inputs:
       additional_context:
