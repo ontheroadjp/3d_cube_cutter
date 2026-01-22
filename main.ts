@@ -18,6 +18,7 @@ import { normalizeSnapPointId, parseSnapPointId, type SnapPointID } from './js/g
 import { createLabel, createMarker } from './js/utils.js';
 
 const DEBUG = false;
+const SHOW_NORMAL_HELPER = true;
 
 class App {
     isCutExecuted: boolean;
@@ -186,6 +187,7 @@ class App {
         this.resolver = new GeometryResolver({ size: this.cube.getSize(), indexMap: this.cube.getIndexMap() });
         this.cutter = new Cutter(this.scene);
         this.cutter.setDebug(DEBUG);
+        this.cutter.setShowNormalHelper(SHOW_NORMAL_HELPER);
         this.netManager = new NetManager();
         this.netManager.setResolver(this.resolver);
         this.selection = new SelectionManager(this.scene, this.cube, this.ui, this.resolver);
@@ -356,8 +358,9 @@ class App {
 
         const solid = this.objectModelManager.getModel()?.ssot;
         if (!solid) return;
+        const topologyIndex = this.objectModelManager.getModel()?.derived.topologyIndex || null;
 
-        const success = this.cutter.cut(solid, snapIds, this.resolver);
+        const success = this.cutter.cut(solid, snapIds, this.resolver, { topologyIndex });
         if (!success) {
             console.warn("切断処理に失敗しました。点を選択し直してください。");
             this.isCutExecuted = false;
@@ -368,7 +371,7 @@ class App {
         const modelDisplay = this.objectModelManager.getDisplayState();
         this.cutter.setTransparency(modelDisplay.cubeTransparent);
 
-        const cutState = this.cutter.computeCutState(solid, snapIds, this.resolver);
+        const cutState = this.cutter.computeCutState(solid, snapIds, this.resolver, topologyIndex);
 
         if (cutState) {
             this.objectModelManager.syncCutState({
