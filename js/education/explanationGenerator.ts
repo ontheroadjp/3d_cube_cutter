@@ -113,7 +113,7 @@ function classifyShape(
     if (structure && structure.faceMap) {
       const vertexIds = new Set(parsed.filter(p => p.type === 'vertex').map(p => `V:${(p as any).vertexIndex}`));
       if (vertexIds.size === 4) {
-        const faceKey = Array.from(vertexIds).map(v => v.split(':')[1]).join('');
+        const faceKey = Array.from(vertexIds).map(v => v.split(':')[1]).join('-');
         if (structure.faceMap.has(`F:${faceKey}`)) return '正方形';
       }
     }

@@ -42,7 +42,7 @@ describe('object model builder', () => {
     // length is derived
     expect(edge.length).toBeUndefined();
 
-    const face = ssot.faces['F:0154'];
+    const face = ssot.faces['F:0-1-5-4'];
     expect(face).toBeTruthy();
     expect(face.vertices).toHaveLength(4);
     // normal is derived

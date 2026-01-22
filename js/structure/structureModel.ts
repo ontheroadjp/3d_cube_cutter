@@ -45,7 +45,7 @@ export class Face {
   adjacentFaces: string[];
 
   constructor(indices: number[]) {
-    this.id = `F:${indices.join('')}`;
+    this.id = `F:${indices.join('-')}`;
     this.vertices = indices.map(i => `V:${i}`);
     this.edges = [];
     this.adjacentFaces = [];
