@@ -41,8 +41,9 @@ export class CutService {
     const solid = this.objectModelManager.getModel()?.ssot;
     if (!solid) return false;
     const topologyIndex = this.objectModelManager.getModel()?.derived.topologyIndex || null;
+    this.cutter.setTopologyIndex(topologyIndex);
 
-    const success = this.cutter.cut(solid, ids, this.resolver, { topologyIndex });
+    const success = this.cutter.cut(solid, ids, this.resolver);
     if (!success) {
       console.warn("切断処理に失敗しました。点を選択し直してください。");
       this.selection.reset();
@@ -53,7 +54,7 @@ export class CutService {
     const modelDisplay = this.objectModelManager.getDisplayState();
     this.cutter.setTransparency(modelDisplay.cubeTransparent);
 
-    const cutState = this.cutter.computeCutState(solid, ids, this.resolver, topologyIndex);
+    const cutState = this.cutter.computeCutState(solid, ids, this.resolver);
 
     if (cutState) {
       this.objectModelManager.syncCutState({
