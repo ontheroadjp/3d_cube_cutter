@@ -1,4 +1,4 @@
-# Rittai Setsudan (Solid Cutting Simulator)
+#3D Cube Cutter (Solid Cutting Simulator)
 
 A 3D simulation tool designed to help students preparing for middle school entrance exams understand the concept of "Solid Cutting" (cutting cubes and cuboids) in arithmetic geometry.
 
