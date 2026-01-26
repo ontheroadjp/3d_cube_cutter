@@ -1418,13 +1418,9 @@ class App {
                     };
                     this.netCameraEnds.set(stepId, end);
                 }
-                this.camera.position.lerpVectors(start.position, end.position, easedProgress);
-                this.controls.target.lerpVectors(start.target, end.target, easedProgress);
-                const range = this.netAnimationDirection === 'open'
-                    ? { start: 0.65, end: 0.98 }
-                    : { start: 0.05, end: 0.6 };
-                const raw = (easedProgress - range.start) / (range.end - range.start);
-                const t = Math.max(0, Math.min(1, raw));
+                const t = Math.max(0, Math.min(1, progress));
+                this.camera.position.lerpVectors(start.position, end.position, t);
+                this.controls.target.lerpVectors(start.target, end.target, t);
                 this.netUpTemp.copy(this.netUpStart).lerp(this.netUpEnd, t).normalize();
                 this.camera.up.copy(this.netUpTemp);
                 this.camera.lookAt(this.controls.target);
