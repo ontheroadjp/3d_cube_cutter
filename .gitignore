@@ -12,10 +12,10 @@ package-lock.json
 coverage/
 dist/
 supabase/
+sample/
 .env
 .env.*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-
