@@ -83,6 +83,7 @@ class App {
     netUnfoldStagger: number;
     defaultCameraPosition: THREE.Vector3;
     defaultCameraTarget: THREE.Vector3;
+    defaultCameraZoom: number;
     netUnfoldFaces: Array<{
         pivot: THREE.Group;
         mesh: THREE.Mesh;
@@ -132,6 +133,7 @@ class App {
         this.netUnfoldStagger = 700;
         this.defaultCameraPosition = new THREE.Vector3(10, 5, 3);
         this.defaultCameraTarget = new THREE.Vector3(0, 0, 0);
+        this.defaultCameraZoom = 1;
         this.netUnfoldFaces = [];
         this.netUnfoldTargetCenter = null;
         this.netUnfoldPositionTarget = null;
@@ -171,6 +173,8 @@ class App {
         this.camera = new THREE.OrthographicCamera(-size * aspect, size * aspect, size, -size, 0.1, 100);
         this.camera.position.copy(this.defaultCameraPosition);
         this.camera.lookAt(0, 0, 0);
+        this.camera.zoom = this.defaultCameraZoom;
+        this.camera.updateProjectionMatrix();
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         document.body.appendChild(this.renderer.domElement);
@@ -415,6 +419,8 @@ class App {
         this.isCameraAnimating = true;
         this.cameraTargetPosition = this.defaultCameraPosition.clone();
         this.controls.target.copy(this.defaultCameraTarget);
+        this.camera.zoom = this.defaultCameraZoom;
+        this.camera.updateProjectionMatrix();
     }
 
     clearLearningLines() {
@@ -1393,6 +1399,8 @@ class App {
         });
         this.netUnfoldTargetCenter = null;
         this.netUnfoldPositionTarget = null;
+        this.camera.zoom = this.defaultCameraZoom;
+        this.camera.updateProjectionMatrix();
     }
 
     startNetUnfold() {
@@ -1435,6 +1443,8 @@ class App {
         this.netAnimationPlayer.play(spec, () => {
             this.objectModelManager.setNetVisible(false);
             this.netManager.hide();
+            this.camera.zoom = this.defaultCameraZoom;
+            this.camera.updateProjectionMatrix();
         });
     }
 
@@ -1562,6 +1572,62 @@ class App {
             preScaleDelay: netState.preScaleDelay,
             postScaleDelay: netState.postScaleDelay
         });
+    }
+
+    updateNetCameraFit() {
+        if (!this.objectModelManager.getNetVisible()) return;
+        const bounds = this.computeNetBounds();
+        if (!bounds) return;
+        const corners = [
+            new THREE.Vector3(bounds.min.x, bounds.min.y, bounds.min.z),
+            new THREE.Vector3(bounds.min.x, bounds.min.y, bounds.max.z),
+            new THREE.Vector3(bounds.min.x, bounds.max.y, bounds.min.z),
+            new THREE.Vector3(bounds.min.x, bounds.max.y, bounds.max.z),
+            new THREE.Vector3(bounds.max.x, bounds.min.y, bounds.min.z),
+            new THREE.Vector3(bounds.max.x, bounds.min.y, bounds.max.z),
+            new THREE.Vector3(bounds.max.x, bounds.max.y, bounds.min.z),
+            new THREE.Vector3(bounds.max.x, bounds.max.y, bounds.max.z)
+        ];
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
+        const viewMatrix = this.camera.matrixWorldInverse;
+        corners.forEach((corner) => {
+            corner.applyMatrix4(viewMatrix);
+            minX = Math.min(minX, corner.x);
+            maxX = Math.max(maxX, corner.x);
+            minY = Math.min(minY, corner.y);
+            maxY = Math.max(maxY, corner.y);
+        });
+        const width = maxX - minX;
+        const height = maxY - minY;
+        if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
+        const viewWidth = this.camera.right - this.camera.left;
+        const viewHeight = this.camera.top - this.camera.bottom;
+        const padding = 0.9;
+        let targetZoom = Math.min(viewWidth / width, viewHeight / height) * padding;
+        targetZoom = Math.max(0.3, Math.min(2.5, targetZoom));
+        const zoomNext = this.camera.zoom + (targetZoom - this.camera.zoom) * 0.08;
+        this.camera.zoom = zoomNext;
+        this.camera.updateProjectionMatrix();
+    }
+
+    computeNetBounds() {
+        const meshes = Array.from(this.cube.faceMeshes.values());
+        let initialized = false;
+        const bounds = new THREE.Box3();
+        meshes.forEach((mesh) => {
+            if (!mesh.visible) return;
+            const meshBounds = new THREE.Box3().setFromObject(mesh);
+            if (!initialized) {
+                bounds.copy(meshBounds);
+                initialized = true;
+                return;
+            }
+            bounds.union(meshBounds);
+        });
+        return initialized ? bounds : null;
     }
 
     handleFlipCutClick() {
@@ -1700,6 +1766,7 @@ class App {
             }
         }
         this.updateNetUnfoldAnimation();
+        this.updateNetCameraFit();
         if (this.isCameraAnimating && this.cameraTargetPosition) {
             this.camera.position.lerp(this.cameraTargetPosition, 0.05);
             if (this.camera.position.distanceTo(this.cameraTargetPosition) < 0.1) {
