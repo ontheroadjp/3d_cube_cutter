@@ -174,7 +174,7 @@ class App {
         const baseCameraPosition = new THREE.Vector3(10, 8, 10);
         const baseDistance = baseCameraPosition.length();
         const yawRight = THREE.MathUtils.degToRad(15);
-        const pitchUp = THREE.MathUtils.degToRad(-10);
+        const pitchUp = THREE.MathUtils.degToRad(10);
         const baseDir = new THREE.Vector3(0, 0, 1)
             .applyAxisAngle(new THREE.Vector3(0, 1, 0), yawRight)
             .applyAxisAngle(new THREE.Vector3(1, 0, 0), pitchUp);
@@ -291,6 +291,7 @@ class App {
         const hasReactSidePanel = !!document.getElementById('react-side-panel-root');
         this.ui = new UIManager({ legacyControls: !hasReactSidePanel });
         this.cube = new Cube(this.scene, size);
+        this.cube.setFaceOutlineVisible(true);
         this.resolver = new GeometryResolver({ size: this.cube.getSize(), indexMap: this.cube.getIndexMap() });
         this.cutter = new Cutter(this.scene);
         this.cutter.setDebug(DEBUG);
