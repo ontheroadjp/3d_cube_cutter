@@ -144,7 +144,7 @@ export class UIManager {
       edgeLabelMode: edgeMode === 'popup' || edgeMode === 'hidden' ? edgeMode : 'visible',
       showCutSurface: this.toggleCutSurface ? this.toggleCutSurface.checked : true,
       showPyramid: this.togglePyramid ? this.togglePyramid.checked : false,
-      cubeTransparent: this.toggleCubeTransparency ? this.toggleCubeTransparency.checked : true,
+      cubeTransparent: this.toggleCubeTransparency ? this.toggleCubeTransparency.checked : false,
       showCutPoints: this.toggleCutPoints ? this.toggleCutPoints.checked : true,
       colorizeCutLines: this.toggleCutLineColor ? this.toggleCutLineColor.checked : false,
       showNormalHelper: false

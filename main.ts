@@ -62,6 +62,8 @@ class App {
     renderer: THREE.WebGLRenderer;
     controls: OrbitControls;
     mainLight: THREE.DirectionalLight;
+    debugFaceLogDone: boolean;
+    debugNetLogDone: boolean;
     raycaster: THREE.Raycaster;
     midPointHighlightMaterial: THREE.MeshBasicMaterial;
     highlightMarker: THREE.Mesh;
@@ -243,6 +245,8 @@ class App {
         this.layoutTransitionTo = 0;
         this.layoutTransitionDuration = 240;
         this.layoutTransitionActive = false;
+        this.debugFaceLogDone = false;
+        this.debugNetLogDone = false;
         this.learningLines = [];
         this.learningAnimationToken = null;
         this.learningPlane = null;
@@ -282,7 +286,14 @@ class App {
         this.mainLight.target.position.set(0, 0, 0);
         this.scene.add(this.mainLight);
         this.scene.add(this.mainLight.target);
-        console.info('[init] camera', this.camera.position.toArray(), 'target', this.controls.target.toArray(), 'light', this.mainLight.position.toArray());
+        if (DEBUG) {
+            console.info('[init]', JSON.stringify({
+                camera: this.camera.position.toArray(),
+                target: this.controls.target.toArray(),
+                up: this.camera.up.toArray(),
+                light: this.mainLight.position.toArray()
+            }));
+        }
 
         const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0x808080, transparent: true, opacity: 0.7 });
         this.midPointHighlightMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.7 });
@@ -2216,6 +2227,7 @@ class App {
     openNetWithRoot(rootFaceId: string) {
         this.netSelectionActive = false;
         this.netRootFaceId = rootFaceId;
+        this.debugNetLogDone = false;
         this.clearNetHoverHighlight();
         this.netSelectedFaceId = rootFaceId;
         this.setNetFaceHighlight(rootFaceId, 'selected');
@@ -2360,6 +2372,7 @@ class App {
             this.startNetFold();
             return;
         }
+        this.debugNetLogDone = false;
         const faceInfo = this.resolver.resolveFace(rootFaceId);
         const faceCenter = this.resolver.resolveFaceCenter(rootFaceId);
         const solidCenter = this.getSolidCenter();
@@ -2414,6 +2427,31 @@ class App {
     // --- Animation Loop ---
     animate() {
         requestAnimationFrame(this.animate.bind(this));
+        this.mainLight.position.copy(this.camera.position);
+        this.mainLight.target.position.copy(this.controls.target);
+        this.mainLight.target.updateMatrixWorld();
+        if (!this.debugFaceLogDone) {
+            const model = this.objectModelManager.getModel();
+            if (model) {
+                const faceIds = ['F:2-3-7-6', 'F:0-3-7-4', 'F:0-1-2-3'];
+                faceIds.forEach((faceId) => {
+                    const normal = this.getFaceNormalOutward(faceId);
+                    const center = this.resolver.resolveFaceCenter(faceId);
+                    if (!normal || !center) return;
+                    const toLight = this.mainLight.position.clone().sub(center).normalize();
+                    const dot = normal.dot(toLight);
+                    if (DEBUG) {
+                        console.info('[debug] face', JSON.stringify({
+                            faceId,
+                            normal: normal.toArray(),
+                            center: center.toArray(),
+                            dotLight: Number(dot.toFixed(3))
+                        }));
+                    }
+                });
+                this.debugFaceLogDone = true;
+            }
+        }
         if (this.cube.faceOutlineVisible) {
             const cameraDir = this.camera.position.clone().sub(this.controls.target).normalize();
             this.cube.faceOutlines.forEach((outline, faceId) => {
@@ -2426,6 +2464,19 @@ class App {
                     hidden.visible = this.cube.faceOutlineVisible && !isFront;
                 }
             });
+        }
+        if (!this.debugNetLogDone && this.netRootFaceId) {
+            const mesh = this.cube.faceMeshes.get(this.netRootFaceId);
+            if (mesh) {
+                if (DEBUG) {
+                    console.info('[debug] netRoot', JSON.stringify({
+                        faceId: this.netRootFaceId,
+                        position: mesh.position.toArray(),
+                        quaternion: [mesh.quaternion.x, mesh.quaternion.y, mesh.quaternion.z, mesh.quaternion.w]
+                    }));
+                }
+                this.debugNetLogDone = true;
+            }
         }
         if (this.layoutTransitionActive) {
             const elapsed = performance.now() - this.layoutTransitionStart;
