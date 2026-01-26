@@ -1298,7 +1298,11 @@ class App {
                 }
                 this.camera.position.lerpVectors(start.position, end.position, easedProgress);
                 this.controls.target.lerpVectors(start.target, end.target, easedProgress);
-                this.camera.up.set(0, 1, 0);
+                if (this.netAnimationDirection === 'open') {
+                    this.camera.up.set(0, 0, -1);
+                } else {
+                    this.camera.up.set(0, 1, 0);
+                }
                 this.camera.lookAt(this.controls.target);
                 return;
             }
@@ -1316,7 +1320,7 @@ class App {
     buildNetAnimationSpec(direction: 'open' | 'close') {
         if (!this.currentNetPlan) return null;
         const cameraPosition = direction === 'open'
-            ? { x: 0, y: 0, z: this.cube.size * 3 }
+            ? { x: 0, y: this.cube.size * 3, z: 0 }
             : { x: this.defaultCameraPosition.x, y: this.defaultCameraPosition.y, z: this.defaultCameraPosition.z };
         const cameraTarget = direction === 'open'
             ? { x: 0, y: 0, z: 0 }
@@ -1442,7 +1446,7 @@ class App {
         const camera = {
             startPos: this.camera.position.clone(),
             startTarget: this.controls.target.clone(),
-            endPos: new THREE.Vector3(0, 0, this.cube.size * 3),
+            endPos: new THREE.Vector3(0, this.cube.size * 3, 0),
             endTarget: new THREE.Vector3(0, 0, 0)
         };
         this.netUnfoldScaleReadyAt = null;
@@ -1521,7 +1525,11 @@ class App {
                 : 1 - Math.pow(-2 * cameraT + 2, 2) / 2;
             this.camera.position.lerpVectors(netState.camera.startPos!, netState.camera.endPos!, cameraEased);
             this.controls.target.lerpVectors(netState.camera.startTarget!, netState.camera.endTarget!, cameraEased);
-            this.camera.up.set(0, 1, 0);
+            if (netState.state === 'opening') {
+                this.camera.up.set(0, 0, -1);
+            } else {
+                this.camera.up.set(0, 1, 0);
+            }
             this.camera.lookAt(this.controls.target);
         }
 
