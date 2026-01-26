@@ -125,6 +125,8 @@ class App {
     netCameraObliqueUp: THREE.Vector3;
     netCameraTopUp: THREE.Vector3;
     netPreCameraTimeout: ReturnType<typeof setTimeout> | null;
+    netCameraFrontDir: THREE.Vector3;
+    netCameraRightDir: THREE.Vector3;
     netPreCameraActive: boolean;
     netPreCameraStartAt: number;
     netPreCameraDurationMs: number;
@@ -206,6 +208,8 @@ class App {
         this.netCameraObliqueUp = new THREE.Vector3(0, 1, 0);
         this.netCameraTopUp = new THREE.Vector3(0, 1, 0);
         this.netPreCameraTimeout = null;
+        this.netCameraFrontDir = new THREE.Vector3();
+        this.netCameraRightDir = new THREE.Vector3();
         this.netPreCameraActive = false;
         this.netPreCameraStartAt = 0;
         this.netPreCameraDurationMs = 0;
@@ -1622,7 +1626,17 @@ class App {
             this.cube.setFaceOutlineVisible(false);
             const after = this.netAfterFoldAction;
             this.netAfterFoldAction = null;
-            if (after) after();
+            if (after) {
+                after();
+                return;
+            }
+            this.startNetPreCameraMove({
+                endPos: this.defaultCameraPosition.clone(),
+                endTarget: this.defaultCameraTarget.clone(),
+                endUp: new THREE.Vector3(0, 1, 0),
+                endZoom: this.defaultCameraZoom,
+                onComplete: () => {}
+            });
         });
     }
 
@@ -1891,6 +1905,20 @@ class App {
         return center.divideScalar(count);
     }
 
+    updateNetCameraFrameFromView(center: THREE.Vector3, normal: THREE.Vector3) {
+        const viewDir = this.camera.position.clone().sub(center);
+        const projected = viewDir.clone().sub(normal.clone().multiplyScalar(viewDir.dot(normal)));
+        let front = projected;
+        if (front.lengthSq() < 1e-4) {
+            front = this.netCameraBasisU.clone();
+        }
+        front.normalize();
+        const right = new THREE.Vector3().crossVectors(front, normal).normalize();
+        const orthoFront = new THREE.Vector3().crossVectors(normal, right).normalize();
+        this.netCameraFrontDir.copy(orthoFront);
+        this.netCameraRightDir.copy(right);
+    }
+
     getNetCameraPose() {
         if (!this.currentNetPlan) return null;
         const rootFaceId = this.currentNetPlan.rootFaceId;
@@ -1917,17 +1945,22 @@ class App {
         this.netCameraBasisU.copy(basisU);
         this.netCameraBasisV.copy(basisV);
 
+        if (this.netCameraFrontDir.lengthSq() < 1e-4 || this.netCameraRightDir.lengthSq() < 1e-4) {
+            this.netCameraFrontDir.copy(this.netCameraBasisV);
+            this.netCameraRightDir.copy(this.netCameraBasisU);
+        }
+
         const distance = this.cube.size * 3;
         this.netCameraObliquePosition
             .copy(this.netCameraCenter)
-            .addScaledVector(this.netCameraBasisU, distance * 0.35)
-            .addScaledVector(this.netCameraBasisV, distance * 0.25)
+            .addScaledVector(this.netCameraRightDir, distance * 0.35)
+            .addScaledVector(this.netCameraFrontDir, distance * 0.45)
             .addScaledVector(this.netCameraNormal, distance * 0.9);
         this.netCameraTopPosition
             .copy(this.netCameraCenter)
             .addScaledVector(this.netCameraNormal, distance);
         this.netCameraObliqueUp.copy(this.netCameraNormal);
-        this.netCameraTopUp.copy(this.netCameraBasisV);
+        this.netCameraTopUp.copy(this.netCameraFrontDir);
         return {
             center: this.netCameraCenter,
             topPosition: this.netCameraTopPosition,
@@ -2078,6 +2111,13 @@ class App {
                 faceAdjacency: model.derived.cut?.faceAdjacency,
                 vertexSnapMap: model.derived.cut?.vertexSnapMap
             });
+        }
+        const faceInfo = this.resolver.resolveFace(rootFaceId);
+        const faceCenter = this.resolver.resolveFaceCenter(rootFaceId);
+        if (faceInfo && faceCenter) {
+            const normal = faceInfo.normal.clone().normalize();
+            const center = faceCenter.clone();
+            this.updateNetCameraFrameFromView(center, normal);
         }
         this.netManager.show();
         const pose = this.getNetCameraPose();
