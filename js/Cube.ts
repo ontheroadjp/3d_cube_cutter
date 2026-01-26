@@ -14,6 +14,8 @@ export class Cube {
   
   // Storage for Three.js objects mapped by structural IDs
   faceMeshes: Map<FaceID, THREE.Mesh>;
+  faceOutlines: Map<FaceID, THREE.LineSegments>;
+  faceOutlineVisible: boolean;
   edgeLines: Map<EdgeID, THREE.Line>;
   vertexHitboxes: Map<VertexID, THREE.Mesh>;
   edgeHitboxes: Map<EdgeID, THREE.Mesh>;
@@ -70,6 +72,8 @@ export class Cube {
     this.displayLabelMap = null;
 
     this.faceMeshes = new Map();
+    this.faceOutlines = new Map();
+    this.faceOutlineVisible = false;
     this.edgeLines = new Map();
     this.vertexHitboxes = new Map();
     this.edgeHitboxes = new Map();
@@ -238,6 +242,13 @@ export class Cube {
         this.scene.remove(mesh);
         mesh.geometry.dispose();
         this.faceMeshes.delete(id);
+
+        const outline = this.faceOutlines.get(id);
+        if (outline) {
+            mesh.remove(outline);
+            outline.geometry.dispose();
+            this.faceOutlines.delete(id);
+        }
         
         const label = this.faceLabels.get(id);
         if (label) {
@@ -274,7 +285,36 @@ export class Cube {
 
       // Sync labels
       this.syncFaceLabel(face.id, vertices, presentation.display.showFaceLabels);
+
+      // Sync outline
+      let outline = this.faceOutlines.get(face.id);
+      const edgesGeometry = new THREE.EdgesGeometry(geometry);
+      if (!outline) {
+          outline = new THREE.LineSegments(
+              edgesGeometry,
+              new THREE.LineBasicMaterial({
+                  color: 0xcccccc,
+                  transparent: true,
+                  opacity: 0.6,
+                  depthWrite: false
+              })
+          );
+          outline.visible = this.faceOutlineVisible;
+          mesh.add(outline);
+          this.faceOutlines.set(face.id, outline);
+      } else {
+          outline.geometry.dispose();
+          outline.geometry = edgesGeometry;
+          outline.visible = this.faceOutlineVisible;
+      }
     });
+  }
+
+  setFaceOutlineVisible(visible: boolean) {
+      this.faceOutlineVisible = !!visible;
+      this.faceOutlines.forEach(outline => {
+          outline.visible = this.faceOutlineVisible;
+      });
   }
 
   private syncEdges(model: ObjectModel) {
