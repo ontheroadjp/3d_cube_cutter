@@ -1325,11 +1325,17 @@ class App {
         const cameraTarget = direction === 'open'
             ? { x: 0, y: 0, z: 0 }
             : { x: this.defaultCameraTarget.x, y: this.defaultCameraTarget.y, z: this.defaultCameraTarget.z };
+        const faceCount = Math.max(0, this.currentNetPlan.faceOrder.length - 1);
+        const faceDurationSec = this.netUnfoldFaceDuration / 1000;
+        const staggerSec = this.netUnfoldStagger / 1000;
+        const totalDurationSec = faceCount <= 1
+            ? faceDurationSec
+            : faceDurationSec + (faceCount - 1) * staggerSec;
         return this.netManager.buildUnfoldAnimationSpec(this.currentNetPlan, {
             startAtSec: 0,
-            faceDurationSec: this.netUnfoldFaceDuration / 1000,
-            staggerSec: this.netUnfoldStagger / 1000,
-            cameraDurationSec: this.netUnfoldDuration / 1000,
+            faceDurationSec,
+            staggerSec,
+            cameraDurationSec: Math.max(totalDurationSec, this.netUnfoldDuration / 1000),
             cameraPosition,
             cameraTarget
         });
@@ -1452,9 +1458,13 @@ class App {
         this.netUnfoldScaleReadyAt = null;
 
         const nextState = this.objectModelManager.getNetState();
-        const duration = nextState.duration || this.netUnfoldDuration;
         const faceDuration = nextState.faceDuration || this.netUnfoldFaceDuration;
         const stagger = nextState.stagger || this.netUnfoldStagger;
+        const faceCount = this.currentNetPlan ? Math.max(0, this.currentNetPlan.faceOrder.length - 1) : 0;
+        const totalDuration = faceCount <= 1
+            ? faceDuration
+            : faceDuration + (faceCount - 1) * stagger;
+        const duration = Math.max(nextState.duration || this.netUnfoldDuration, totalDuration);
         this.setNetAnimationState({
             state: 'prescale',
             progress: 0,
