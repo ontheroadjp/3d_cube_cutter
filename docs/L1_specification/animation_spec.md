@@ -249,6 +249,7 @@ type TargetRef =
 - 1面ずつの展開順序は `at` と `duration` の調整で表現する
 - 面ごとに異なるヒンジを使うため、`rotateFace` は面単位で分ける
 - 具体例は `docs/L1_specification/animation_spec/net_unfold.example.json` を参照
+- テンプレート類は `docs/L1_specification/animation_spec/README.md` を参照
 
 ---
 
