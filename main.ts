@@ -84,6 +84,7 @@ class App {
     defaultCameraPosition: THREE.Vector3;
     defaultCameraTarget: THREE.Vector3;
     defaultCameraZoom: number;
+    netBoundsPadding: number;
     netUnfoldFaces: Array<{
         pivot: THREE.Group;
         mesh: THREE.Mesh;
@@ -169,9 +170,14 @@ class App {
         this.netUnfoldDuration = 900;
         this.netUnfoldFaceDuration = 900;
         this.netUnfoldStagger = 800;
-        this.defaultCameraPosition = new THREE.Vector3(10, 8, 10);
+        const baseCameraPosition = new THREE.Vector3(10, 8, 10);
+        const defaultSpherical = new THREE.Spherical().setFromVector3(baseCameraPosition);
+        defaultSpherical.theta -= Math.PI / 4;
+        defaultSpherical.phi = Math.max(0.1, defaultSpherical.phi - Math.PI / 12);
+        this.defaultCameraPosition = new THREE.Vector3().setFromSpherical(defaultSpherical);
         this.defaultCameraTarget = new THREE.Vector3(0, 0, 0);
         this.defaultCameraZoom = 1;
+        this.netBoundsPadding = 0.75;
         this.netUnfoldFaces = [];
         this.netUnfoldTargetCenter = null;
         this.netUnfoldPositionTarget = null;
@@ -1537,7 +1543,7 @@ class App {
         const currentPosition = this.camera.position.clone();
         const currentTarget = this.controls.target.clone();
         const currentUp = this.camera.up.clone();
-        const startBounds = direction === 'open' ? closedBounds : openBounds;
+        const startBounds = openBounds;
         const endBounds = direction === 'open' ? openBounds : closedBounds;
         const startCam = { position: currentPosition, target: currentTarget, up: currentUp };
         const endCam = { position: currentPosition, target: currentTarget, up: currentUp };
@@ -1841,7 +1847,7 @@ class App {
         const height = maxY - minY;
         const viewWidth = this.camera.right - this.camera.left;
         const viewHeight = this.camera.top - this.camera.bottom;
-        const padding = 0.82;
+        const padding = this.netBoundsPadding;
         let targetZoom = this.defaultCameraZoom;
         if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
             targetZoom = Math.min(viewWidth / width, viewHeight / height) * padding;
@@ -2152,9 +2158,16 @@ class App {
         this.netManager.show();
         const pose = this.getNetCameraPose();
         if (pose) {
-            const closedBounds = this.computeNetBoundsForProgress(undefined, 0);
-            const targetZoom = closedBounds
-                ? this.computeZoomForBounds(closedBounds, targetCameraPos, pose.center.clone(), targetCameraUp)
+            const openProgress = new Map<string, number>();
+            if (this.currentNetPlan) {
+                this.currentNetPlan.faceOrder.forEach((faceId) => {
+                    if (faceId === this.currentNetPlan!.rootFaceId) return;
+                    openProgress.set(faceId, 1);
+                });
+            }
+            const openBounds = this.computeNetBoundsForProgress(openProgress, 0);
+            const targetZoom = openBounds
+                ? this.computeZoomForBounds(openBounds, targetCameraPos, pose.center.clone(), targetCameraUp)
                 : this.camera.zoom;
             this.startNetPreCameraMove({
                 endPos: targetCameraPos.clone(),
