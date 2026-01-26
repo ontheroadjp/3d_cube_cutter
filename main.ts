@@ -276,8 +276,8 @@ class App {
         // --- Lights and Helpers ---
         this.scene.add(new THREE.AmbientLight(0xffffff, 0.7));
         this.mainLight = new THREE.DirectionalLight(0xffffff, 0.7);
-        this.mainLight.position.copy(this.camera.position);
-        this.mainLight.target.position.copy(this.controls.target);
+        this.mainLight.position.set(6, 8, 6);
+        this.mainLight.target.position.set(0, 0, 0);
         this.scene.add(this.mainLight);
         this.scene.add(this.mainLight.target);
 
@@ -2410,9 +2410,19 @@ class App {
     // --- Animation Loop ---
     animate() {
         requestAnimationFrame(this.animate.bind(this));
-        this.mainLight.position.copy(this.camera.position);
-        this.mainLight.target.position.copy(this.controls.target);
-        this.mainLight.target.updateMatrixWorld();
+        if (this.cube.faceOutlineVisible) {
+            const cameraDir = this.camera.position.clone().sub(this.controls.target).normalize();
+            this.cube.faceOutlines.forEach((outline, faceId) => {
+                const normal = this.getFaceNormalOutward(faceId);
+                if (!normal) return;
+                const isFront = normal.dot(cameraDir) > 0;
+                outline.visible = this.cube.faceOutlineVisible && isFront;
+                const hidden = this.cube.faceHiddenOutlines.get(faceId);
+                if (hidden) {
+                    hidden.visible = this.cube.faceOutlineVisible && !isFront;
+                }
+            });
+        }
         if (this.layoutTransitionActive) {
             const elapsed = performance.now() - this.layoutTransitionStart;
             const t = Math.min(1, elapsed / this.layoutTransitionDuration);

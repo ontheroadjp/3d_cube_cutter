@@ -342,9 +342,9 @@ export class Cube {
               opacity: 0.4,
               dashSize: 0.3,
               gapSize: 0.2,
-              depthWrite: false
+              depthWrite: false,
+              depthTest: false
           });
-          hiddenMaterial.depthFunc = THREE.GreaterDepth;
           hiddenOutline = new THREE.LineSegments(hiddenGeometry, hiddenMaterial);
           hiddenOutline.computeLineDistances();
           hiddenOutline.renderOrder = 1;
