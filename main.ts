@@ -18,8 +18,15 @@ import type { ObjectNetState, NetPlan } from './js/model/objectModel.js';
 import { normalizeSnapPointId, parseSnapPointId, type SnapPointID } from './js/geometry/snapPointId.js';
 import { createLabel, createMarker } from './js/utils.js';
 
-const isDebugEnabled = () =>
-    (globalThis as any).__DEBUG__ === true || (globalThis as any).DEBUG === true;
+const isDebugEnabled = () => {
+    const flag = (globalThis as any).__DEBUG__ === true || (globalThis as any).DEBUG === true;
+    if (flag) return true;
+    try {
+        return localStorage.getItem('DEBUG') === 'true' || sessionStorage.getItem('DEBUG') === 'true';
+    } catch {
+        return false;
+    }
+};
 
 class App {
     isCutExecuted: boolean;
@@ -65,6 +72,8 @@ class App {
     mainLight: THREE.DirectionalLight;
     debugFaceLogDone: boolean;
     debugNetLogDone: boolean;
+    debugInitLogDone: boolean;
+    debugEnabledLast: boolean;
     raycaster: THREE.Raycaster;
     midPointHighlightMaterial: THREE.MeshBasicMaterial;
     highlightMarker: THREE.Mesh;
@@ -248,6 +257,8 @@ class App {
         this.layoutTransitionActive = false;
         this.debugFaceLogDone = false;
         this.debugNetLogDone = false;
+        this.debugInitLogDone = false;
+        this.debugEnabledLast = isDebugEnabled();
         this.learningLines = [];
         this.learningAnimationToken = null;
         this.learningPlane = null;
@@ -287,14 +298,6 @@ class App {
         this.mainLight.target.position.set(0, 0, 0);
         this.scene.add(this.mainLight);
         this.scene.add(this.mainLight.target);
-        if (isDebugEnabled()) {
-            console.info('[init]', JSON.stringify({
-                camera: this.camera.position.toArray(),
-                target: this.controls.target.toArray(),
-                up: this.camera.up.toArray(),
-                light: this.mainLight.position.toArray()
-            }));
-        }
 
         const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0x808080, transparent: true, opacity: 0.7 });
         this.midPointHighlightMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.7 });
@@ -309,7 +312,7 @@ class App {
         this.cube.setFaceOutlineVisible(true);
         this.resolver = new GeometryResolver({ size: this.cube.getSize(), indexMap: this.cube.getIndexMap() });
         this.cutter = new Cutter(this.scene);
-        this.cutter.setDebug(isDebugEnabled());
+        this.cutter.setDebug(this.debugEnabledLast);
         this.netManager = new NetManager();
         this.netManager.setResolver(this.resolver);
         this.netManager.enable2dView = false;
@@ -2433,7 +2436,26 @@ class App {
         this.mainLight.position.copy(this.camera.position);
         this.mainLight.target.position.copy(this.controls.target);
         this.mainLight.target.updateMatrixWorld();
-        if (!this.debugFaceLogDone) {
+        const debugEnabled = isDebugEnabled();
+        if (debugEnabled !== this.debugEnabledLast) {
+            this.debugEnabledLast = debugEnabled;
+            this.cutter.setDebug(debugEnabled);
+            if (debugEnabled) {
+                this.debugInitLogDone = false;
+                this.debugFaceLogDone = false;
+                this.debugNetLogDone = false;
+            }
+        }
+        if (debugEnabled && !this.debugInitLogDone) {
+            console.info('[init]', JSON.stringify({
+                camera: this.camera.position.toArray(),
+                target: this.controls.target.toArray(),
+                up: this.camera.up.toArray(),
+                light: this.mainLight.position.toArray()
+            }));
+            this.debugInitLogDone = true;
+        }
+        if (debugEnabled && !this.debugFaceLogDone) {
             const model = this.objectModelManager.getModel();
             if (model) {
                 const faceIds = ['F:2-3-7-6', 'F:0-3-7-4', 'F:0-1-2-3'];
@@ -2443,14 +2465,12 @@ class App {
                     if (!normal || !center) return;
                     const toLight = this.mainLight.position.clone().sub(center).normalize();
                     const dot = normal.dot(toLight);
-                    if (isDebugEnabled()) {
-                        console.info('[debug] face', JSON.stringify({
-                            faceId,
-                            normal: normal.toArray(),
-                            center: center.toArray(),
-                            dotLight: Number(dot.toFixed(3))
-                        }));
-                    }
+                    console.info('[debug] face', JSON.stringify({
+                        faceId,
+                        normal: normal.toArray(),
+                        center: center.toArray(),
+                        dotLight: Number(dot.toFixed(3))
+                    }));
                 });
                 this.debugFaceLogDone = true;
             }
@@ -2468,16 +2488,14 @@ class App {
                 }
             });
         }
-        if (!this.debugNetLogDone && this.netRootFaceId) {
+        if (debugEnabled && !this.debugNetLogDone && this.netRootFaceId) {
             const mesh = this.cube.faceMeshes.get(this.netRootFaceId);
             if (mesh) {
-                if (isDebugEnabled()) {
-                    console.info('[debug] netRoot', JSON.stringify({
-                        faceId: this.netRootFaceId,
-                        position: mesh.position.toArray(),
-                        quaternion: [mesh.quaternion.x, mesh.quaternion.y, mesh.quaternion.z, mesh.quaternion.w]
-                    }));
-                }
+                console.info('[debug] netRoot', JSON.stringify({
+                    faceId: this.netRootFaceId,
+                    position: mesh.position.toArray(),
+                    quaternion: [mesh.quaternion.x, mesh.quaternion.y, mesh.quaternion.z, mesh.quaternion.w]
+                }));
                 this.debugNetLogDone = true;
             }
         }
