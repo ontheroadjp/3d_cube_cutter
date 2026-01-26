@@ -42,6 +42,8 @@ type Engine = {
   getCubeSize?: () => { lx: number; ly: number; lz: number };
   setPanelOpen?: (open: boolean) => void;
   getNetVisible?: () => boolean;
+  getAnimationSpecEnabled?: () => boolean;
+  setAnimationSpecEnabled?: (enabled: boolean) => void;
 };
 
 type UserPresetForm = {

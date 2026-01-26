@@ -137,7 +137,7 @@ export function validateAnimationSpec(input: unknown): ValidationResult {
 
 export function parseAnimationSpec(input: unknown): AnimationSpec {
   const result = validateAnimationSpec(input);
-  if (!result.ok) {
+  if (result.ok === false) {
     throw new Error(`Invalid AnimationSpec: ${result.errors.join('; ')}`);
   }
   return input as AnimationSpec;
