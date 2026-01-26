@@ -122,12 +122,24 @@ export class Cube {
    * Applies unfolding/folding transformation to faces based on a NetPlan.
    * Moves faces relative to the root face.
    */
-  applyNetPlan(plan: any, progress: number) {
+  applyNetPlan(
+    plan: any,
+    progress: number,
+    faceProgress?: Map<FaceID, number> | Record<string, number>
+  ) {
     if (!plan || !this.resolver) return;
 
     const { rootFaceId, hinges } = plan;
     // Map to store world poses of each face during unfolding
     const worldPoses = new Map<string, { position: THREE.Vector3, quaternion: THREE.Quaternion }>();
+    const progressForFace = (faceId: FaceID) => {
+      if (!faceProgress) return progress;
+      if (faceProgress instanceof Map) {
+        return faceProgress.get(faceId) ?? 0;
+      }
+      const value = faceProgress[faceId];
+      return typeof value === 'number' ? value : 0;
+    };
 
     // Root face stays at origin (local frame)
     worldPoses.set(rootFaceId, {
@@ -160,6 +172,8 @@ export class Cube {
       let angle = Math.PI / 2; // Default fallback
       let axis = edge.end.clone().sub(edge.start).normalize();
 
+      const faceProgressValue = progressForFace(hinge.childFaceId);
+
       if (parentFaceInfo && childFaceInfo) {
           const np = parentFaceInfo.normal;
           const nc = childFaceInfo.normal;
@@ -174,9 +188,9 @@ export class Cube {
           const testNc = nc.clone().applyQuaternion(testRot);
           const sign = np.dot(testNc) > dot ? 1 : -1;
           
-          angle = sign * unfoldAngle * progress;
+          angle = sign * unfoldAngle * faceProgressValue;
       } else {
-          angle = (Math.PI / 2) * progress;
+          angle = (Math.PI / 2) * faceProgressValue;
       }
       
       const qRot = new THREE.Quaternion().setFromAxisAngle(axis, angle);

@@ -1,0 +1,71 @@
+{
+  "id": "net-unfold-example",
+  "version": 1,
+  "timeline": [
+    {
+      "id": "net-visible",
+      "at": 0,
+      "duration": 0,
+      "action": "setVisibility",
+      "targets": { "type": "netGroup" },
+      "params": { "visible": true }
+    },
+    {
+      "id": "net-camera",
+      "at": 0,
+      "duration": 0.8,
+      "ease": "easeOutCubic",
+      "action": "moveCamera",
+      "targets": { "type": "camera" },
+      "params": {
+        "position": { "x": 0, "y": 0, "z": 30 },
+        "lookAt": { "x": 0, "y": 0, "z": 0 }
+      }
+    },
+    {
+      "id": "face-front",
+      "at": 0,
+      "duration": 0.7,
+      "ease": "easeOutCubic",
+      "action": "rotateFace",
+      "targets": { "type": "netFaces", "ids": ["F:0-1-5-4"] },
+      "params": { "faceId": "F:0-1-5-4", "hingeEdgeId": "E:0-1", "angleRad": 1.57079632679 }
+    },
+    {
+      "id": "face-back",
+      "at": 0.7,
+      "duration": 0.7,
+      "ease": "easeOutCubic",
+      "action": "rotateFace",
+      "targets": { "type": "netFaces", "ids": ["F:2-3-7-6"] },
+      "params": { "faceId": "F:2-3-7-6", "hingeEdgeId": "E:2-3", "angleRad": 1.57079632679 }
+    },
+    {
+      "id": "face-right",
+      "at": 1.4,
+      "duration": 0.7,
+      "ease": "easeOutCubic",
+      "action": "rotateFace",
+      "targets": { "type": "netFaces", "ids": ["F:1-2-6-5"] },
+      "params": { "faceId": "F:1-2-6-5", "hingeEdgeId": "E:1-2", "angleRad": 1.57079632679 }
+    },
+    {
+      "id": "face-left",
+      "at": 2.1,
+      "duration": 0.7,
+      "ease": "easeOutCubic",
+      "action": "rotateFace",
+      "targets": { "type": "netFaces", "ids": ["F:0-4-7-3"] },
+      "params": { "faceId": "F:0-4-7-3", "hingeEdgeId": "E:0-3", "angleRad": 1.57079632679 }
+    },
+    {
+      "id": "face-top",
+      "at": 2.8,
+      "duration": 0.7,
+      "ease": "easeOutCubic",
+      "action": "rotateFace",
+      "targets": { "type": "netFaces", "ids": ["F:4-5-6-7"] },
+      "params": { "faceId": "F:4-5-6-7", "hingeEdgeId": "E:4-5", "angleRad": 1.57079632679 }
+    }
+  ]
+}

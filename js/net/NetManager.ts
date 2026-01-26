@@ -3,6 +3,8 @@ import { parseSnapPointId, normalizeSnapPointId } from '../geometry/snapPointId.
 import type { SnapPointID, CutFacePolygon } from '../types.js';
 import type { SolidSSOT, NetPlan, NetHinge, NetDerived, VertexID, EdgeID, FaceID } from '../model/objectModel.js';
 import type { GeometryResolver } from '../geometry/GeometryResolver.js';
+import { buildNetUnfoldSpec, type NetUnfoldSpecOptions } from '../animation/netUnfoldSpec.js';
+import type { AnimationSpec } from '../animation/AnimationSpec.js';
 
 /**
  * NetManager
@@ -184,6 +186,10 @@ export class NetManager {
             hinges,
             faceOrder
         };
+    }
+
+    buildUnfoldAnimationSpec(plan: NetPlan, options: NetUnfoldSpecOptions): AnimationSpec {
+        return buildNetUnfoldSpec(plan, options);
     }
 
     private getFaceEdges(faceId: FaceID, solid: SolidSSOT): EdgeID[] {

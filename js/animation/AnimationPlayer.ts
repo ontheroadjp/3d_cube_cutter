@@ -8,6 +8,7 @@ import {
 } from './AnimationSpec.js';
 
 export type AnimationDispatch = (
+  stepId: string,
   action: ActionType,
   targets: TargetRef | undefined,
   params: ActionParams | undefined,
@@ -25,6 +26,7 @@ export type AnimationPlayerOptions = {
 };
 
 type ScheduledStep = {
+  id: string;
   step: AnimationStep;
   startAt: number; // seconds
   duration: number; // seconds
@@ -43,6 +45,7 @@ export class AnimationPlayer {
   private startTimeMs = 0;
   private frameHandle: number | null = null;
   private schedule: ScheduledStep[] = [];
+  private onComplete?: () => void;
 
   constructor(options: AnimationPlayerOptions) {
     this.dispatch = options.dispatch;
@@ -51,12 +54,13 @@ export class AnimationPlayer {
     this.cancelFrame = options.cancelFrame ?? ((handle) => cancelAnimationFrame(handle));
   }
 
-  play(specInput: AnimationSpec | unknown) {
+  play(specInput: AnimationSpec | unknown, onComplete?: () => void) {
     this.stop();
     const spec = parseAnimationSpec(specInput);
     this.schedule = buildSchedule(spec.timeline);
     this.startTimeMs = this.now();
     this.playing = true;
+    this.onComplete = onComplete;
     this.frameHandle = this.requestFrame(this.tick);
   }
 
@@ -67,6 +71,10 @@ export class AnimationPlayer {
     }
     this.playing = false;
     this.schedule = [];
+  }
+
+  isPlaying() {
+    return this.playing;
   }
 
   private tick = () => {
@@ -85,6 +93,7 @@ export class AnimationPlayer {
       const progress = duration <= 0 ? 1 : Math.min(1, localTime / duration);
       const eased = applyEase(entry.step.ease, progress);
       this.dispatch(
+        entry.id,
         entry.action,
         entry.targets,
         entry.params,
@@ -103,7 +112,12 @@ export class AnimationPlayer {
     if (active) {
       this.frameHandle = this.requestFrame(this.tick);
     } else {
+      const done = this.onComplete;
+      this.onComplete = undefined;
       this.stop();
+      if (done) {
+        done();
+      }
     }
   };
 }
@@ -113,14 +127,16 @@ function buildSchedule(timeline: AnimationStep[]): ScheduledStep[] {
   indexed.sort((a, b) => (a.step.at - b.step.at) || (a.index - b.index));
   const schedule: ScheduledStep[] = [];
   for (const { step } of indexed) {
-    const expanded = expandStep(step);
+    const baseId = step.id ?? `step-${schedule.length}`;
+    const expanded = expandStep(step, baseId);
     schedule.push(...expanded);
   }
   return schedule;
 }
 
-function expandStep(step: AnimationStep): ScheduledStep[] {
+function expandStep(step: AnimationStep, baseId: string): ScheduledStep[] {
   const base = {
+    id: baseId,
     step,
     duration: step.duration,
     action: step.action,
@@ -131,6 +147,7 @@ function expandStep(step: AnimationStep): ScheduledStep[] {
     if (typeof step.stagger === 'number' && step.stagger > 0) {
       return step.targets.ids.map((id, index) => ({
         ...base,
+        id: `${baseId}:${id}`,
         startAt: step.at + index * step.stagger!,
         targets: { type: step.targets!.type, ids: [id] } as TargetRef,
       }));
