@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { validateAnimationSpec, parseAnimationSpec } from '../../js/animation/AnimationSpec.js';
-import { AnimationPlayer } from '../../js/animation/AnimationPlayer.js';
-import { buildNetUnfoldSpec } from '../../js/animation/netUnfoldSpec.js';
+import { validateAnimationSpec, parseAnimationSpec } from '../../js/animation/AnimationSpec.ts';
+import { AnimationPlayer } from '../../js/animation/AnimationPlayer.ts';
+import { buildNetUnfoldSpec } from '../../js/animation/netUnfoldSpec.ts';
 
 describe('AnimationSpec validation', () => {
   it('accepts a minimal valid spec', () => {
