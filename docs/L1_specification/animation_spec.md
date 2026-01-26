@@ -251,7 +251,37 @@ type TargetRef =
 
 ---
 
-## 10. まとめ
+## 10. 現行演出の棚卸し（Spike #155）
+
+### 10.1 net 展開（main.ts / Cube.ts）
+- 面の回転: `Cube.applyNetPlan()` がヒンジ軸を算出し、`progress` で回転量を補間
+- カメラ移動: 展開開始/終了で `moveCamera` 相当の補間
+- スケール調整: 展開後の AABB を元に `scaleTarget` を算出し、prescale/postscale を挟む
+- 表示制御: net 表示の ON/OFF と face 表示の切替
+
+### 10.2 学習モード（main.ts）
+- 切断線のガイド描画: 線分を時間補間して伸ばす（duration 固定）
+- マーカー/ヒント表示: 即時切替（アニメ無し）
+
+### 10.3 サイド UI（index.html / main.ts）
+- パネル開閉: CSS の transform/opacity transition
+- レイアウト移動: JS で panel offset を ease 補間
+
+---
+
+## 11. Timeline で表現が難しい点（Spike #155）
+
+- **事前計算依存**: net の `scaleTarget` は展開後 AABB に依存し、再生前に幾何計算が必要
+- **状態遷移**: prescale/postscale のように「条件達成後に次状態へ移る」ロジックが必要
+- **ジオメトリ依存**: 展開回転は dihedral angle と向き判定が必要（Resolver 参照）
+- **同時進行**: カメラ・回転・スケールの並行制御を timeline で扱う必要
+
+補足：
+- AnimationSpec は **入力**であり、必要な派生計算は Player 側で行う
+
+---
+
+## 12. まとめ
 
 - AnimationSpec は UI/演出のための L1 仕様であり、SSOT は変更しない
 - `timeline` による宣言的なアニメーション定義を採用する
