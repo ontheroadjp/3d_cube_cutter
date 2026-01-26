@@ -385,6 +385,14 @@ class App {
         this.clearLearningLines();
         this.clearLearningPlane();
         this.clearLearningHints();
+        if (this.netAnimationPlayer.isPlaying()) {
+            this.netAnimationPlayer.stop();
+            this.resetNetAnimationCaches();
+        }
+        if (this.currentNetPlan) {
+            this.netFaceProgress.clear();
+            this.cube.applyNetPlan(this.currentNetPlan, 0, this.netFaceProgress);
+        }
         if (this.objectModelManager.getNetState().state !== 'closed') {
             this.clearNetUnfoldGroup();
             this.cube.setVisible(true);
