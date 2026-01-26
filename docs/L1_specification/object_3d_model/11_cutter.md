@@ -83,6 +83,27 @@ interface CutResult {
 - outline.points は平面上の角度順で整列
 - faceIds / ratio は構造情報から決定
 
+### 6.1 CutSide の整合（重要）
+CutResult（特に facePolygons / faceAdjacency）は、**実際に保持される側**の立体構造と一致しなければならない。
+
+- 切断で「どちら側を残すか」の決定は CSG と同じ基準に従う
+- CutResult は **残す側の構造**を基準に生成する
+- これにより SSOT と CutResult の不整合（展開停止・ヒンジ不一致）を防ぐ
+
+### 6.2 Edge 交点 SnapPointID の正規化
+Edge 上の交点は **Edge の向き（v0→v1）に対して一意**になるように正規化する。
+
+- ratio は Edge の正規化方向に対する値として保持する
+- 同一交点が複数 ID にならないよう、SnapPointID を正規化する
+- これにより face adjacency / hinge 解析での断絶を防ぐ
+
+### 6.3 CutFace の頂点順序（法線の向き）
+CutResult から生成する面ポリゴンは **外向き法線**になるよう頂点順序を整える。
+
+- 面の重心と立体中心から外向き方向を求める
+- 法線が内向きの場合は頂点順序を反転する
+- 展開時の dihedral 計算や回転方向の破綻を防ぐ
+
 ---
 
 ## 7. SnapPointID 連携

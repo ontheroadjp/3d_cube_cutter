@@ -149,6 +149,10 @@ export class Cutter {
       return this.cutInverted;
   }
 
+  getLastSnapIds() {
+      return this.lastSnapIds ? this.lastSnapIds.slice() : null;
+  }
+
   setCutInverted(inverted: boolean, rerun = true) {
       const next = !!inverted;
       if (this.cutInverted === next) return;
@@ -791,11 +795,28 @@ export class Cutter {
       });
 
       const buildEdgeSnapId = (edgeId: string, t: number, startId: SnapPointID, endId: SnapPointID) => {
-          if (t <= tEpsilon) return startId;
-          if (t >= 1 - tEpsilon) return endId;
+          const normalizeVertexId = (id: string) => (id.startsWith('V:') ? id : `V:${id}`);
+          const edge = isSSOT ? (cube as SolidSSOT).edges[edgeId] : null;
+          let edgeV0 = edge ? edge.v0 : '';
+          let edgeV1 = edge ? edge.v1 : '';
+          if (!edgeV0 || !edgeV1) {
+              const content = edgeId.replace(/^E:/, '');
+              const parts = content.split('-');
+              if (parts.length === 2) {
+                  edgeV0 = normalizeVertexId(parts[0]);
+                  edgeV1 = normalizeVertexId(parts[1]);
+              }
+          }
+          let tEdge = t;
+          const startVertex = normalizeVertexId(startId);
+          if (edgeV0 && edgeV1 && startVertex === edgeV1) {
+              tEdge = 1 - t;
+          }
+          if (tEdge <= tEpsilon && edgeV0) return edgeV0;
+          if (tEdge >= 1 - tEpsilon && edgeV1) return edgeV1;
           const known = edgeIntersectionById.get(edgeId);
           if (known) return known;
-          const numerator = Math.max(0, Math.min(denominator, Math.round(t * denominator)));
+          const numerator = Math.max(0, Math.min(denominator, Math.round(tEdge * denominator)));
           const parsed = normalizeSnapPointId({
               type: 'edge',
               edgeIndex: edgeId.slice(2),
@@ -1156,6 +1177,6 @@ export class Cutter {
     outlineRefs: IntersectionPoint[];
     cutPlane: THREE.Plane;
   } | null {
-    return computeCutState(solid, snapIds, resolver, this.lastTopologyIndex);
+    return computeCutState(solid, snapIds, resolver, this.lastTopologyIndex, this.keepPositiveSide);
   }
 }

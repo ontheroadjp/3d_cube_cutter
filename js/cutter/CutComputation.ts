@@ -36,7 +36,8 @@ export const computeCutState = (
   solid: SolidSSOT | any,
   snapIds: SnapPointID[],
   resolver: any,
-  topologyIndex: TopologyIndex | null = null
+  topologyIndex: TopologyIndex | null = null,
+  keepPositiveOverride: boolean | null = null
 ): {
   intersections: IntersectionPoint[];
   facePolygons: CutFacePolygon[];
@@ -171,16 +172,39 @@ export const computeCutState = (
     if (!ref.faceIds) ref.faceIds = resolveFaceIds(ref);
   });
 
-  const keepPositive = true;
+  const keepPositive = typeof keepPositiveOverride === 'boolean' ? keepPositiveOverride : true;
   const isInside = (dist: number) => keepPositive ? dist >= -1e-5 : dist <= 1e-5;
 
   const buildEdgeSnapId = (edgeId: string, t: number, startId: string, endId: string) => {
-    if (t <= 1e-6) return startId;
-    if (t >= 1 - 1e-6) return endId;
-    const found = intersectionRefs.find(r => r.edgeId === edgeId && r.ratio && Math.abs(r.ratio.numerator / r.ratio.denominator - t) < 0.01);
+    const normalizeVertexId = (id: string) => (id.startsWith('V:') ? id : `V:${id}`);
+    const edge = isSSOT ? (solid as SolidSSOT).edges[edgeId] : null;
+    let edgeV0 = edge ? edge.v0 : '';
+    let edgeV1 = edge ? edge.v1 : '';
+    if (!edgeV0 || !edgeV1) {
+      const content = edgeId.replace(/^E:/, '');
+      const parts = content.split('-');
+      if (parts.length === 2) {
+        edgeV0 = normalizeVertexId(parts[0]);
+        edgeV1 = normalizeVertexId(parts[1]);
+      }
+    }
+    let tEdge = t;
+    const startVertex = normalizeVertexId(startId);
+    if (edgeV0 && edgeV1 && startVertex === edgeV1) {
+      tEdge = 1 - t;
+    }
+    if (tEdge <= 1e-6 && edgeV0) return edgeV0;
+    if (tEdge >= 1 - 1e-6 && edgeV1) return edgeV1;
+    const found = intersectionRefs.find(r =>
+      r.edgeId === edgeId && r.ratio && Math.abs(r.ratio.numerator / r.ratio.denominator - tEdge) < 0.01
+    );
     if (found) return found.id;
-    const numerator = Math.round(t * 1000);
-    const parsed = normalizeSnapPointId({ type: 'edge', edgeIndex: edgeId.replace(/^E:/, ''), ratio: { numerator, denominator: 1000 } });
+    const numerator = Math.round(tEdge * 1000);
+    const parsed = normalizeSnapPointId({
+      type: 'edge',
+      edgeIndex: edgeId.replace(/^E:/, ''),
+      ratio: { numerator, denominator: 1000 }
+    });
     return parsed ? stringifySnapPointId(parsed) : null;
   };
 

@@ -49,7 +49,7 @@ export class GeometryResolver {
     this.vertexSnapMap = map || {};
   }
 
-  resolveVertex(vertexId: string) {
+  resolveVertex(vertexId: string): THREE.Vector3 | null {
     if (!vertexId || !vertexId.startsWith('V:')) return null;
     const index = vertexId.slice(2);
     const sign = this.indexMap[index];
@@ -71,19 +71,24 @@ export class GeometryResolver {
     return pos;
   }
 
-  resolveEdge(edgeId: string) {
+  resolveEdge(edgeId: string): { start: THREE.Vector3; end: THREE.Vector3; length: number } | null {
     if (!edgeId || !edgeId.startsWith('E:')) return null;
     const content = edgeId.slice(2);
     const indices = content.split('-').map(s => s.replace(/^V:/, ''));
 
     if (indices.length !== 2) return null;
-    const start = this.resolveVertex(`V:${indices[0]}`);
-    const end = this.resolveVertex(`V:${indices[1]}`);
+    const start: THREE.Vector3 | null = this.resolveVertex(`V:${indices[0]}`);
+    const end: THREE.Vector3 | null = this.resolveVertex(`V:${indices[1]}`);
     if (!start || !end) return null;
     return { start, end, length: start.distanceTo(end) };
   }
 
-  resolveFace(faceId: string) {
+  resolveFace(faceId: string): {
+    vertices: THREE.Vector3[];
+    normal: THREE.Vector3;
+    basisU: THREE.Vector3;
+    basisV: THREE.Vector3;
+  } | null {
     if (!faceId || !faceId.startsWith('F:')) return null;
     const indices = faceId.slice(2).split('-');
     if (indices.length < 3) return null;
@@ -101,7 +106,7 @@ export class GeometryResolver {
     return { vertices, normal, basisU, basisV };
   }
 
-  resolveFaceCenter(faceId: string) {
+  resolveFaceCenter(faceId: string): THREE.Vector3 | null {
     const face = this.resolveFace(faceId);
     if (!face) return null;
     const center = new THREE.Vector3();
@@ -110,13 +115,13 @@ export class GeometryResolver {
     return center;
   }
 
-  getBasisForFace(faceId: string) {
+  getBasisForFace(faceId: string): { origin: THREE.Vector3; basisU: THREE.Vector3; basisV: THREE.Vector3 } | null {
     const face = this.resolveFace(faceId);
     if (!face || face.vertices.length === 0) return null;
     return { origin: face.vertices[0].clone(), basisU: face.basisU, basisV: face.basisV };
   }
 
-  resolveSnapPoint(snapId: SnapPointID) {
+  resolveSnapPoint(snapId: SnapPointID): THREE.Vector3 | null {
     const parsed = normalizeSnapPointId(parseSnapPointId(snapId));
     return this.resolveSnapPointRef(parsed);
   }
@@ -127,14 +132,14 @@ export class GeometryResolver {
       | { type: 'edge'; edgeIndex: string; ratio: Ratio }
       | { type: 'face'; faceIndex: string }
       | null
-  ) {
+  ): THREE.Vector3 | null {
     if (!ref) return null;
     if (ref.type === 'vertex') {
       return this.resolveVertex(`V:${ref.vertexIndex}`);
     }
     if (ref.type === 'edge') {
       if (!ref.edgeIndex || !ref.ratio) return null;
-      const edge = this.resolveEdge(`E:${ref.edgeIndex}`);
+      const edge: { start: THREE.Vector3; end: THREE.Vector3; length: number } | null = this.resolveEdge(`E:${ref.edgeIndex}`);
       if (!edge) return null;
       const t = ref.ratio.numerator / ref.ratio.denominator;
       return new THREE.Vector3().lerpVectors(edge.start, edge.end, t);

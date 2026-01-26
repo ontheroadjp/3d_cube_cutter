@@ -372,10 +372,10 @@ export class ObjectModelManager {
     }
   }
 
-  private updateSolidFromCutResult() {
-    if (!this.model || !this.model.derived.cut) return;
+  private updateSolidFromCutResult(): boolean {
+    if (!this.model || !this.model.derived.cut) return false;
     const { facePolygons } = this.model.derived.cut;
-    if (!facePolygons || facePolygons.length === 0) return;
+    if (!facePolygons || facePolygons.length === 0) return false;
 
     const newVertices: Record<VertexID, VertexSSOT> = {};
     const newEdges: Record<EdgeID, EdgeSSOT> = {};
@@ -385,7 +385,42 @@ export class ObjectModelManager {
     const newPresFaces: Record<FaceID, FacePresentation> = {};
     const vertexSnapMap: Record<VertexID, SnapPointID> = {};
     const snapToVertexId = new Map<SnapPointID, VertexID>();
+    const faceIdMap = new Map<FaceID, FaceID>();
+    const orientedSnapMap = new Map<FaceID, SnapPointID[]>();
     let nextVertexIndex = 1000;
+
+    const solidCenter = (() => {
+      const positions: THREE.Vector3[] = [];
+      Object.keys(this.model!.ssot.vertices).forEach((vertexId) => {
+        const pos = this.resolver.resolveVertex(vertexId);
+        if (pos) positions.push(pos);
+      });
+      if (positions.length === 0) return new THREE.Vector3();
+      const center = new THREE.Vector3();
+      positions.forEach((pos) => center.add(pos));
+      return center.divideScalar(positions.length);
+    })();
+
+    const orientSnapIds = (snapIds: SnapPointID[]) => {
+      if (!snapIds || snapIds.length < 3) return snapIds;
+      const positions = snapIds
+        .map(id => this.resolver.resolveSnapPoint(id))
+        .filter((p): p is THREE.Vector3 => p !== null);
+      if (positions.length < 3) return snapIds;
+      const v0 = positions[0];
+      const v1 = positions[1];
+      const v2 = positions[2];
+      const normal = new THREE.Vector3()
+        .subVectors(v1, v0)
+        .cross(new THREE.Vector3().subVectors(v2, v0))
+        .normalize();
+      const centroid = new THREE.Vector3();
+      positions.forEach((pos) => centroid.add(pos));
+      centroid.divideScalar(positions.length);
+      const outward = centroid.clone().sub(solidCenter);
+      if (normal.dot(outward) < 0) return snapIds.slice().reverse();
+      return snapIds;
+    };
 
     const toVertexId = (snapId: SnapPointID) => {
       const canonical = canonicalizeSnapPointId(snapId) || snapId;
@@ -398,9 +433,20 @@ export class ObjectModelManager {
       return vertexId;
     };
 
+    const toFaceId = (vertexIds: VertexID[]) => {
+      const raw = vertexIds.map(vId => (vId.startsWith('V:') ? vId.slice(2) : vId));
+      return `F:${raw.join('-')}`;
+    };
+
     facePolygons.forEach(poly => {
-      const faceId = poly.faceId;
-      const vertexIds = (poly.vertexIds || []).map(toVertexId);
+      const originalFaceId = poly.faceId;
+      const orderedSnapIds = orientSnapIds(poly.vertexIds || []);
+      const vertexIds = orderedSnapIds.map(toVertexId);
+      const faceId = toFaceId(vertexIds);
+      if (originalFaceId) {
+        faceIdMap.set(originalFaceId, faceId);
+        orientedSnapMap.set(originalFaceId, orderedSnapIds);
+      }
       newFaces[faceId] = { id: faceId, vertices: vertexIds };
       
       const presFace = createDefaultFacePresentation();
@@ -440,10 +486,25 @@ export class ObjectModelManager {
 
     if (this.model.derived.cut) {
       this.model.derived.cut.vertexSnapMap = vertexSnapMap;
+      this.model.derived.cut.facePolygons = facePolygons.map(poly => {
+        const mappedFaceId = faceIdMap.get(poly.faceId as FaceID) || poly.faceId;
+        const orderedSnapIds = poly.faceId ? orientedSnapMap.get(poly.faceId as FaceID) : undefined;
+        return {
+          ...poly,
+          faceId: mappedFaceId,
+          vertexIds: orderedSnapIds ? orderedSnapIds.slice() : poly.vertexIds
+        };
+      });
+      this.model.derived.cut.faceAdjacency = (this.model.derived.cut.faceAdjacency || []).map(adj => ({
+        ...adj,
+        a: faceIdMap.get(adj.a as FaceID) || adj.a,
+        b: faceIdMap.get(adj.b as FaceID) || adj.b,
+      }));
     }
     this.resolver.setVertexSnapMap(vertexSnapMap);
 
     this.rebuildTopologyIndex();
+    return true;
   }
 
   syncCutState({
@@ -477,7 +538,10 @@ export class ObjectModelManager {
       this.setCutFacePolygons([], []);
     }
 
-    this.updateSolidFromCutResult();
+    const updated = this.updateSolidFromCutResult();
+    if (updated) {
+      this.notify({ type: "SSOT_UPDATED", payload: this.model });
+    }
     
     this.notify({ type: "CUT_RESULT_UPDATED", payload: { intersections, cutSegments, facePolygons } });
   }
