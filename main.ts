@@ -124,6 +124,7 @@ class App {
     netCameraObliquePosition: THREE.Vector3;
     netCameraObliqueUp: THREE.Vector3;
     netCameraTopUp: THREE.Vector3;
+    netPreCameraTimeout: ReturnType<typeof setTimeout> | null;
     netPreCameraActive: boolean;
     netPreCameraStartAt: number;
     netPreCameraDurationMs: number;
@@ -200,7 +201,8 @@ class App {
         this.netCameraTopPosition = new THREE.Vector3();
         this.netCameraObliquePosition = new THREE.Vector3();
         this.netCameraObliqueUp = new THREE.Vector3(0, 1, 0);
-        this.netCameraTopUp = new THREE.Vector3(0, 0, -1);
+        this.netCameraTopUp = new THREE.Vector3(0, 1, 0);
+        this.netPreCameraTimeout = null;
         this.netPreCameraActive = false;
         this.netPreCameraStartAt = 0;
         this.netPreCameraDurationMs = 0;
@@ -459,6 +461,10 @@ class App {
         this.clearNetFaceHighlights();
         this.netPreCameraActive = false;
         this.netPreCameraOnComplete = null;
+        if (this.netPreCameraTimeout) {
+            clearTimeout(this.netPreCameraTimeout);
+            this.netPreCameraTimeout = null;
+        }
         if (this.netAnimationPlayer.isPlaying()) {
             this.netAnimationPlayer.stop();
             this.resetNetAnimationCaches();
@@ -1853,28 +1859,17 @@ class App {
         this.netCameraBasisU.copy(faceInfo.basisU).normalize();
         this.netCameraBasisV.copy(faceInfo.basisV).normalize();
 
-        let right = this.netCameraBasisU.clone();
-        if (Math.abs(this.netCameraNormal.dot(right)) > 0.98) {
-            right = this.netCameraBasisV.clone();
-        }
-        let forward = new THREE.Vector3().crossVectors(this.netCameraNormal, right).normalize();
-        right = new THREE.Vector3().crossVectors(forward, this.netCameraNormal).normalize();
-
         const distance = this.cube.size * 3;
-        const obliqueLocal = new THREE.Vector3(0, distance * 0.9, distance * 0.6);
-        const topLocal = new THREE.Vector3(0, distance, 0);
         this.netCameraObliquePosition
             .copy(this.netCameraCenter)
-            .addScaledVector(right, obliqueLocal.x)
-            .addScaledVector(this.netCameraNormal, obliqueLocal.y)
-            .addScaledVector(forward, obliqueLocal.z);
+            .addScaledVector(this.netCameraBasisU, distance * 0.35)
+            .addScaledVector(this.netCameraBasisV, distance * 0.25)
+            .addScaledVector(this.netCameraNormal, distance * 0.9);
         this.netCameraTopPosition
             .copy(this.netCameraCenter)
-            .addScaledVector(right, topLocal.x)
-            .addScaledVector(this.netCameraNormal, topLocal.y)
-            .addScaledVector(forward, topLocal.z);
-        this.netCameraObliqueUp.copy(this.netCameraNormal);
-        this.netCameraTopUp.copy(forward);
+            .addScaledVector(this.netCameraNormal, distance);
+        this.netCameraObliqueUp.copy(this.netCameraBasisV);
+        this.netCameraTopUp.copy(this.netCameraBasisV);
         return {
             center: this.netCameraCenter,
             topPosition: this.netCameraTopPosition,
@@ -2025,12 +2020,17 @@ class App {
                 endTarget: pose.center.clone(),
                 endUp: pose.obliqueUp.clone(),
                 onComplete: () => {
-                    this.startNetUnfold();
-                    const solid = this.objectModelManager.getModel()?.ssot;
-                    if (solid) {
-                        this.netManager.update(this.objectModelManager.getCutSegments(), solid, this.resolver);
+                    if (this.netPreCameraTimeout) {
+                        clearTimeout(this.netPreCameraTimeout);
                     }
-                    this.ui.showMessage("底面を確定しました。展開します。", "info");
+                    this.netPreCameraTimeout = setTimeout(() => {
+                        this.startNetUnfold();
+                        const solid = this.objectModelManager.getModel()?.ssot;
+                        if (solid) {
+                            this.netManager.update(this.objectModelManager.getCutSegments(), solid, this.resolver);
+                        }
+                        this.ui.showMessage("底面を確定しました。展開します。", "info");
+                    }, 250);
                 }
             });
         } else {
@@ -2157,13 +2157,10 @@ class App {
         if (this.netPreCameraActive) {
             const elapsed = performance.now() - this.netPreCameraStartAt;
             const t = Math.max(0, Math.min(1, elapsed / this.netPreCameraDurationMs));
-            const eased = t < 0.5
-                ? 2 * t * t
-                : 1 - Math.pow(-2 * t + 2, 2) / 2;
-            this.camera.position.lerpVectors(this.netPreCameraStartPos, this.netPreCameraEndPos, eased);
-            this.controls.target.lerpVectors(this.netPreCameraStartTarget, this.netPreCameraEndTarget, eased);
+            this.camera.position.lerpVectors(this.netPreCameraStartPos, this.netPreCameraEndPos, t);
+            this.controls.target.lerpVectors(this.netPreCameraStartTarget, this.netPreCameraEndTarget, t);
             this.netPreCameraTempUp.copy(this.netPreCameraStartUp)
-                .lerp(this.netPreCameraEndUp, eased)
+                .lerp(this.netPreCameraEndUp, t)
                 .normalize();
             this.camera.up.copy(this.netPreCameraTempUp);
             this.camera.lookAt(this.controls.target);
