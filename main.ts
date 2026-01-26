@@ -173,11 +173,11 @@ class App {
         this.netUnfoldStagger = 800;
         const baseCameraPosition = new THREE.Vector3(10, 8, 10);
         const baseDistance = baseCameraPosition.length();
-        const yawLeft = THREE.MathUtils.degToRad(15);
-        const pitchDown = THREE.MathUtils.degToRad(10);
+        const yawRight = THREE.MathUtils.degToRad(15);
+        const pitchUp = THREE.MathUtils.degToRad(-10);
         const baseDir = new THREE.Vector3(0, 0, 1)
-            .applyAxisAngle(new THREE.Vector3(0, 1, 0), -yawLeft)
-            .applyAxisAngle(new THREE.Vector3(1, 0, 0), pitchDown);
+            .applyAxisAngle(new THREE.Vector3(0, 1, 0), yawRight)
+            .applyAxisAngle(new THREE.Vector3(1, 0, 0), pitchUp);
         this.defaultCameraPosition = baseDir.multiplyScalar(baseDistance);
         this.defaultCameraTarget = new THREE.Vector3(0, 0, 0);
         this.defaultCameraZoom = 1;

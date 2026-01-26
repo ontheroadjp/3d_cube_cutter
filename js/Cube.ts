@@ -15,6 +15,7 @@ export class Cube {
   // Storage for Three.js objects mapped by structural IDs
   faceMeshes: Map<FaceID, THREE.Mesh>;
   faceOutlines: Map<FaceID, THREE.LineSegments>;
+  faceHiddenOutlines: Map<FaceID, THREE.LineSegments>;
   faceOutlineVisible: boolean;
   faceColorCache: Map<FaceID, number>;
   faceColorPalette: number[];
@@ -75,6 +76,7 @@ export class Cube {
 
     this.faceMeshes = new Map();
     this.faceOutlines = new Map();
+    this.faceHiddenOutlines = new Map();
     this.faceOutlineVisible = false;
     this.faceColorCache = new Map();
     this.faceColorPalette = [
@@ -266,6 +268,12 @@ export class Cube {
             outline.geometry.dispose();
             this.faceOutlines.delete(id);
         }
+        const hiddenOutline = this.faceHiddenOutlines.get(id);
+        if (hiddenOutline) {
+            mesh.remove(hiddenOutline);
+            hiddenOutline.geometry.dispose();
+            this.faceHiddenOutlines.delete(id);
+        }
         
         const label = this.faceLabels.get(id);
         if (label) {
@@ -305,6 +313,7 @@ export class Cube {
 
       // Sync outline
       let outline = this.faceOutlines.get(face.id);
+      let hiddenOutline = this.faceHiddenOutlines.get(face.id);
       const edgesGeometry = new THREE.EdgesGeometry(geometry);
       if (!outline) {
           outline = new THREE.LineSegments(
@@ -316,6 +325,7 @@ export class Cube {
                   depthWrite: false
               })
           );
+          outline.renderOrder = 2;
           outline.visible = this.faceOutlineVisible;
           mesh.add(outline);
           this.faceOutlines.set(face.id, outline);
@@ -324,12 +334,39 @@ export class Cube {
           outline.geometry = edgesGeometry;
           outline.visible = this.faceOutlineVisible;
       }
+      if (!hiddenOutline) {
+          const hiddenGeometry = edgesGeometry.clone();
+          const hiddenMaterial = new THREE.LineDashedMaterial({
+              color: 0xaaaaaa,
+              transparent: true,
+              opacity: 0.4,
+              dashSize: 0.3,
+              gapSize: 0.2,
+              depthWrite: false
+          });
+          hiddenMaterial.depthFunc = THREE.GreaterDepth;
+          hiddenOutline = new THREE.LineSegments(hiddenGeometry, hiddenMaterial);
+          hiddenOutline.computeLineDistances();
+          hiddenOutline.renderOrder = 1;
+          hiddenOutline.visible = this.faceOutlineVisible;
+          mesh.add(hiddenOutline);
+          this.faceHiddenOutlines.set(face.id, hiddenOutline);
+      } else {
+          hiddenOutline.geometry.dispose();
+          const hiddenGeometry = edgesGeometry.clone();
+          hiddenOutline.geometry = hiddenGeometry;
+          hiddenOutline.computeLineDistances();
+          hiddenOutline.visible = this.faceOutlineVisible;
+      }
     });
   }
 
   setFaceOutlineVisible(visible: boolean) {
       this.faceOutlineVisible = !!visible;
       this.faceOutlines.forEach(outline => {
+          outline.visible = this.faceOutlineVisible;
+      });
+      this.faceHiddenOutlines.forEach(outline => {
           outline.visible = this.faceOutlineVisible;
       });
   }
