@@ -7,6 +7,7 @@ export type NetUnfoldSpecOptions = {
   startAtSec: number;
   faceDurationSec: number;
   staggerSec: number;
+  cameraStartAtSec?: number;
   cameraDurationSec: number;
   cameraPosition: { x: number; y: number; z: number };
   cameraTarget: { x: number; y: number; z: number };
@@ -24,7 +25,7 @@ export function buildNetUnfoldSpec(plan: NetPlan, options: NetUnfoldSpecOptions)
     },
     {
       id: 'net-camera',
-      at: 0,
+      at: options.cameraStartAtSec ?? 0,
       duration: options.cameraDurationSec,
       ease: 'easeOutCubic',
       action: 'moveCamera',

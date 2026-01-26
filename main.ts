@@ -103,6 +103,14 @@ class App {
     netCameraStarts: Map<string, { position: THREE.Vector3; target: THREE.Vector3 }>;
     netCameraEnds: Map<string, { position: THREE.Vector3; target: THREE.Vector3 }>;
     useAnimationSpecNet: boolean;
+    netZoomStart: number;
+    netZoomEnd: number;
+    netAnimationStartAt: number;
+    netAnimationDurationMs: number;
+    netAnimationZoomActive: boolean;
+    netUpStart: THREE.Vector3;
+    netUpEnd: THREE.Vector3;
+    netUpTemp: THREE.Vector3;
     layoutPanelOffset: number;
     layoutTargetPanelOffset: number;
     layoutTransitionStart: number;
@@ -128,9 +136,9 @@ class App {
         this.panelOpen = false;
         this.netUnfoldGroup = null;
         this.netUnfoldState = 'closed';
-        this.netUnfoldDuration = 800;
-        this.netUnfoldFaceDuration = 700;
-        this.netUnfoldStagger = 700;
+        this.netUnfoldDuration = 900;
+        this.netUnfoldFaceDuration = 900;
+        this.netUnfoldStagger = 800;
         this.defaultCameraPosition = new THREE.Vector3(10, 5, 3);
         this.defaultCameraTarget = new THREE.Vector3(0, 0, 0);
         this.defaultCameraZoom = 1;
@@ -148,6 +156,14 @@ class App {
             dispatch: this.dispatchNetAnimation.bind(this)
         });
         this.useAnimationSpecNet = true;
+        this.netZoomStart = this.defaultCameraZoom;
+        this.netZoomEnd = this.defaultCameraZoom;
+        this.netAnimationStartAt = 0;
+        this.netAnimationDurationMs = 0;
+        this.netAnimationZoomActive = false;
+        this.netUpStart = new THREE.Vector3(0, 1, 0);
+        this.netUpEnd = new THREE.Vector3(0, 0, -1);
+        this.netUpTemp = new THREE.Vector3(0, 1, 0);
         this.layoutPanelOffset = 0;
         this.layoutTargetPanelOffset = 0;
         this.layoutTransitionStart = 0;
@@ -208,6 +224,7 @@ class App {
         this.cutter.setDebug(DEBUG);
         this.netManager = new NetManager();
         this.netManager.setResolver(this.resolver);
+        this.netManager.enable2dView = false;
         this.selection = new SelectionManager(this.scene, this.cube, this.ui, this.resolver);
         this.presetManager = new PresetManager(this.selection, this.cube, this.cutter, this.resolver);
         this.objectModelManager = new ObjectModelManager({
@@ -410,6 +427,7 @@ class App {
         this.cutter.resetInversion();
         this.cutter.reset();
         this.objectModelManager.clearCutIntersections();
+        this.objectModelManager.syncFromCube();
         const solid = this.objectModelManager.getModel()?.ssot;
         this.netManager.update([], solid, this.resolver);
         this.isCutExecuted = false;
@@ -1252,6 +1270,11 @@ class App {
         this.netFaceProgress.clear();
         this.netCameraStarts.clear();
         this.netCameraEnds.clear();
+        this.netAnimationStartAt = 0;
+        this.netAnimationDurationMs = 0;
+        this.netAnimationZoomActive = false;
+        this.netZoomStart = this.defaultCameraZoom;
+        this.netZoomEnd = this.defaultCameraZoom;
     }
 
     setAnimationSpecEnabled(enabled: boolean) {
@@ -1304,11 +1327,13 @@ class App {
                 }
                 this.camera.position.lerpVectors(start.position, end.position, easedProgress);
                 this.controls.target.lerpVectors(start.target, end.target, easedProgress);
-                if (this.netAnimationDirection === 'open') {
-                    this.camera.up.set(0, 0, -1);
-                } else {
-                    this.camera.up.set(0, 1, 0);
-                }
+                const range = this.netAnimationDirection === 'open'
+                    ? { start: 0.65, end: 0.98 }
+                    : { start: 0.05, end: 0.6 };
+                const raw = (easedProgress - range.start) / (range.end - range.start);
+                const t = Math.max(0, Math.min(1, raw));
+                this.netUpTemp.copy(this.netUpStart).lerp(this.netUpEnd, t).normalize();
+                this.camera.up.copy(this.netUpTemp);
                 this.camera.lookAt(this.controls.target);
                 return;
             }
@@ -1337,11 +1362,14 @@ class App {
         const totalDurationSec = faceCount <= 1
             ? faceDurationSec
             : faceDurationSec + (faceCount - 1) * staggerSec;
+        const cameraDelaySec = direction === 'open' ? totalDurationSec * 0.35 : 0;
+        const cameraDurationSec = Math.max(0.1, totalDurationSec - cameraDelaySec);
         return this.netManager.buildUnfoldAnimationSpec(this.currentNetPlan, {
             startAtSec: 0,
             faceDurationSec,
             staggerSec,
-            cameraDurationSec: Math.max(totalDurationSec, this.netUnfoldDuration / 1000),
+            cameraStartAtSec: cameraDelaySec,
+            cameraDurationSec,
             cameraPosition,
             cameraTarget
         });
@@ -1403,6 +1431,58 @@ class App {
         this.camera.updateProjectionMatrix();
     }
 
+    getNetAnimationTotalDurationSec() {
+        if (!this.currentNetPlan) return 0;
+        const faceCount = Math.max(0, this.currentNetPlan.faceOrder.length - 1);
+        const faceDurationSec = this.netUnfoldFaceDuration / 1000;
+        const staggerSec = this.netUnfoldStagger / 1000;
+        if (faceCount <= 1) return faceDurationSec;
+        return faceDurationSec + (faceCount - 1) * staggerSec;
+    }
+
+    prepareNetAnimationZoom(direction: 'open' | 'close') {
+        if (!this.currentNetPlan) return;
+        const openProgress = new Map<string, number>();
+        this.currentNetPlan.faceOrder.forEach((faceId) => {
+            if (faceId === this.currentNetPlan!.rootFaceId) return;
+            openProgress.set(faceId, 1);
+        });
+        const closedBounds = this.computeNetBoundsForProgress(undefined, 0);
+        const openBounds = this.computeNetBoundsForProgress(openProgress, 0);
+        const topPosition = new THREE.Vector3(0, this.cube.size * 3, 0);
+        const topTarget = new THREE.Vector3(0, 0, 0);
+        const topUp = new THREE.Vector3(0, 0, -1);
+        const currentPosition = this.camera.position.clone();
+        const currentTarget = this.controls.target.clone();
+        const currentUp = this.camera.up.clone();
+        const defaultPosition = this.defaultCameraPosition.clone();
+        const defaultTarget = this.defaultCameraTarget.clone();
+        const defaultUp = new THREE.Vector3(0, 1, 0);
+        const startBounds = direction === 'open' ? closedBounds : openBounds;
+        const endBounds = direction === 'open' ? openBounds : closedBounds;
+        const startCam = direction === 'open'
+            ? { position: currentPosition, target: currentTarget, up: currentUp }
+            : { position: currentPosition, target: currentTarget, up: currentUp };
+        const endCam = direction === 'open'
+            ? { position: topPosition, target: topTarget, up: topUp }
+            : { position: defaultPosition, target: defaultTarget, up: defaultUp };
+        const startZoom = startBounds
+            ? this.computeZoomForBounds(startBounds, startCam.position, startCam.target, startCam.up)
+            : this.defaultCameraZoom;
+        const endZoom = endBounds
+            ? this.computeZoomForBounds(endBounds, endCam.position, endCam.target, endCam.up)
+            : this.defaultCameraZoom;
+        this.netZoomStart = startZoom;
+        this.netZoomEnd = endZoom;
+        this.camera.zoom = this.netZoomStart;
+        this.camera.updateProjectionMatrix();
+        this.netUpStart.copy(currentUp);
+        this.netUpEnd.copy(direction === 'open' ? topUp : defaultUp);
+        this.netAnimationStartAt = performance.now();
+        this.netAnimationDurationMs = this.getNetAnimationTotalDurationSec() * 1000;
+        this.netAnimationZoomActive = this.netAnimationDurationMs > 0;
+    }
+
     startNetUnfold() {
         if (!this.useAnimationSpecNet) {
             this.startNetUnfoldLegacy();
@@ -1418,6 +1498,7 @@ class App {
         this.snappedPointInfo = null;
         this.resetNetAnimationCaches();
         this.netAnimationDirection = 'open';
+        this.prepareNetAnimationZoom('open');
         const spec = this.buildNetAnimationSpec('open');
         if (!spec) return;
         this.netAnimationPlayer.play(spec);
@@ -1438,13 +1519,12 @@ class App {
             if (faceId === this.currentNetPlan!.rootFaceId) return;
             this.netFaceProgress.set(faceId, 1);
         });
+        this.prepareNetAnimationZoom('close');
         const spec = this.buildNetAnimationSpec('close');
         if (!spec) return;
         this.netAnimationPlayer.play(spec, () => {
             this.objectModelManager.setNetVisible(false);
             this.netManager.hide();
-            this.camera.zoom = this.defaultCameraZoom;
-            this.camera.updateProjectionMatrix();
         });
     }
 
@@ -1574,10 +1654,74 @@ class App {
         });
     }
 
-    updateNetCameraFit() {
+    updateNetCameraZoom() {
         if (!this.objectModelManager.getNetVisible()) return;
+        if (!this.netAnimationZoomActive || this.netAnimationDurationMs <= 0) return;
+        const elapsed = performance.now() - this.netAnimationStartAt;
+        const t = Math.max(0, Math.min(1, elapsed / this.netAnimationDurationMs));
+        const eased = t < 0.5
+            ? 2 * t * t
+            : 1 - Math.pow(-2 * t + 2, 2) / 2;
+        const zoom = this.netZoomStart + (this.netZoomEnd - this.netZoomStart) * eased;
+        this.camera.zoom = zoom;
+        this.camera.updateProjectionMatrix();
+        if (t >= 1) {
+            this.netAnimationZoomActive = false;
+        }
+    }
+
+    computeNetBounds() {
+        const meshes = Array.from(this.cube.faceMeshes.values());
+        let initialized = false;
+        const bounds = new THREE.Box3();
+        meshes.forEach((mesh) => {
+            if (!mesh.visible) return;
+            const meshBounds = new THREE.Box3().setFromObject(mesh);
+            if (!initialized) {
+                bounds.copy(meshBounds);
+                initialized = true;
+                return;
+            }
+            bounds.union(meshBounds);
+        });
+        return initialized ? bounds : null;
+    }
+
+    computeNetBoundsForProgress(faceProgress?: Map<string, number>, fallbackProgress = 0) {
+        if (!this.currentNetPlan) return null;
+        const snapshots: Array<{ mesh: THREE.Mesh; position: THREE.Vector3; quaternion: THREE.Quaternion }> = [];
+        this.cube.faceMeshes.forEach((mesh) => {
+            snapshots.push({
+                mesh,
+                position: mesh.position.clone(),
+                quaternion: mesh.quaternion.clone()
+            });
+        });
+        this.cube.applyNetPlan(this.currentNetPlan, fallbackProgress, faceProgress);
         const bounds = this.computeNetBounds();
-        if (!bounds) return;
+        snapshots.forEach(({ mesh, position, quaternion }) => {
+            mesh.position.copy(position);
+            mesh.quaternion.copy(quaternion);
+        });
+        return bounds;
+    }
+
+    computeZoomForBounds(
+        bounds: THREE.Box3,
+        cameraPosition: THREE.Vector3,
+        cameraTarget: THREE.Vector3,
+        cameraUp: THREE.Vector3
+    ) {
+        const originalPosition = this.camera.position.clone();
+        const originalTarget = this.controls.target.clone();
+        const originalUp = this.camera.up.clone();
+        const originalZoom = this.camera.zoom;
+        this.camera.position.copy(cameraPosition);
+        this.controls.target.copy(cameraTarget);
+        this.camera.up.copy(cameraUp);
+        this.camera.lookAt(this.controls.target);
+        this.camera.updateMatrixWorld(true);
+        this.camera.updateProjectionMatrix();
         const corners = [
             new THREE.Vector3(bounds.min.x, bounds.min.y, bounds.min.z),
             new THREE.Vector3(bounds.min.x, bounds.min.y, bounds.max.z),
@@ -1602,38 +1746,31 @@ class App {
         });
         const width = maxX - minX;
         const height = maxY - minY;
-        if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
         const viewWidth = this.camera.right - this.camera.left;
         const viewHeight = this.camera.top - this.camera.bottom;
-        const padding = 0.9;
-        let targetZoom = Math.min(viewWidth / width, viewHeight / height) * padding;
-        targetZoom = Math.max(0.3, Math.min(2.5, targetZoom));
-        const zoomNext = this.camera.zoom + (targetZoom - this.camera.zoom) * 0.08;
-        this.camera.zoom = zoomNext;
+        const padding = 0.82;
+        let targetZoom = this.defaultCameraZoom;
+        if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+            targetZoom = Math.min(viewWidth / width, viewHeight / height) * padding;
+            targetZoom = Math.max(0.3, Math.min(2.5, targetZoom));
+        }
+        this.camera.position.copy(originalPosition);
+        this.controls.target.copy(originalTarget);
+        this.camera.up.copy(originalUp);
+        this.camera.zoom = originalZoom;
+        this.camera.lookAt(this.controls.target);
+        this.camera.updateMatrixWorld(true);
         this.camera.updateProjectionMatrix();
-    }
-
-    computeNetBounds() {
-        const meshes = Array.from(this.cube.faceMeshes.values());
-        let initialized = false;
-        const bounds = new THREE.Box3();
-        meshes.forEach((mesh) => {
-            if (!mesh.visible) return;
-            const meshBounds = new THREE.Box3().setFromObject(mesh);
-            if (!initialized) {
-                bounds.copy(meshBounds);
-                initialized = true;
-                return;
-            }
-            bounds.union(meshBounds);
-        });
-        return initialized ? bounds : null;
+        return targetZoom;
     }
 
     handleFlipCutClick() {
-        this.cutter.flipCut();
-        const solid = this.objectModelManager.getModel()?.ssot || null;
-        this.cutService.syncFromCutterResult(solid);
+        const snapIds = this.cutter.getLastSnapIds();
+        if (!snapIds || snapIds.length < 3) return;
+        this.cutter.setCutInverted(!this.cutter.isCutInverted(), false);
+        this.objectModelManager.syncFromCube();
+        const solid = this.objectModelManager.getModel()?.ssot;
+        this.cutService.executeCut({ snapIds, structure: solid });
     }
 
     handleToggleNetClick() {
@@ -1647,7 +1784,11 @@ class App {
             if (nextVisible) {
                 const model = this.objectModelManager.getModel();
                 if (model) {
-                    this.currentNetPlan = this.netManager.generateNetPlan(model.ssot);
+                    this.currentNetPlan = this.netManager.generateNetPlan(model.ssot, {
+                        topologyIndex: model.derived.topologyIndex,
+                        faceAdjacency: model.derived.cut?.faceAdjacency,
+                        vertexSnapMap: model.derived.cut?.vertexSnapMap
+                    });
                 }
                 this.netManager.show();
                 this.startNetUnfoldLegacy();
@@ -1670,7 +1811,11 @@ class App {
             }
             const model = this.objectModelManager.getModel();
             if (model) {
-                this.currentNetPlan = this.netManager.generateNetPlan(model.ssot);
+                this.currentNetPlan = this.netManager.generateNetPlan(model.ssot, {
+                    topologyIndex: model.derived.topologyIndex,
+                    faceAdjacency: model.derived.cut?.faceAdjacency,
+                    vertexSnapMap: model.derived.cut?.vertexSnapMap
+                });
             }
             this.netManager.show();
             this.startNetUnfold();
@@ -1766,7 +1911,7 @@ class App {
             }
         }
         this.updateNetUnfoldAnimation();
-        this.updateNetCameraFit();
+        this.updateNetCameraZoom();
         if (this.isCameraAnimating && this.cameraTargetPosition) {
             this.camera.position.lerp(this.cameraTargetPosition, 0.05);
             if (this.camera.position.distanceTo(this.cameraTargetPosition) < 0.1) {
