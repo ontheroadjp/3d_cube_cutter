@@ -175,9 +175,11 @@ class App {
         const baseDistance = baseCameraPosition.length();
         const yawRight = THREE.MathUtils.degToRad(15);
         const pitchUp = THREE.MathUtils.degToRad(10);
-        const baseDir = new THREE.Vector3(0, 0, 1)
-            .applyAxisAngle(new THREE.Vector3(0, 1, 0), yawRight)
-            .applyAxisAngle(new THREE.Vector3(1, 0, 0), pitchUp);
+        const baseDir = new THREE.Vector3(
+            Math.tan(yawRight),
+            Math.tan(pitchUp),
+            1
+        ).normalize();
         this.defaultCameraPosition = baseDir.multiplyScalar(baseDistance);
         this.defaultCameraTarget = new THREE.Vector3(0, 0, 0);
         this.defaultCameraZoom = 1;
@@ -280,6 +282,7 @@ class App {
         this.mainLight.target.position.set(0, 0, 0);
         this.scene.add(this.mainLight);
         this.scene.add(this.mainLight.target);
+        console.info('[init] camera', this.camera.position.toArray(), 'target', this.controls.target.toArray(), 'light', this.mainLight.position.toArray());
 
         const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0x808080, transparent: true, opacity: 0.7 });
         this.midPointHighlightMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.7 });

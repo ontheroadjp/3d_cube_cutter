@@ -111,6 +111,20 @@ export class Cube {
   // Cache for the last synced model state to avoid redundant updates
   private lastModelHash: string | null = null;
 
+  private computeSolidCenter(ssot: ObjectModel['ssot']) {
+    if (!this.resolver) return new THREE.Vector3();
+    const center = new THREE.Vector3();
+    let count = 0;
+    Object.keys(ssot.vertices).forEach((vertexId) => {
+      const pos = this.resolver!.resolveVertex(vertexId);
+      if (!pos) return;
+      center.add(pos);
+      count += 1;
+    });
+    if (count === 0) return new THREE.Vector3();
+    return center.divideScalar(count);
+  }
+
   /**
    * Main entry point for updating the 3D scene from the ObjectModel.
    * This implements the structure-first rendering pipeline.
@@ -254,6 +268,7 @@ export class Cube {
   private syncFaces(model: ObjectModel) {
     const { ssot, presentation } = model;
     const currentIds = new Set(Object.keys(ssot.faces));
+    const solidCenter = this.computeSolidCenter(ssot);
 
     // Remove old faces
     for (const [id, mesh] of this.faceMeshes) {
@@ -290,7 +305,7 @@ export class Cube {
       
       if (vertices.length < 3) return;
 
-      const geometry = this.createFaceGeometry(vertices);
+      const geometry = this.createFaceGeometry(vertices, solidCenter);
       const facePres = presentation.faces[face.id];
       const material = this.createFaceMaterial(face.id, facePres);
 
@@ -469,16 +484,27 @@ export class Cube {
 
   // --- Helper Methods ---
 
-  private createFaceGeometry(vertices: THREE.Vector3[]) {
+  private createFaceGeometry(vertices: THREE.Vector3[], solidCenter: THREE.Vector3) {
     const geometry = new THREE.BufferGeometry();
     const center = vertices.reduce((acc, v) => acc.add(v), new THREE.Vector3()).divideScalar(vertices.length);
-    
+    const outward = center.clone().sub(solidCenter).normalize();
+    const oriented = vertices.slice();
+    if (oriented.length >= 3) {
+      const normal = new THREE.Vector3()
+        .subVectors(oriented[1], oriented[0])
+        .cross(new THREE.Vector3().subVectors(oriented[2], oriented[0]))
+        .normalize();
+      if (normal.dot(outward) < 0) {
+        oriented.reverse();
+      }
+    }
+
     // Simplistic triangulation for convex polygons (common in cube cutting)
     const positions: number[] = [];
-    for (let i = 1; i < vertices.length - 1; i++) {
-      positions.push(vertices[0].x, vertices[0].y, vertices[0].z);
-      positions.push(vertices[i].x, vertices[i].y, vertices[i].z);
-      positions.push(vertices[i + 1].x, vertices[i + 1].y, vertices[i + 1].z);
+    for (let i = 1; i < oriented.length - 1; i++) {
+      positions.push(oriented[0].x, oriented[0].y, oriented[0].z);
+      positions.push(oriented[i].x, oriented[i].y, oriented[i].z);
+      positions.push(oriented[i + 1].x, oriented[i + 1].y, oriented[i + 1].z);
     }
     
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
