@@ -31,7 +31,7 @@ import {
 } from './objectModel.js';
 import { buildObjectModelData } from './objectModelBuilder.js';
 import { buildTopologyIndex } from './topologyIndex.js';
-import { normalizeSnapPointId, parseSnapPointId } from '../geometry/snapPointId.js';
+import { canonicalizeSnapPointId, normalizeSnapPointId, parseSnapPointId } from '../geometry/snapPointId.js';
 import { buildCubeStructure } from '../structure/structureModel.js';
 
 const DEFAULT_DISPLAY: DisplayState = {
@@ -52,7 +52,8 @@ const createDefaultCutDerived = (): CutDerived => ({
   intersections: [],
   cutSegments: [],
   facePolygons: [],
-  faceAdjacency: []
+  faceAdjacency: [],
+  vertexSnapMap: {}
 });
 
 
@@ -305,6 +306,7 @@ export class ObjectModelManager {
           this.model.derived.cut.showCutSurface = this.model.presentation.display.showCutSurface;
       }
     }
+    this.resolver.setVertexSnapMap(null);
   }
 
   getCutIntersections() {
@@ -381,8 +383,20 @@ export class ObjectModelManager {
     const newPresVertices: Record<VertexID, VertexPresentation> = {};
     const newPresEdges: Record<EdgeID, EdgePresentation> = {};
     const newPresFaces: Record<FaceID, FacePresentation> = {};
+    const vertexSnapMap: Record<VertexID, SnapPointID> = {};
+    const snapToVertexId = new Map<SnapPointID, VertexID>();
+    let nextVertexIndex = 1000;
 
-    const toVertexId = (id: string) => (id.startsWith('V:') ? id : `V:${id}`);
+    const toVertexId = (snapId: SnapPointID) => {
+      const canonical = canonicalizeSnapPointId(snapId) || snapId;
+      if (canonical.startsWith('V:')) return canonical;
+      const cached = snapToVertexId.get(canonical);
+      if (cached) return cached;
+      const vertexId = `V:${nextVertexIndex++}`;
+      snapToVertexId.set(canonical, vertexId);
+      vertexSnapMap[vertexId] = canonical;
+      return vertexId;
+    };
 
     facePolygons.forEach(poly => {
       const faceId = poly.faceId;
@@ -423,6 +437,11 @@ export class ObjectModelManager {
     this.model.presentation.faces = newPresFaces;
     this.model.presentation.edges = newPresEdges;
     this.model.presentation.vertices = newPresVertices;
+
+    if (this.model.derived.cut) {
+      this.model.derived.cut.vertexSnapMap = vertexSnapMap;
+    }
+    this.resolver.setVertexSnapMap(vertexSnapMap);
 
     this.rebuildTopologyIndex();
   }

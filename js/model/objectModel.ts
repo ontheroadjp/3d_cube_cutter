@@ -104,6 +104,7 @@ export type CutDerived = {
   cutSegments: ObjectCutSegment[];
   facePolygons: CutFacePolygon[];
   faceAdjacency: ObjectCutAdjacency[];
+  vertexSnapMap?: Record<VertexID, SnapPointID>;
 };
 
 export type ObjectNetFace = {

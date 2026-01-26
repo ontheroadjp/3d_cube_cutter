@@ -10,6 +10,7 @@ export class GeometryResolver {
   axis: { x: THREE.Vector3; y: THREE.Vector3; z: THREE.Vector3 };
   indexMap: Record<string, { x: number; y: number; z: number }>;
   labelMap: Record<string, string> | null;
+  vertexSnapMap: Record<string, SnapPointID>;
 
   constructor({
     size,
@@ -33,6 +34,7 @@ export class GeometryResolver {
     };
     this.indexMap = indexMap || getDefaultIndexMap();
     this.labelMap = labelMap || null;
+    this.vertexSnapMap = {};
   }
 
   setSize(size: Partial<CubeSize>) {
@@ -43,11 +45,19 @@ export class GeometryResolver {
     this.labelMap = labelMap || null;
   }
 
+  setVertexSnapMap(map: Record<string, SnapPointID> | null) {
+    this.vertexSnapMap = map || {};
+  }
+
   resolveVertex(vertexId: string) {
     if (!vertexId || !vertexId.startsWith('V:')) return null;
     const index = vertexId.slice(2);
     const sign = this.indexMap[index];
-    if (!sign) return null;
+    if (!sign) {
+      const mapped = this.vertexSnapMap[vertexId];
+      if (mapped) return this.resolveSnapPoint(mapped);
+      return null;
+    }
     const { lx, ly, lz } = this.size;
     const half = new THREE.Vector3(
       (sign.x * lx) / 2,
