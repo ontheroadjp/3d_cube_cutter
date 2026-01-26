@@ -16,6 +16,8 @@ export class Cube {
   faceMeshes: Map<FaceID, THREE.Mesh>;
   faceOutlines: Map<FaceID, THREE.LineSegments>;
   faceOutlineVisible: boolean;
+  faceColorCache: Map<FaceID, number>;
+  faceColorPalette: number[];
   edgeLines: Map<EdgeID, THREE.Line>;
   vertexHitboxes: Map<VertexID, THREE.Mesh>;
   edgeHitboxes: Map<EdgeID, THREE.Mesh>;
@@ -74,6 +76,21 @@ export class Cube {
     this.faceMeshes = new Map();
     this.faceOutlines = new Map();
     this.faceOutlineVisible = false;
+    this.faceColorCache = new Map();
+    this.faceColorPalette = [
+        0xa6cee3,
+        0xb2df8a,
+        0xfdbf6f,
+        0xcab2d6,
+        0xffffb3,
+        0xb3de69,
+        0xfccde5,
+        0x8dd3c7,
+        0xbebada,
+        0xfb8072,
+        0x80b1d3,
+        0xfed9a6
+    ];
     this.edgeLines = new Map();
     this.vertexHitboxes = new Map();
     this.edgeHitboxes = new Map();
@@ -267,7 +284,7 @@ export class Cube {
 
       const geometry = this.createFaceGeometry(vertices);
       const facePres = presentation.faces[face.id];
-      const material = this.createFaceMaterial(facePres);
+      const material = this.createFaceMaterial(face.id, facePres);
 
       if (!mesh) {
         mesh = new THREE.Mesh(geometry, material);
@@ -432,10 +449,25 @@ export class Cube {
     return geometry;
   }
 
-  private createFaceMaterial(pres?: any) {
+  private getFaceBaseColor(faceId: FaceID, pres?: any) {
+    if (pres?.isCutFace) return 0xffcccc;
+    const cached = this.faceColorCache.get(faceId);
+    if (typeof cached === 'number') return cached;
+    let hash = 0;
+    for (let i = 0; i < faceId.length; i++) {
+      hash = ((hash << 5) - hash) + faceId.charCodeAt(i);
+      hash |= 0;
+    }
+    const index = Math.abs(hash) % this.faceColorPalette.length;
+    const color = this.faceColorPalette[index];
+    this.faceColorCache.set(faceId, color);
+    return color;
+  }
+
+  private createFaceMaterial(faceId: FaceID, pres?: any) {
     const isCutFace = pres?.isCutFace;
     return new THREE.MeshPhongMaterial({
-      color: isCutFace ? 0xffcccc : 0x66ccff,
+      color: this.getFaceBaseColor(faceId, pres),
       transparent: true,
       opacity: 0.4,
       depthWrite: false,

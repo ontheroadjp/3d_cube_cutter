@@ -61,6 +61,7 @@ class App {
     camera: THREE.OrthographicCamera;
     renderer: THREE.WebGLRenderer;
     controls: OrbitControls;
+    mainLight: THREE.DirectionalLight;
     raycaster: THREE.Raycaster;
     midPointHighlightMaterial: THREE.MeshBasicMaterial;
     highlightMarker: THREE.Mesh;
@@ -273,10 +274,12 @@ class App {
         this.raycaster = new THREE.Raycaster();
 
         // --- Lights and Helpers ---
-        this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-        const light = new THREE.DirectionalLight(0xffffff, 0.6);
-        light.position.set(5, 5, 5);
-        this.scene.add(light);
+        this.scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        this.mainLight = new THREE.DirectionalLight(0xffffff, 0.7);
+        this.mainLight.position.copy(this.camera.position);
+        this.mainLight.target.position.copy(this.controls.target);
+        this.scene.add(this.mainLight);
+        this.scene.add(this.mainLight.target);
 
         const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0x808080, transparent: true, opacity: 0.7 });
         this.midPointHighlightMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.7 });
@@ -2407,6 +2410,9 @@ class App {
     // --- Animation Loop ---
     animate() {
         requestAnimationFrame(this.animate.bind(this));
+        this.mainLight.position.copy(this.camera.position);
+        this.mainLight.target.position.copy(this.controls.target);
+        this.mainLight.target.updateMatrixWorld();
         if (this.layoutTransitionActive) {
             const elapsed = performance.now() - this.layoutTransitionStart;
             const t = Math.min(1, elapsed / this.layoutTransitionDuration);
