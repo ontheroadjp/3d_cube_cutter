@@ -123,6 +123,17 @@ class App {
     netCameraTopPosition: THREE.Vector3;
     netCameraObliquePosition: THREE.Vector3;
     netCameraUp: THREE.Vector3;
+    netPreCameraActive: boolean;
+    netPreCameraStartAt: number;
+    netPreCameraDurationMs: number;
+    netPreCameraStartPos: THREE.Vector3;
+    netPreCameraStartTarget: THREE.Vector3;
+    netPreCameraStartUp: THREE.Vector3;
+    netPreCameraEndPos: THREE.Vector3;
+    netPreCameraEndTarget: THREE.Vector3;
+    netPreCameraEndUp: THREE.Vector3;
+    netPreCameraTempUp: THREE.Vector3;
+    netPreCameraOnComplete: (() => void) | null;
     layoutPanelOffset: number;
     layoutTargetPanelOffset: number;
     layoutTransitionStart: number;
@@ -188,6 +199,17 @@ class App {
         this.netCameraTopPosition = new THREE.Vector3();
         this.netCameraObliquePosition = new THREE.Vector3();
         this.netCameraUp = new THREE.Vector3(0, 1, 0);
+        this.netPreCameraActive = false;
+        this.netPreCameraStartAt = 0;
+        this.netPreCameraDurationMs = 0;
+        this.netPreCameraStartPos = new THREE.Vector3();
+        this.netPreCameraStartTarget = new THREE.Vector3();
+        this.netPreCameraStartUp = new THREE.Vector3(0, 1, 0);
+        this.netPreCameraEndPos = new THREE.Vector3();
+        this.netPreCameraEndTarget = new THREE.Vector3();
+        this.netPreCameraEndUp = new THREE.Vector3(0, 1, 0);
+        this.netPreCameraTempUp = new THREE.Vector3();
+        this.netPreCameraOnComplete = null;
         this.layoutPanelOffset = 0;
         this.layoutTargetPanelOffset = 0;
         this.layoutTransitionStart = 0;
@@ -433,6 +455,8 @@ class App {
         this.netSelectionActive = false;
         this.netRootFaceId = null;
         this.clearNetFaceHighlights();
+        this.netPreCameraActive = false;
+        this.netPreCameraOnComplete = null;
         if (this.netAnimationPlayer.isPlaying()) {
             this.netAnimationPlayer.stop();
             this.resetNetAnimationCaches();
@@ -1857,13 +1881,17 @@ class App {
         if (!mesh) return;
         const material = mesh.material;
         if (!(material instanceof THREE.MeshPhongMaterial)) return;
+        if (mesh.userData && mesh.userData.originalColor === undefined) {
+            mesh.userData.originalColor = material.color.getHex();
+        }
         if (kind === 'none') {
-            material.emissive.setHex(0x000000);
-            material.emissiveIntensity = 0;
+            const baseColor = mesh.userData ? mesh.userData.originalColor : null;
+            if (typeof baseColor === 'number') {
+                material.color.setHex(baseColor);
+            }
             return;
         }
-        material.emissive.setHex(kind === 'selected' ? 0x444400 : 0x333333);
-        material.emissiveIntensity = kind === 'selected' ? 0.8 : 0.5;
+        material.color.setHex(kind === 'selected' ? 0xffaa33 : 0xffcc55);
     }
 
     clearNetFaceHighlights() {
@@ -1885,6 +1913,29 @@ class App {
         this.snappedPointInfo = null;
         document.body.style.cursor = 'pointer';
         this.ui.showMessage("底面を選択してください。", "info");
+    }
+
+    startNetPreCameraMove({
+        endPos,
+        endTarget,
+        endUp,
+        onComplete
+    }: {
+        endPos: THREE.Vector3;
+        endTarget: THREE.Vector3;
+        endUp: THREE.Vector3;
+        onComplete: () => void;
+    }) {
+        this.netPreCameraActive = true;
+        this.netPreCameraStartAt = performance.now();
+        this.netPreCameraDurationMs = 650;
+        this.netPreCameraStartPos.copy(this.camera.position);
+        this.netPreCameraStartTarget.copy(this.controls.target);
+        this.netPreCameraStartUp.copy(this.camera.up);
+        this.netPreCameraEndPos.copy(endPos);
+        this.netPreCameraEndTarget.copy(endTarget);
+        this.netPreCameraEndUp.copy(endUp);
+        this.netPreCameraOnComplete = onComplete;
     }
 
     cancelNetBaseSelection() {
@@ -1941,16 +1992,29 @@ class App {
             });
         }
         this.netManager.show();
-        this.positionCameraForNetOblique();
-        this.startNetUnfold();
-        const solid = this.objectModelManager.getModel()?.ssot;
-        if (solid) {
-            this.netManager.update(this.objectModelManager.getCutSegments(), solid, this.resolver);
+        const pose = this.getNetCameraPose();
+        if (pose) {
+            this.startNetPreCameraMove({
+                endPos: pose.obliquePosition.clone(),
+                endTarget: pose.center.clone(),
+                endUp: pose.up.clone(),
+                onComplete: () => {
+                    this.startNetUnfold();
+                    const solid = this.objectModelManager.getModel()?.ssot;
+                    if (solid) {
+                        this.netManager.update(this.objectModelManager.getCutSegments(), solid, this.resolver);
+                    }
+                    this.ui.showMessage("底面を確定しました。展開します。", "info");
+                }
+            });
+        } else {
+            this.positionCameraForNetOblique();
+            this.startNetUnfold();
         }
-        this.ui.showMessage("底面を確定しました。展開します。", "info");
     }
 
     handleNetSelectionClick(e: MouseEvent) {
+        if (this.netAnimationPlayer.isPlaying() || this.netPreCameraActive) return;
         const faceId = this.pickNetFaceIdFromEvent(e);
         if (!faceId) return;
         this.openNetWithRoot(faceId);
@@ -2064,6 +2128,27 @@ class App {
         }
         this.updateNetUnfoldAnimation();
         this.updateNetCameraZoom();
+        if (this.netPreCameraActive) {
+            const elapsed = performance.now() - this.netPreCameraStartAt;
+            const t = Math.max(0, Math.min(1, elapsed / this.netPreCameraDurationMs));
+            const eased = t < 0.5
+                ? 2 * t * t
+                : 1 - Math.pow(-2 * t + 2, 2) / 2;
+            this.camera.position.lerpVectors(this.netPreCameraStartPos, this.netPreCameraEndPos, eased);
+            this.controls.target.lerpVectors(this.netPreCameraStartTarget, this.netPreCameraEndTarget, eased);
+            this.netPreCameraTempUp.copy(this.netPreCameraStartUp)
+                .lerp(this.netPreCameraEndUp, eased)
+                .normalize();
+            this.camera.up.copy(this.netPreCameraTempUp);
+            this.camera.lookAt(this.controls.target);
+            this.camera.updateProjectionMatrix();
+            if (t >= 1) {
+                this.netPreCameraActive = false;
+                const onComplete = this.netPreCameraOnComplete;
+                this.netPreCameraOnComplete = null;
+                if (onComplete) onComplete();
+            }
+        }
         if (this.isCameraAnimating && this.cameraTargetPosition) {
             this.camera.position.lerp(this.cameraTargetPosition, 0.05);
             if (this.camera.position.distanceTo(this.cameraTargetPosition) < 0.1) {
