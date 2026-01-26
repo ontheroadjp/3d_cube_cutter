@@ -1,0 +1,44 @@
+{
+  "id": "text-audio-template",
+  "version": 1,
+  "timeline": [
+    {
+      "id": "show-text",
+      "at": 0,
+      "duration": 0.2,
+      "ease": "easeOutCubic",
+      "action": "showText",
+      "targets": { "type": "htmlOverlay", "ids": ["text-1"] },
+      "params": {
+        "textId": "text-1",
+        "content": "切断面の形に注目しよう。",
+        "position": { "x": 24, "y": 24 },
+        "style": { "fontSize": "16px", "color": "#222222" }
+      }
+    },
+    {
+      "id": "play-audio",
+      "at": 0.1,
+      "duration": 0.6,
+      "action": "playSound",
+      "targets": { "type": "audioChannel", "ids": ["voice-1"] },
+      "params": { "soundId": "voice-1", "volume": 0.8 }
+    },
+    {
+      "id": "hide-text",
+      "at": 1.0,
+      "duration": 0.2,
+      "action": "hideText",
+      "targets": { "type": "htmlOverlay", "ids": ["text-1"] },
+      "params": { "textId": "text-1" }
+    },
+    {
+      "id": "stop-audio",
+      "at": 1.0,
+      "duration": 0,
+      "action": "stopSound",
+      "targets": { "type": "audioChannel", "ids": ["voice-1"] },
+      "params": { "soundId": "voice-1" }
+    }
+  ]
+}

@@ -14,6 +14,11 @@ export class Cube {
   
   // Storage for Three.js objects mapped by structural IDs
   faceMeshes: Map<FaceID, THREE.Mesh>;
+  faceOutlines: Map<FaceID, THREE.LineSegments>;
+  faceHiddenOutlines: Map<FaceID, THREE.LineSegments>;
+  faceOutlineVisible: boolean;
+  faceColorCache: Map<FaceID, number>;
+  faceColorPalette: number[];
   edgeLines: Map<EdgeID, THREE.Line>;
   vertexHitboxes: Map<VertexID, THREE.Mesh>;
   edgeHitboxes: Map<EdgeID, THREE.Mesh>;
@@ -70,6 +75,24 @@ export class Cube {
     this.displayLabelMap = null;
 
     this.faceMeshes = new Map();
+    this.faceOutlines = new Map();
+    this.faceHiddenOutlines = new Map();
+    this.faceOutlineVisible = false;
+    this.faceColorCache = new Map();
+    this.faceColorPalette = [
+        0xa6cee3,
+        0xb2df8a,
+        0xfdbf6f,
+        0xcab2d6,
+        0xffffb3,
+        0xb3de69,
+        0xfccde5,
+        0x8dd3c7,
+        0xbebada,
+        0xfb8072,
+        0x80b1d3,
+        0xfed9a6
+    ];
     this.edgeLines = new Map();
     this.vertexHitboxes = new Map();
     this.edgeHitboxes = new Map();
@@ -87,6 +110,20 @@ export class Cube {
 
   // Cache for the last synced model state to avoid redundant updates
   private lastModelHash: string | null = null;
+
+  private computeSolidCenter(ssot: ObjectModel['ssot']) {
+    if (!this.resolver) return new THREE.Vector3();
+    const center = new THREE.Vector3();
+    let count = 0;
+    Object.keys(ssot.vertices).forEach((vertexId) => {
+      const pos = this.resolver!.resolveVertex(vertexId);
+      if (!pos) return;
+      center.add(pos);
+      count += 1;
+    });
+    if (count === 0) return new THREE.Vector3();
+    return center.divideScalar(count);
+  }
 
   /**
    * Main entry point for updating the 3D scene from the ObjectModel.
@@ -122,12 +159,24 @@ export class Cube {
    * Applies unfolding/folding transformation to faces based on a NetPlan.
    * Moves faces relative to the root face.
    */
-  applyNetPlan(plan: any, progress: number) {
+  applyNetPlan(
+    plan: any,
+    progress: number,
+    faceProgress?: Map<FaceID, number> | Record<string, number>
+  ) {
     if (!plan || !this.resolver) return;
 
     const { rootFaceId, hinges } = plan;
     // Map to store world poses of each face during unfolding
     const worldPoses = new Map<string, { position: THREE.Vector3, quaternion: THREE.Quaternion }>();
+    const progressForFace = (faceId: FaceID) => {
+      if (!faceProgress) return progress;
+      if (faceProgress instanceof Map) {
+        return faceProgress.get(faceId) ?? 0;
+      }
+      const value = faceProgress[faceId];
+      return typeof value === 'number' ? value : 0;
+    };
 
     // Root face stays at origin (local frame)
     worldPoses.set(rootFaceId, {
@@ -160,6 +209,8 @@ export class Cube {
       let angle = Math.PI / 2; // Default fallback
       let axis = edge.end.clone().sub(edge.start).normalize();
 
+      const faceProgressValue = progressForFace(hinge.childFaceId);
+
       if (parentFaceInfo && childFaceInfo) {
           const np = parentFaceInfo.normal;
           const nc = childFaceInfo.normal;
@@ -174,9 +225,9 @@ export class Cube {
           const testNc = nc.clone().applyQuaternion(testRot);
           const sign = np.dot(testNc) > dot ? 1 : -1;
           
-          angle = sign * unfoldAngle * progress;
+          angle = sign * unfoldAngle * faceProgressValue;
       } else {
-          angle = (Math.PI / 2) * progress;
+          angle = (Math.PI / 2) * faceProgressValue;
       }
       
       const qRot = new THREE.Quaternion().setFromAxisAngle(axis, angle);
@@ -217,6 +268,7 @@ export class Cube {
   private syncFaces(model: ObjectModel) {
     const { ssot, presentation } = model;
     const currentIds = new Set(Object.keys(ssot.faces));
+    const solidCenter = this.computeSolidCenter(ssot);
 
     // Remove old faces
     for (const [id, mesh] of this.faceMeshes) {
@@ -224,6 +276,19 @@ export class Cube {
         this.scene.remove(mesh);
         mesh.geometry.dispose();
         this.faceMeshes.delete(id);
+
+        const outline = this.faceOutlines.get(id);
+        if (outline) {
+            mesh.remove(outline);
+            outline.geometry.dispose();
+            this.faceOutlines.delete(id);
+        }
+        const hiddenOutline = this.faceHiddenOutlines.get(id);
+        if (hiddenOutline) {
+            mesh.remove(hiddenOutline);
+            hiddenOutline.geometry.dispose();
+            this.faceHiddenOutlines.delete(id);
+        }
         
         const label = this.faceLabels.get(id);
         if (label) {
@@ -240,9 +305,9 @@ export class Cube {
       
       if (vertices.length < 3) return;
 
-      const geometry = this.createFaceGeometry(vertices);
+      const geometry = this.createFaceGeometry(vertices, solidCenter);
       const facePres = presentation.faces[face.id];
-      const material = this.createFaceMaterial(facePres);
+      const material = this.createFaceMaterial(face.id, facePres);
 
       if (!mesh) {
         mesh = new THREE.Mesh(geometry, material);
@@ -260,7 +325,65 @@ export class Cube {
 
       // Sync labels
       this.syncFaceLabel(face.id, vertices, presentation.display.showFaceLabels);
+
+      // Sync outline
+      let outline = this.faceOutlines.get(face.id);
+      let hiddenOutline = this.faceHiddenOutlines.get(face.id);
+      const edgesGeometry = new THREE.EdgesGeometry(geometry);
+      if (!outline) {
+          outline = new THREE.LineSegments(
+              edgesGeometry,
+              new THREE.LineBasicMaterial({
+                  color: 0xcccccc,
+                  transparent: true,
+                  opacity: 0.6,
+                  depthWrite: false
+              })
+          );
+          outline.renderOrder = 2;
+          outline.visible = this.faceOutlineVisible;
+          mesh.add(outline);
+          this.faceOutlines.set(face.id, outline);
+      } else {
+          outline.geometry.dispose();
+          outline.geometry = edgesGeometry;
+          outline.visible = this.faceOutlineVisible;
+      }
+      if (!hiddenOutline) {
+          const hiddenGeometry = edgesGeometry.clone();
+          const hiddenMaterial = new THREE.LineDashedMaterial({
+              color: 0xaaaaaa,
+              transparent: true,
+              opacity: 0.4,
+              dashSize: 0.8,
+              gapSize: 0.6,
+              depthWrite: false,
+              depthTest: false
+          });
+          hiddenOutline = new THREE.LineSegments(hiddenGeometry, hiddenMaterial);
+          hiddenOutline.computeLineDistances();
+          hiddenOutline.renderOrder = 1;
+          hiddenOutline.visible = this.faceOutlineVisible;
+          mesh.add(hiddenOutline);
+          this.faceHiddenOutlines.set(face.id, hiddenOutline);
+      } else {
+          hiddenOutline.geometry.dispose();
+          const hiddenGeometry = edgesGeometry.clone();
+          hiddenOutline.geometry = hiddenGeometry;
+          hiddenOutline.computeLineDistances();
+          hiddenOutline.visible = this.faceOutlineVisible;
+      }
     });
+  }
+
+  setFaceOutlineVisible(visible: boolean) {
+      this.faceOutlineVisible = !!visible;
+      this.faceOutlines.forEach(outline => {
+          outline.visible = this.faceOutlineVisible;
+      });
+      this.faceHiddenOutlines.forEach(outline => {
+          outline.visible = this.faceOutlineVisible;
+      });
   }
 
   private syncEdges(model: ObjectModel) {
@@ -361,16 +484,27 @@ export class Cube {
 
   // --- Helper Methods ---
 
-  private createFaceGeometry(vertices: THREE.Vector3[]) {
+  private createFaceGeometry(vertices: THREE.Vector3[], solidCenter: THREE.Vector3) {
     const geometry = new THREE.BufferGeometry();
     const center = vertices.reduce((acc, v) => acc.add(v), new THREE.Vector3()).divideScalar(vertices.length);
-    
+    const outward = center.clone().sub(solidCenter).normalize();
+    const oriented = vertices.slice();
+    if (oriented.length >= 3) {
+      const normal = new THREE.Vector3()
+        .subVectors(oriented[1], oriented[0])
+        .cross(new THREE.Vector3().subVectors(oriented[2], oriented[0]))
+        .normalize();
+      if (normal.dot(outward) < 0) {
+        oriented.reverse();
+      }
+    }
+
     // Simplistic triangulation for convex polygons (common in cube cutting)
     const positions: number[] = [];
-    for (let i = 1; i < vertices.length - 1; i++) {
-      positions.push(vertices[0].x, vertices[0].y, vertices[0].z);
-      positions.push(vertices[i].x, vertices[i].y, vertices[i].z);
-      positions.push(vertices[i + 1].x, vertices[i + 1].y, vertices[i + 1].z);
+    for (let i = 1; i < oriented.length - 1; i++) {
+      positions.push(oriented[0].x, oriented[0].y, oriented[0].z);
+      positions.push(oriented[i].x, oriented[i].y, oriented[i].z);
+      positions.push(oriented[i + 1].x, oriented[i + 1].y, oriented[i + 1].z);
     }
     
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
@@ -378,10 +512,25 @@ export class Cube {
     return geometry;
   }
 
-  private createFaceMaterial(pres?: any) {
+  private getFaceBaseColor(faceId: FaceID, pres?: any) {
+    if (pres?.isCutFace) return 0xffcccc;
+    const cached = this.faceColorCache.get(faceId);
+    if (typeof cached === 'number') return cached;
+    let hash = 0;
+    for (let i = 0; i < faceId.length; i++) {
+      hash = ((hash << 5) - hash) + faceId.charCodeAt(i);
+      hash |= 0;
+    }
+    const index = Math.abs(hash) % this.faceColorPalette.length;
+    const color = this.faceColorPalette[index];
+    this.faceColorCache.set(faceId, color);
+    return color;
+  }
+
+  private createFaceMaterial(faceId: FaceID, pres?: any) {
     const isCutFace = pres?.isCutFace;
     return new THREE.MeshPhongMaterial({
-      color: isCutFace ? 0xffcccc : 0x66ccff,
+      color: this.getFaceBaseColor(faceId, pres),
       transparent: true,
       opacity: 0.4,
       depthWrite: false,

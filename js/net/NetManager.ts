@@ -1,8 +1,20 @@
 import * as THREE from 'three';
 import { parseSnapPointId, normalizeSnapPointId } from '../geometry/snapPointId.js';
 import type { SnapPointID, CutFacePolygon } from '../types.js';
-import type { SolidSSOT, NetPlan, NetHinge, NetDerived, VertexID, EdgeID, FaceID } from '../model/objectModel.js';
+import type {
+    SolidSSOT,
+    NetPlan,
+    NetHinge,
+    NetDerived,
+    VertexID,
+    EdgeID,
+    FaceID,
+    TopologyIndex,
+    ObjectCutAdjacency,
+} from '../model/objectModel.js';
 import type { GeometryResolver } from '../geometry/GeometryResolver.js';
+import { buildNetUnfoldSpec, type NetUnfoldSpecOptions } from '../animation/netUnfoldSpec.js';
+import type { AnimationSpec } from '../animation/AnimationSpec.js';
 
 /**
  * NetManager
@@ -10,6 +22,7 @@ import type { GeometryResolver } from '../geometry/GeometryResolver.js';
  */
 export class NetManager {
     resolver: GeometryResolver | null;
+    enable2dView: boolean;
     
     // 2D View properties
     container: HTMLDivElement;
@@ -30,6 +43,7 @@ export class NetManager {
 
     constructor() {
         this.resolver = null;
+        this.enable2dView = true;
         
         // --- 2D View Initialization ---
         this.container = document.createElement('div');
@@ -79,19 +93,23 @@ export class NetManager {
     }
 
     show() {
+        if (!this.enable2dView) return;
         this.updatePosition();
         this.container.style.display = 'block';
     }
 
     hide() {
+        if (!this.enable2dView) return;
         this.container.style.display = 'none';
     }
 
     isVisible() {
+        if (!this.enable2dView) return false;
         return this.container.style.display !== 'none';
     }
 
     updatePosition() {
+        if (!this.enable2dView) return;
         const uiContainer = document.getElementById('ui-container');
         if (!uiContainer) return;
         const rect = uiContainer.getBoundingClientRect();
@@ -105,109 +123,217 @@ export class NetManager {
      * Generates a structural NetPlan from a solid.
      * This logic determines which face unfolds through which edge.
      */
-    generateNetPlan(solid: SolidSSOT, rootFaceId?: FaceID): NetPlan {
+    generateNetPlan(
+        solid: SolidSSOT,
+        options?: {
+            rootFaceId?: FaceID;
+            topologyIndex?: TopologyIndex;
+            faceAdjacency?: ObjectCutAdjacency[];
+            vertexSnapMap?: Record<VertexID, SnapPointID>;
+        }
+    ): NetPlan {
         const faceIds = Object.keys(solid.faces);
-        // Default to 'Bottom' face as root if available, otherwise first face
-        const root = rootFaceId && faceIds.includes(rootFaceId) ? rootFaceId : (faceIds.includes('F:0-3-2-1') ? 'F:0-3-2-1' : faceIds[0]);
-        
+        const hasCutAdjacency = Array.isArray(options?.faceAdjacency) && options!.faceAdjacency!.length > 0;
+        const hasVertexSnapMap = !!options?.vertexSnapMap && Object.keys(options.vertexSnapMap).length > 0;
+        const topologyAdjacency = this.buildFaceAdjacencyFromFaces(solid.faces);
+        const cutAdjacency = hasCutAdjacency && hasVertexSnapMap
+            ? this.buildAdjacencyFromCutAdjacency(options!.faceAdjacency!, options!.vertexSnapMap!)
+            : null;
+        const adjacency = cutAdjacency
+            ? this.mergeAdjacency(topologyAdjacency, cutAdjacency)
+            : topologyAdjacency;
+        const root = options?.rootFaceId && faceIds.includes(options.rootFaceId)
+            ? options.rootFaceId
+            : this.pickRootFace(faceIds, adjacency);
+
         const hinges: NetHinge[] = [];
-        const visited = new Set<FaceID>([root]);
-        const queue: FaceID[] = [root];
+        const visited = new Set<FaceID>();
+        const queue: FaceID[] = [];
         const faceOrder: FaceID[] = [];
 
-        // Preferred connections for a cross layout (Bottom is root)
-        // Bottom -> Front, Back, Right, Left
-        // Front -> Top
-        // This avoids overlap for a standard cube.
-        const preferredChildren: Record<string, string[]> = {
-            'F:0-3-2-1': ['F:0-1-5-4', 'F:2-3-7-6', 'F:1-2-6-5', 'F:0-4-7-3'], // Bottom -> Front, Back, Right, Left
-            'F:0-1-5-4': ['F:4-5-6-7'], // Front -> Top
-        };
+        if (root) {
+            visited.add(root);
+            queue.push(root);
+            faceOrder.push(root);
+        }
 
         while (queue.length > 0) {
             const parentId = queue.shift()!;
-            faceOrder.push(parentId);
-
-            const parentEdges = this.getFaceEdges(parentId, solid);
-            const children = preferredChildren[parentId] || faceIds;
-
-            // Prioritize preferred children, then others
-            const candidates = [...children, ...faceIds.filter(id => !children.includes(id))];
-            const uniqueCandidates = [...new Set(candidates)];
-
-            uniqueCandidates.forEach(childId => {
+            const neighbors = adjacency.get(parentId);
+            if (!neighbors) continue;
+            neighbors.forEach((hingeEdgeId, childId) => {
                 if (visited.has(childId) || childId === parentId) return;
-                // Check if child is actually adjacent
-                const childEdges = this.getFaceEdges(childId, solid);
-                const sharedEdgeId = parentEdges.find(eId => childEdges.includes(eId));
-
-                if (sharedEdgeId) {
-                    visited.add(childId);
-                    hinges.push({
-                        parentFaceId: parentId,
-                        childFaceId: childId,
-                        hingeEdgeId: sharedEdgeId
-                    });
-                    queue.push(childId);
-                }
+                visited.add(childId);
+                hinges.push({
+                    parentFaceId: parentId,
+                    childFaceId: childId,
+                    hingeEdgeId
+                });
+                queue.push(childId);
+                faceOrder.push(childId);
             });
         }
 
-        // Add remaining disconnected faces (e.g. cut faces) using standard BFS
         if (visited.size < faceIds.length) {
-             const remainingQueue = Array.from(visited);
-             while(remainingQueue.length > 0){
-                 const parentId = remainingQueue.shift()!;
-                 const parentEdges = this.getFaceEdges(parentId, solid);
-                 faceIds.forEach(childId => {
-                    if (visited.has(childId)) return;
-                    const childEdges = this.getFaceEdges(childId, solid);
-                    const sharedEdgeId = parentEdges.find(eId => childEdges.includes(eId));
-                    if (sharedEdgeId) {
-                        visited.add(childId);
-                        hinges.push({
-                            parentFaceId: parentId,
-                            childFaceId: childId,
-                            hingeEdgeId: sharedEdgeId
-                        });
-                        remainingQueue.push(childId);
-                        faceOrder.push(childId);
-                    }
-                 });
-             }
+            const disconnected = faceIds.filter(faceId => !visited.has(faceId));
+            if (disconnected.length > 0) {
+                console.warn('[net] disconnected faces detected', { faces: disconnected });
+                disconnected.forEach(faceId => faceOrder.push(faceId));
+            }
         }
 
         return {
             id: `net-plan:${Date.now()}`,
             targetSolidId: solid.id,
-            rootFaceId: root,
+            rootFaceId: root || '',
             hinges,
             faceOrder
         };
     }
 
-    private getFaceEdges(faceId: FaceID, solid: SolidSSOT): EdgeID[] {
-        const face = solid.faces[faceId];
-        const edges: EdgeID[] = [];
-        if (!face || !face.vertices) return edges;
+    buildUnfoldAnimationSpec(plan: NetPlan, options: NetUnfoldSpecOptions): AnimationSpec {
+        return buildNetUnfoldSpec(plan, options);
+    }
 
-        // Iterate over all edges in the solid to find those that match the face's vertex pairs
-        // This is O(F * E) but safer than relying on ID naming conventions
-        const faceVertexPairs = new Set<string>();
-        for (let i = 0; i < face.vertices.length; i++) {
-            const v0 = face.vertices[i];
-            const v1 = face.vertices[(i + 1) % face.vertices.length];
-            faceVertexPairs.add([v0, v1].sort().join('|'));
-        }
-
-        Object.values(solid.edges).forEach(edge => {
-            const key = [edge.v0, edge.v1].sort().join('|');
-            if (faceVertexPairs.has(key)) {
-                edges.push(edge.id);
+    private buildFaceAdjacency(edgeToFaces: Record<EdgeID, FaceID[]>): Map<FaceID, Map<FaceID, EdgeID>> {
+        const adjacency = new Map<FaceID, Map<FaceID, EdgeID>>();
+        Object.entries(edgeToFaces).forEach(([edgeId, faces]) => {
+            const uniqueFaces = Array.from(new Set(faces));
+            for (let i = 0; i < uniqueFaces.length; i++) {
+                for (let j = i + 1; j < uniqueFaces.length; j++) {
+                    const a = uniqueFaces[i];
+                    const b = uniqueFaces[j];
+                    if (!adjacency.has(a)) adjacency.set(a, new Map());
+                    if (!adjacency.has(b)) adjacency.set(b, new Map());
+                    if (!adjacency.get(a)!.has(b)) adjacency.get(a)!.set(b, edgeId as EdgeID);
+                    if (!adjacency.get(b)!.has(a)) adjacency.get(b)!.set(a, edgeId as EdgeID);
+                }
             }
         });
-        
-        return edges;
+        return adjacency;
+    }
+
+    private buildFaceAdjacencyFromFaces(
+        faces: Record<FaceID, { id: FaceID; vertices: VertexID[] }>
+    ): Map<FaceID, Map<FaceID, EdgeID>> {
+        const edgeMap = new Map<string, { faceIds: FaceID[]; edgeId: EdgeID }>();
+        Object.values(faces).forEach(face => {
+            const verts = face.vertices || [];
+            for (let i = 0; i < verts.length; i++) {
+                const v0 = verts[i];
+                const v1 = verts[(i + 1) % verts.length];
+                if (!v0 || !v1) continue;
+                const v0Raw = v0.startsWith('V:') ? v0.slice(2) : v0;
+                const v1Raw = v1.startsWith('V:') ? v1.slice(2) : v1;
+                const sorted = [v0Raw, v1Raw].sort((a, b) => {
+                    const na = parseInt(a), nb = parseInt(b);
+                    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+                    return a.localeCompare(b);
+                });
+                const edgeKey = `${sorted[0]}|${sorted[1]}`;
+                const edgeId = `E:${sorted[0]}-${sorted[1]}` as EdgeID;
+                const existing = edgeMap.get(edgeKey);
+                if (!existing) {
+                    edgeMap.set(edgeKey, { faceIds: [face.id], edgeId });
+                } else {
+                    existing.faceIds.push(face.id);
+                }
+            }
+        });
+        const adjacency = new Map<FaceID, Map<FaceID, EdgeID>>();
+        edgeMap.forEach(({ faceIds, edgeId }) => {
+            const uniqueFaces = Array.from(new Set(faceIds));
+            for (let i = 0; i < uniqueFaces.length; i++) {
+                for (let j = i + 1; j < uniqueFaces.length; j++) {
+                    const a = uniqueFaces[i];
+                    const b = uniqueFaces[j];
+                    if (!adjacency.has(a)) adjacency.set(a, new Map());
+                    if (!adjacency.has(b)) adjacency.set(b, new Map());
+                    if (!adjacency.get(a)!.has(b)) adjacency.get(a)!.set(b, edgeId);
+                    if (!adjacency.get(b)!.has(a)) adjacency.get(b)!.set(a, edgeId);
+                }
+            }
+        });
+        return adjacency;
+    }
+
+    private mergeAdjacency(
+        baseAdjacency: Map<FaceID, Map<FaceID, EdgeID>>,
+        extraAdjacency: Map<FaceID, Map<FaceID, EdgeID>>
+    ): Map<FaceID, Map<FaceID, EdgeID>> {
+        const merged = new Map<FaceID, Map<FaceID, EdgeID>>();
+        baseAdjacency.forEach((neighbors, faceId) => {
+            merged.set(faceId, new Map(neighbors));
+        });
+        extraAdjacency.forEach((neighbors, faceId) => {
+            if (!merged.has(faceId)) merged.set(faceId, new Map());
+            const target = merged.get(faceId)!;
+            neighbors.forEach((edgeId, neighborId) => {
+                if (!target.has(neighborId)) {
+                    target.set(neighborId, edgeId);
+                }
+            });
+        });
+        return merged;
+    }
+
+    private pickRootFace(faceIds: FaceID[], adjacency: Map<FaceID, Map<FaceID, EdgeID>>): FaceID {
+        if (faceIds.length === 0) return '';
+        let best = faceIds[0];
+        let bestDegree = -1;
+        faceIds.forEach(faceId => {
+            const degree = adjacency.get(faceId)?.size ?? 0;
+            if (degree > bestDegree) {
+                bestDegree = degree;
+                best = faceId;
+            }
+        });
+        return best;
+    }
+
+    private buildAdjacencyFromCutAdjacency(
+        faceAdjacency: ObjectCutAdjacency[],
+        vertexSnapMap: Record<VertexID, SnapPointID>
+    ): Map<FaceID, Map<FaceID, EdgeID>> {
+        const reverseSnap = new Map<SnapPointID, VertexID>();
+        Object.entries(vertexSnapMap).forEach(([vertexId, snapId]) => {
+            reverseSnap.set(snapId, vertexId as VertexID);
+        });
+        const resolveVertexId = (snapId: SnapPointID): VertexID | null => {
+            const mapped = reverseSnap.get(snapId);
+            if (mapped) return mapped;
+            const parsed = normalizeSnapPointId(parseSnapPointId(snapId));
+            if (!parsed) return null;
+            if (parsed.type === 'vertex') {
+                return `V:${parsed.vertexIndex}` as VertexID;
+            }
+            return null;
+        };
+        const adjacency = new Map<FaceID, Map<FaceID, EdgeID>>();
+        faceAdjacency.forEach(entry => {
+            const shared = entry.sharedEdgeIds;
+            if (!shared || shared.length !== 2) return;
+            const v0 = resolveVertexId(shared[0]);
+            const v1 = resolveVertexId(shared[1]);
+            if (!v0 || !v1) return;
+            const v0Raw = v0.startsWith('V:') ? v0.slice(2) : v0;
+            const v1Raw = v1.startsWith('V:') ? v1.slice(2) : v1;
+            const sorted = [v0Raw, v1Raw].sort((a, b) => {
+                const na = parseInt(a), nb = parseInt(b);
+                if (!isNaN(na) && !isNaN(nb)) return na - nb;
+                return a.localeCompare(b);
+            });
+            const edgeId = `E:${sorted[0]}-${sorted[1]}` as EdgeID;
+            if (!adjacency.has(entry.a as FaceID)) adjacency.set(entry.a as FaceID, new Map());
+            if (!adjacency.has(entry.b as FaceID)) adjacency.set(entry.b as FaceID, new Map());
+            if (!adjacency.get(entry.a as FaceID)!.has(entry.b as FaceID)) {
+                adjacency.get(entry.a as FaceID)!.set(entry.b as FaceID, edgeId);
+            }
+            if (!adjacency.get(entry.b as FaceID)!.has(entry.a as FaceID)) {
+                adjacency.get(entry.b as FaceID)!.set(entry.a as FaceID, edgeId);
+            }
+        });
+        return adjacency;
     }
 
     // --- 2D View Update (Legacy functionality) ---

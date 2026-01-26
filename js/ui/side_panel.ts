@@ -31,6 +31,8 @@ type Engine = {
   getCubeSize?: () => { lx: number; ly: number; lz: number };
   setPanelOpen?: (open: boolean) => void;
   getNetVisible?: () => boolean;
+  getAnimationSpecEnabled?: () => boolean;
+  setAnimationSpecEnabled?: (enabled: boolean) => void;
 };
 
 // Removed duplicate declare global for __engine
@@ -598,10 +600,14 @@ function SettingsContent({ activePanel, onPanelChange }: { activePanel: string, 
 function DisplaySettingsPanel() {
   const [display, setDisplay] = useState<DisplayState | null>(null);
   const [showModal, setShowModal] = useState<boolean>(false);
+  const [animationSpecEnabled, setAnimationSpecEnabled] = useState<boolean>(true);
 
   useEffect(() => {
     if ((globalThis as any).__engine && typeof (globalThis as any).__engine.getDisplayState === 'function') {
       setDisplay((globalThis as any).__engine.getDisplayState());
+    }
+    if ((globalThis as any).__engine && typeof (globalThis as any).__engine.getAnimationSpecEnabled === 'function') {
+      setAnimationSpecEnabled(!!(globalThis as any).__engine.getAnimationSpecEnabled());
     }
     (globalThis as any).__setDisplayState = (next: DisplayState | null) => {
       setDisplay(next || null);
@@ -620,6 +626,13 @@ function DisplaySettingsPanel() {
     }
   };
 
+  const updateAnimationSpecEnabled = (enabled: boolean) => {
+    setAnimationSpecEnabled(enabled);
+    if ((globalThis as any).__engine && typeof (globalThis as any).__engine.setAnimationSpecEnabled === 'function') {
+      (globalThis as any).__engine.setAnimationSpecEnabled(enabled);
+    }
+  };
+
   if (!display) return null;
 
   return React.createElement(
@@ -632,6 +645,14 @@ function DisplaySettingsPanel() {
         onChange: (e) => updateDisplayState({ showVertexLabels: e.target.checked })
       }),
       React.createElement('label', { className: 'form-check-label' }, '頂点ラベルを表示')
+    ),
+    React.createElement('div', { className: 'form-check form-switch mb-2' },
+      React.createElement('input', {
+        className: 'form-check-input', type: 'checkbox',
+        checked: animationSpecEnabled,
+        onChange: (e) => updateAnimationSpecEnabled(e.target.checked)
+      }),
+      React.createElement('label', { className: 'form-check-label' }, 'AnimationSpec を使用（Net）')
     ),
     React.createElement('div', { className: 'form-check form-switch mb-2' },
       React.createElement('input', {

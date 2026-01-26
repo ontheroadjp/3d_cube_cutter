@@ -6,6 +6,7 @@ import { UIManager } from './js/UIManager.js';
 import { Cutter } from './js/Cutter.js';
 import { PresetManager } from './js/presets/PresetManager.js';
 import { NetManager } from './js/net/NetManager.js';
+import { AnimationPlayer } from './js/animation/AnimationPlayer.js';
 import { GeometryResolver } from './js/geometry/GeometryResolver.js';
 import { buildUserPresetState } from './js/presets/userPresetState.js';
 import { NoopStorageAdapter, IndexedDbStorageAdapter } from './js/storage/storageAdapter.js';
@@ -17,7 +18,15 @@ import type { ObjectNetState, NetPlan } from './js/model/objectModel.js';
 import { normalizeSnapPointId, parseSnapPointId, type SnapPointID } from './js/geometry/snapPointId.js';
 import { createLabel, createMarker } from './js/utils.js';
 
-const DEBUG = false;
+const isDebugEnabled = () => {
+    const flag = (globalThis as any).__DEBUG__ === true || (globalThis as any).DEBUG === true;
+    if (flag) return true;
+    try {
+        return localStorage.getItem('DEBUG') === 'true' || sessionStorage.getItem('DEBUG') === 'true';
+    } catch {
+        return false;
+    }
+};
 
 class App {
     isCutExecuted: boolean;
@@ -60,6 +69,11 @@ class App {
     camera: THREE.OrthographicCamera;
     renderer: THREE.WebGLRenderer;
     controls: OrbitControls;
+    mainLight: THREE.DirectionalLight;
+    debugFaceLogDone: boolean;
+    debugNetLogDone: boolean;
+    debugInitLogDone: boolean;
+    debugEnabledLast: boolean;
     raycaster: THREE.Raycaster;
     midPointHighlightMaterial: THREE.MeshBasicMaterial;
     highlightMarker: THREE.Mesh;
@@ -82,6 +96,8 @@ class App {
     netUnfoldStagger: number;
     defaultCameraPosition: THREE.Vector3;
     defaultCameraTarget: THREE.Vector3;
+    defaultCameraZoom: number;
+    netBoundsPadding: number;
     netUnfoldFaces: Array<{
         pivot: THREE.Group;
         mesh: THREE.Mesh;
@@ -95,6 +111,50 @@ class App {
     netUnfoldPreScaleDelay: number;
     netUnfoldPostScaleDelay: number;
     netUnfoldScaleReadyAt: number | null;
+    netAnimationPlayer: AnimationPlayer;
+    netAnimationDirection: 'open' | 'close';
+    netFaceProgress: Map<string, number>;
+    netCameraStarts: Map<string, { position: THREE.Vector3; target: THREE.Vector3 }>;
+    netCameraEnds: Map<string, { position: THREE.Vector3; target: THREE.Vector3 }>;
+    useAnimationSpecNet: boolean;
+    netZoomStart: number;
+    netZoomEnd: number;
+    netAnimationStartAt: number;
+    netAnimationDurationMs: number;
+    netAnimationZoomActive: boolean;
+    netUpStart: THREE.Vector3;
+    netUpEnd: THREE.Vector3;
+    netUpTemp: THREE.Vector3;
+    netSelectionActive: boolean;
+    netHoverFaceId: string | null;
+    netRootFaceId: string | null;
+    netSelectedFaceId: string | null;
+    netCameraCenter: THREE.Vector3;
+    netCameraNormal: THREE.Vector3;
+    netCameraBasisU: THREE.Vector3;
+    netCameraBasisV: THREE.Vector3;
+    netCameraObliqueDir: THREE.Vector3;
+    netCameraTopPosition: THREE.Vector3;
+    netCameraObliquePosition: THREE.Vector3;
+    netCameraObliqueUp: THREE.Vector3;
+    netCameraTopUp: THREE.Vector3;
+    netPreCameraTimeout: ReturnType<typeof setTimeout> | null;
+    netCameraFrontDir: THREE.Vector3;
+    netCameraRightDir: THREE.Vector3;
+    netPreCameraActive: boolean;
+    netPreCameraStartAt: number;
+    netPreCameraDurationMs: number;
+    netPreCameraStartPos: THREE.Vector3;
+    netPreCameraStartTarget: THREE.Vector3;
+    netPreCameraStartUp: THREE.Vector3;
+    netPreCameraEndPos: THREE.Vector3;
+    netPreCameraEndTarget: THREE.Vector3;
+    netPreCameraEndUp: THREE.Vector3;
+    netPreCameraTempUp: THREE.Vector3;
+    netPreCameraOnComplete: (() => void) | null;
+    netPreCameraStartZoom: number;
+    netPreCameraEndZoom: number;
+    netAfterFoldAction: (() => void) | null;
     layoutPanelOffset: number;
     layoutTargetPanelOffset: number;
     layoutTransitionStart: number;
@@ -120,17 +180,74 @@ class App {
         this.panelOpen = false;
         this.netUnfoldGroup = null;
         this.netUnfoldState = 'closed';
-        this.netUnfoldDuration = 800;
-        this.netUnfoldFaceDuration = 700;
-        this.netUnfoldStagger = 700;
-        this.defaultCameraPosition = new THREE.Vector3(10, 5, 3);
+        this.netUnfoldDuration = 900;
+        this.netUnfoldFaceDuration = 900;
+        this.netUnfoldStagger = 800;
+        const baseCameraPosition = new THREE.Vector3(10, 8, 10);
+        const baseDistance = baseCameraPosition.length();
+        const yawRight = THREE.MathUtils.degToRad(15);
+        const pitchUp = THREE.MathUtils.degToRad(10);
+        const baseDir = new THREE.Vector3(
+            Math.tan(yawRight),
+            Math.tan(pitchUp),
+            1
+        ).normalize();
+        this.defaultCameraPosition = baseDir.multiplyScalar(baseDistance);
         this.defaultCameraTarget = new THREE.Vector3(0, 0, 0);
+        this.defaultCameraZoom = 1;
+        this.netBoundsPadding = 0.75;
         this.netUnfoldFaces = [];
         this.netUnfoldTargetCenter = null;
         this.netUnfoldPositionTarget = null;
         this.netUnfoldPreScaleDelay = 320;
         this.netUnfoldPostScaleDelay = 220;
         this.netUnfoldScaleReadyAt = null;
+        this.netFaceProgress = new Map();
+        this.netCameraStarts = new Map();
+        this.netCameraEnds = new Map();
+        this.netAnimationDirection = 'open';
+        this.netAnimationPlayer = new AnimationPlayer({
+            dispatch: this.dispatchNetAnimation.bind(this)
+        });
+        this.useAnimationSpecNet = true;
+        this.netZoomStart = this.defaultCameraZoom;
+        this.netZoomEnd = this.defaultCameraZoom;
+        this.netAnimationStartAt = 0;
+        this.netAnimationDurationMs = 0;
+        this.netAnimationZoomActive = false;
+        this.netUpStart = new THREE.Vector3(0, 1, 0);
+        this.netUpEnd = new THREE.Vector3(0, 0, -1);
+        this.netUpTemp = new THREE.Vector3(0, 1, 0);
+        this.netSelectionActive = false;
+        this.netHoverFaceId = null;
+        this.netRootFaceId = null;
+        this.netSelectedFaceId = null;
+        this.netCameraCenter = new THREE.Vector3();
+        this.netCameraNormal = new THREE.Vector3();
+        this.netCameraBasisU = new THREE.Vector3();
+        this.netCameraBasisV = new THREE.Vector3();
+        this.netCameraObliqueDir = new THREE.Vector3();
+        this.netCameraTopPosition = new THREE.Vector3();
+        this.netCameraObliquePosition = new THREE.Vector3();
+        this.netCameraObliqueUp = new THREE.Vector3(0, 1, 0);
+        this.netCameraTopUp = new THREE.Vector3(0, 1, 0);
+        this.netPreCameraTimeout = null;
+        this.netCameraFrontDir = new THREE.Vector3();
+        this.netCameraRightDir = new THREE.Vector3();
+        this.netPreCameraActive = false;
+        this.netPreCameraStartAt = 0;
+        this.netPreCameraDurationMs = 0;
+        this.netPreCameraStartPos = new THREE.Vector3();
+        this.netPreCameraStartTarget = new THREE.Vector3();
+        this.netPreCameraStartUp = new THREE.Vector3(0, 1, 0);
+        this.netPreCameraEndPos = new THREE.Vector3();
+        this.netPreCameraEndTarget = new THREE.Vector3();
+        this.netPreCameraEndUp = new THREE.Vector3(0, 1, 0);
+        this.netPreCameraTempUp = new THREE.Vector3();
+        this.netPreCameraOnComplete = null;
+        this.netPreCameraStartZoom = 1;
+        this.netPreCameraEndZoom = 1;
+        this.netAfterFoldAction = null;
         this.layoutPanelOffset = 0;
         this.layoutTargetPanelOffset = 0;
         this.layoutTransitionStart = 0;
@@ -138,6 +255,10 @@ class App {
         this.layoutTransitionTo = 0;
         this.layoutTransitionDuration = 240;
         this.layoutTransitionActive = false;
+        this.debugFaceLogDone = false;
+        this.debugNetLogDone = false;
+        this.debugInitLogDone = false;
+        this.debugEnabledLast = isDebugEnabled();
         this.learningLines = [];
         this.learningAnimationToken = null;
         this.learningPlane = null;
@@ -156,6 +277,8 @@ class App {
         this.camera = new THREE.OrthographicCamera(-size * aspect, size * aspect, size, -size, 0.1, 100);
         this.camera.position.copy(this.defaultCameraPosition);
         this.camera.lookAt(0, 0, 0);
+        this.camera.zoom = this.defaultCameraZoom;
+        this.camera.updateProjectionMatrix();
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         document.body.appendChild(this.renderer.domElement);
@@ -169,10 +292,12 @@ class App {
         this.raycaster = new THREE.Raycaster();
 
         // --- Lights and Helpers ---
-        this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-        const light = new THREE.DirectionalLight(0xffffff, 0.6);
-        light.position.set(5, 5, 5);
-        this.scene.add(light);
+        this.scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        this.mainLight = new THREE.DirectionalLight(0xffffff, 0.7);
+        this.mainLight.position.set(6, 8, 6);
+        this.mainLight.target.position.set(0, 0, 0);
+        this.scene.add(this.mainLight);
+        this.scene.add(this.mainLight.target);
 
         const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0x808080, transparent: true, opacity: 0.7 });
         this.midPointHighlightMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.7 });
@@ -184,11 +309,13 @@ class App {
         const hasReactSidePanel = !!document.getElementById('react-side-panel-root');
         this.ui = new UIManager({ legacyControls: !hasReactSidePanel });
         this.cube = new Cube(this.scene, size);
+        this.cube.setFaceOutlineVisible(true);
         this.resolver = new GeometryResolver({ size: this.cube.getSize(), indexMap: this.cube.getIndexMap() });
         this.cutter = new Cutter(this.scene);
-        this.cutter.setDebug(DEBUG);
+        this.cutter.setDebug(this.debugEnabledLast);
         this.netManager = new NetManager();
         this.netManager.setResolver(this.resolver);
+        this.netManager.enable2dView = false;
         this.selection = new SelectionManager(this.scene, this.cube, this.ui, this.resolver);
         this.presetManager = new PresetManager(this.selection, this.cube, this.cutter, this.resolver);
         this.objectModelManager = new ObjectModelManager({
@@ -238,7 +365,9 @@ class App {
             getCubeSize: () => this.cube.getSize(),
             getVertexLabelMap: () => this.currentLabelMap, // Add this line
             setPanelOpen: (open: boolean) => this.handlePanelOpenChange(open),
-            getNetVisible: () => this.objectModelManager.getNetVisible()
+            getNetVisible: () => this.objectModelManager.getNetVisible(),
+            getAnimationSpecEnabled: () => this.useAnimationSpecNet,
+            setAnimationSpecEnabled: (enabled: boolean) => this.setAnimationSpecEnabled(enabled)
         };
         initReactApp();
 
@@ -363,11 +492,29 @@ class App {
         this.isCutExecuted = !!success;
     }
 
-    resetScene() {
+    finalizeResetScene() {
         this.cancelLearningAnimation();
         this.clearLearningLines();
         this.clearLearningPlane();
         this.clearLearningHints();
+        this.netSelectionActive = false;
+        this.netRootFaceId = null;
+        this.clearNetFaceHighlights();
+        this.netPreCameraActive = false;
+        this.netPreCameraOnComplete = null;
+        if (this.netPreCameraTimeout) {
+            clearTimeout(this.netPreCameraTimeout);
+            this.netPreCameraTimeout = null;
+        }
+        this.cube.setFaceOutlineVisible(false);
+        if (this.netAnimationPlayer.isPlaying()) {
+            this.netAnimationPlayer.stop();
+            this.resetNetAnimationCaches();
+        }
+        if (this.currentNetPlan) {
+            this.netFaceProgress.clear();
+            this.cube.applyNetPlan(this.currentNetPlan, 0, this.netFaceProgress);
+        }
         if (this.objectModelManager.getNetState().state !== 'closed') {
             this.clearNetUnfoldGroup();
             this.cube.setVisible(true);
@@ -381,15 +528,33 @@ class App {
         this.cutter.resetInversion();
         this.cutter.reset();
         this.objectModelManager.clearCutIntersections();
+        this.objectModelManager.syncFromCube();
         const solid = this.objectModelManager.getModel()?.ssot;
         this.netManager.update([], solid, this.resolver);
         this.isCutExecuted = false;
         this.snappedPointInfo = null;
         this.highlightMarker.visible = false;
         this.ui.setExplanation('');
-        this.isCameraAnimating = true;
-        this.cameraTargetPosition = this.defaultCameraPosition.clone();
-        this.controls.target.copy(this.defaultCameraTarget);
+        this.startNetPreCameraMove({
+            endPos: this.defaultCameraPosition.clone(),
+            endTarget: this.defaultCameraTarget.clone(),
+            endUp: new THREE.Vector3(0, 1, 0),
+            endZoom: this.defaultCameraZoom,
+            onComplete: () => {}
+        });
+    }
+
+    resetScene() {
+        if (this.objectModelManager.getNetVisible() || this.netAnimationPlayer.isPlaying()) {
+            if (!this.currentNetPlan) {
+                this.finalizeResetScene();
+                return;
+            }
+            this.netAfterFoldAction = () => this.finalizeResetScene();
+            this.startNetFold();
+            return;
+        }
+        this.finalizeResetScene();
     }
 
     clearLearningLines() {
@@ -591,6 +756,10 @@ class App {
 
     // --- Event Handlers ---
     handleClick(e: MouseEvent) {
+        if (this.netSelectionActive) {
+            this.handleNetSelectionClick(e);
+            return;
+        }
         if (this.isCutExecuted) return;
         if (this.currentMode !== 'free') return;
         if (!this.snappedPointInfo) return;
@@ -619,6 +788,10 @@ class App {
     }
 
     handleMouseMove(e: MouseEvent) {
+        if (this.netSelectionActive) {
+            this.handleNetSelectionMove(e);
+            return;
+        }
         if (this.isCutExecuted || this.currentMode !== 'free') {
             this.highlightMarker.visible = false;
             this.snappedPointInfo = null;
@@ -1217,6 +1390,107 @@ class App {
 
     // Removed legacy netUnfoldGroup methods: updateNetOverlayDisplay, updateNetLabelDisplay, updateNetLabelScale
 
+    resetNetAnimationCaches() {
+        this.netFaceProgress.clear();
+        this.netCameraStarts.clear();
+        this.netCameraEnds.clear();
+        this.netAnimationStartAt = 0;
+        this.netAnimationDurationMs = 0;
+        this.netAnimationZoomActive = false;
+        this.netZoomStart = this.defaultCameraZoom;
+        this.netZoomEnd = this.defaultCameraZoom;
+    }
+
+    setAnimationSpecEnabled(enabled: boolean) {
+        this.useAnimationSpecNet = enabled;
+        if (!enabled && this.netAnimationPlayer.isPlaying()) {
+            this.netAnimationPlayer.stop();
+            this.resetNetAnimationCaches();
+        }
+    }
+
+    dispatchNetAnimation(
+        stepId: string,
+        action: string,
+        targets: any,
+        params: any,
+        progress: number,
+        easedProgress: number,
+        _elapsedSeconds: number,
+        _durationSeconds: number
+    ) {
+        if (!this.currentNetPlan) return;
+        switch (action) {
+            case 'rotateFace': {
+                const faceId = params && typeof params.faceId === 'string'
+                    ? params.faceId
+                    : (targets && targets.type === 'netFaces' && Array.isArray(targets.ids) ? targets.ids[0] : null);
+                if (!faceId) return;
+                const effective = this.netAnimationDirection === 'open' ? easedProgress : 1 - easedProgress;
+                this.netFaceProgress.set(faceId, effective);
+                this.cube.applyNetPlan(this.currentNetPlan, 0, this.netFaceProgress);
+                return;
+            }
+            case 'moveCamera': {
+                if (!params || !params.position || !params.lookAt) return;
+                let start = this.netCameraStarts.get(stepId);
+                if (!start) {
+                    start = {
+                        position: this.camera.position.clone(),
+                        target: this.controls.target.clone()
+                    };
+                    this.netCameraStarts.set(stepId, start);
+                }
+                let end = this.netCameraEnds.get(stepId);
+                if (!end) {
+                    end = {
+                        position: new THREE.Vector3(params.position.x, params.position.y, params.position.z),
+                        target: new THREE.Vector3(params.lookAt.x, params.lookAt.y, params.lookAt.z)
+                    };
+                    this.netCameraEnds.set(stepId, end);
+                }
+                const t = Math.max(0, Math.min(1, progress));
+                this.camera.position.lerpVectors(start.position, end.position, t);
+                this.controls.target.lerpVectors(start.target, end.target, t);
+                this.netUpTemp.copy(this.netUpStart).lerp(this.netUpEnd, t).normalize();
+                this.camera.up.copy(this.netUpTemp);
+                this.camera.lookAt(this.controls.target);
+                return;
+            }
+            case 'setVisibility': {
+                if (params && typeof params.visible === 'boolean') {
+                    this.objectModelManager.setNetVisible(params.visible);
+                }
+                return;
+            }
+            default:
+                return;
+        }
+    }
+
+    buildNetAnimationSpec(direction: 'open' | 'close') {
+        if (!this.currentNetPlan) return null;
+        const cameraPosition = { x: this.camera.position.x, y: this.camera.position.y, z: this.camera.position.z };
+        const cameraTarget = { x: this.controls.target.x, y: this.controls.target.y, z: this.controls.target.z };
+        const faceCount = Math.max(0, this.currentNetPlan.faceOrder.length - 1);
+        const faceDurationSec = this.netUnfoldFaceDuration / 1000;
+        const staggerSec = this.netUnfoldStagger / 1000;
+        const totalDurationSec = faceCount <= 1
+            ? faceDurationSec
+            : faceDurationSec + (faceCount - 1) * staggerSec;
+        const cameraDelaySec = 0;
+        const cameraDurationSec = 0.01;
+        return this.netManager.buildUnfoldAnimationSpec(this.currentNetPlan, {
+            startAtSec: 0,
+            faceDurationSec,
+            staggerSec,
+            cameraStartAtSec: cameraDelaySec,
+            cameraDurationSec,
+            cameraPosition,
+            cameraTarget
+        });
+    }
+
     applyNetStateFromModel() {
         const state = this.objectModelManager.getNetState();
         if (!state) return;
@@ -1269,31 +1543,162 @@ class App {
         });
         this.netUnfoldTargetCenter = null;
         this.netUnfoldPositionTarget = null;
+        this.camera.zoom = this.defaultCameraZoom;
+        this.camera.updateProjectionMatrix();
+    }
+
+    getNetAnimationTotalDurationSec() {
+        if (!this.currentNetPlan) return 0;
+        const faceCount = Math.max(0, this.currentNetPlan.faceOrder.length - 1);
+        const faceDurationSec = this.netUnfoldFaceDuration / 1000;
+        const staggerSec = this.netUnfoldStagger / 1000;
+        if (faceCount <= 1) return faceDurationSec;
+        return faceDurationSec + (faceCount - 1) * staggerSec;
+    }
+
+    prepareNetAnimationZoom(direction: 'open' | 'close', enableZoom = true) {
+        if (!this.currentNetPlan) return;
+        const currentUp = this.camera.up.clone();
+        this.netUpStart.copy(currentUp);
+        this.netUpEnd.copy(currentUp);
+        if (!enableZoom) {
+            this.netZoomStart = this.camera.zoom;
+            this.netZoomEnd = this.camera.zoom;
+            this.netAnimationDurationMs = 0;
+            this.netAnimationZoomActive = false;
+            return;
+        }
+        const openProgress = new Map<string, number>();
+        this.currentNetPlan.faceOrder.forEach((faceId) => {
+            if (faceId === this.currentNetPlan!.rootFaceId) return;
+            openProgress.set(faceId, 1);
+        });
+        const closedBounds = this.computeNetBoundsForProgress(undefined, 0);
+        const openBounds = this.computeNetBoundsForProgress(openProgress, 0);
+        const currentPosition = this.camera.position.clone();
+        const currentTarget = this.controls.target.clone();
+        const startBounds = openBounds;
+        const endBounds = direction === 'open' ? openBounds : closedBounds;
+        const startCam = { position: currentPosition, target: currentTarget, up: currentUp };
+        const endCam = { position: currentPosition, target: currentTarget, up: currentUp };
+        const startZoom = startBounds
+            ? this.computeZoomForBounds(startBounds, startCam.position, startCam.target, startCam.up)
+            : this.defaultCameraZoom;
+        const endZoom = endBounds
+            ? this.computeZoomForBounds(endBounds, endCam.position, endCam.target, endCam.up)
+            : this.defaultCameraZoom;
+        this.netZoomStart = startZoom;
+        this.netZoomEnd = endZoom;
+        this.camera.zoom = this.netZoomStart;
+        this.camera.updateProjectionMatrix();
+        this.netUpStart.copy(currentUp);
+        this.netUpEnd.copy(currentUp);
+        this.netAnimationStartAt = performance.now();
+        this.netAnimationDurationMs = this.getNetAnimationTotalDurationSec() * 1000;
+        this.netAnimationZoomActive = this.netAnimationDurationMs > 0;
     }
 
     startNetUnfold() {
-        const netState = this.objectModelManager.getNetState();
-        if (netState.state === 'opening' || netState.state === 'open' || netState.state === 'prescale') return;
+        if (!this.useAnimationSpecNet) {
+            this.startNetUnfoldLegacy();
+            return;
+        }
+        if (this.netAnimationPlayer.isPlaying()) return;
         this.isCameraAnimating = false;
         this.cameraTargetPosition = null;
         
-        const startAt = performance.now();
         this.cube.setVisible(true); 
         this.cutter.setVisible(false);
         this.highlightMarker.visible = false;
         this.snappedPointInfo = null;
+        this.resetNetAnimationCaches();
+        this.netAnimationDirection = 'open';
+        this.prepareNetAnimationZoom('open', false);
+        const spec = this.buildNetAnimationSpec('open');
+        if (!spec) return;
+        this.netAnimationPlayer.play(spec);
+    }
+
+    startNetFold() {
+        if (!this.useAnimationSpecNet) {
+            this.startNetFoldLegacy();
+            return;
+        }
+        if (this.netAnimationPlayer.isPlaying()) return;
+        this.isCameraAnimating = false;
+        this.cameraTargetPosition = null;
+        if (!this.currentNetPlan) return;
+        this.resetNetAnimationCaches();
+        this.netAnimationDirection = 'close';
+        this.currentNetPlan.faceOrder.forEach((faceId) => {
+            if (faceId === this.currentNetPlan!.rootFaceId) return;
+            this.netFaceProgress.set(faceId, 1);
+        });
+        this.prepareNetAnimationZoom('close', false);
+        const spec = this.buildNetAnimationSpec('close');
+        if (!spec) return;
+        this.netAnimationPlayer.play(spec, () => {
+            this.objectModelManager.setNetVisible(false);
+            this.netManager.hide();
+            this.clearNetSelectionHighlight();
+            this.cube.setFaceOutlineVisible(false);
+            const after = this.netAfterFoldAction;
+            this.netAfterFoldAction = null;
+            if (after) {
+                after();
+                return;
+            }
+            const endPos = this.camera.position.clone();
+            const endTarget = this.controls.target.clone();
+            const endUp = this.camera.up.clone();
+            this.startNetPreCameraMove({
+                endPos,
+                endTarget,
+                endUp,
+                endZoom: this.defaultCameraZoom,
+                onComplete: () => {
+                    this.startNetPreCameraMove({
+                        endPos: this.defaultCameraPosition.clone(),
+                        endTarget: this.defaultCameraTarget.clone(),
+                        endUp: new THREE.Vector3(0, 1, 0),
+                        endZoom: this.camera.zoom,
+                        onComplete: () => {}
+                    });
+                }
+            });
+        });
+    }
+
+    startNetUnfoldLegacy() {
+        const netState = this.objectModelManager.getNetState();
+        if (netState.state === 'opening' || netState.state === 'open' || netState.state === 'prescale') return;
+        this.isCameraAnimating = false;
+        this.cameraTargetPosition = null;
+
+        const startAt = performance.now();
+        this.cube.setVisible(true);
+        this.cutter.setVisible(false);
+        this.highlightMarker.visible = false;
+        this.snappedPointInfo = null;
+        const pose = this.getNetCameraPose();
+        const endPos = pose ? pose.topPosition.clone() : new THREE.Vector3(0, this.cube.size * 3, 0);
+        const endTarget = pose ? pose.center.clone() : new THREE.Vector3(0, 0, 0);
         const camera = {
             startPos: this.camera.position.clone(),
             startTarget: this.controls.target.clone(),
-            endPos: new THREE.Vector3(0, 0, this.cube.size * 3),
-            endTarget: new THREE.Vector3(0, 0, 0)
+            endPos,
+            endTarget
         };
         this.netUnfoldScaleReadyAt = null;
 
         const nextState = this.objectModelManager.getNetState();
-        const duration = nextState.duration || this.netUnfoldDuration;
         const faceDuration = nextState.faceDuration || this.netUnfoldFaceDuration;
         const stagger = nextState.stagger || this.netUnfoldStagger;
+        const faceCount = this.currentNetPlan ? Math.max(0, this.currentNetPlan.faceOrder.length - 1) : 0;
+        const totalDuration = faceCount <= 1
+            ? faceDuration
+            : faceDuration + (faceCount - 1) * stagger;
+        const duration = Math.max(nextState.duration || this.netUnfoldDuration, totalDuration);
         this.setNetAnimationState({
             state: 'prescale',
             progress: 0,
@@ -1309,7 +1714,7 @@ class App {
         });
     }
 
-    startNetFold() {
+    startNetFoldLegacy() {
         const netState = this.objectModelManager.getNetState();
         if (netState.state === 'closed' || netState.state === 'closing' || netState.state === 'prescale') return;
         this.isCameraAnimating = false;
@@ -1339,6 +1744,7 @@ class App {
     }
 
     updateNetUnfoldAnimation() {
+        if (this.useAnimationSpecNet) return;
         const netState = this.objectModelManager.getNetState();
         if (netState.state === 'closed' || netState.state === 'open' || netState.state === 'prescale' || netState.state === 'postscale') return;
         if (netState.duration <= 0 || netState.faceDuration <= 0) return;
@@ -1363,7 +1769,11 @@ class App {
                 : 1 - Math.pow(-2 * cameraT + 2, 2) / 2;
             this.camera.position.lerpVectors(netState.camera.startPos!, netState.camera.endPos!, cameraEased);
             this.controls.target.lerpVectors(netState.camera.startTarget!, netState.camera.endTarget!, cameraEased);
-            this.camera.up.set(0, 1, 0);
+            if (netState.state === 'opening') {
+                this.camera.up.set(0, 0, -1);
+            } else {
+                this.camera.up.set(0, 1, 0);
+            }
             this.camera.lookAt(this.controls.target);
         }
 
@@ -1388,39 +1798,707 @@ class App {
         });
     }
 
+    updateNetCameraZoom() {
+        if (!this.objectModelManager.getNetVisible()) return;
+        if (!this.netAnimationZoomActive || this.netAnimationDurationMs <= 0) return;
+        const elapsed = performance.now() - this.netAnimationStartAt;
+        const t = Math.max(0, Math.min(1, elapsed / this.netAnimationDurationMs));
+        const eased = t < 0.5
+            ? 2 * t * t
+            : 1 - Math.pow(-2 * t + 2, 2) / 2;
+        const zoom = this.netZoomStart + (this.netZoomEnd - this.netZoomStart) * eased;
+        this.camera.zoom = zoom;
+        this.camera.updateProjectionMatrix();
+        if (t >= 1) {
+            this.netAnimationZoomActive = false;
+        }
+    }
+
+    computeNetBounds() {
+        const meshes = Array.from(this.cube.faceMeshes.values());
+        let initialized = false;
+        const bounds = new THREE.Box3();
+        meshes.forEach((mesh) => {
+            if (!mesh.visible) return;
+            const meshBounds = new THREE.Box3().setFromObject(mesh);
+            if (!initialized) {
+                bounds.copy(meshBounds);
+                initialized = true;
+                return;
+            }
+            bounds.union(meshBounds);
+        });
+        return initialized ? bounds : null;
+    }
+
+    computeNetBoundsForProgress(faceProgress?: Map<string, number>, fallbackProgress = 0) {
+        if (!this.currentNetPlan) return null;
+        const snapshots: Array<{ mesh: THREE.Mesh; position: THREE.Vector3; quaternion: THREE.Quaternion }> = [];
+        this.cube.faceMeshes.forEach((mesh) => {
+            snapshots.push({
+                mesh,
+                position: mesh.position.clone(),
+                quaternion: mesh.quaternion.clone()
+            });
+        });
+        this.cube.applyNetPlan(this.currentNetPlan, fallbackProgress, faceProgress);
+        const bounds = this.computeNetBounds();
+        snapshots.forEach(({ mesh, position, quaternion }) => {
+            mesh.position.copy(position);
+            mesh.quaternion.copy(quaternion);
+        });
+        return bounds;
+    }
+
+    computeZoomForBounds(
+        bounds: THREE.Box3,
+        cameraPosition: THREE.Vector3,
+        cameraTarget: THREE.Vector3,
+        cameraUp: THREE.Vector3
+    ) {
+        const originalPosition = this.camera.position.clone();
+        const originalTarget = this.controls.target.clone();
+        const originalUp = this.camera.up.clone();
+        const originalZoom = this.camera.zoom;
+        this.camera.position.copy(cameraPosition);
+        this.controls.target.copy(cameraTarget);
+        this.camera.up.copy(cameraUp);
+        this.camera.lookAt(this.controls.target);
+        this.camera.updateMatrixWorld(true);
+        this.camera.updateProjectionMatrix();
+        const corners = [
+            new THREE.Vector3(bounds.min.x, bounds.min.y, bounds.min.z),
+            new THREE.Vector3(bounds.min.x, bounds.min.y, bounds.max.z),
+            new THREE.Vector3(bounds.min.x, bounds.max.y, bounds.min.z),
+            new THREE.Vector3(bounds.min.x, bounds.max.y, bounds.max.z),
+            new THREE.Vector3(bounds.max.x, bounds.min.y, bounds.min.z),
+            new THREE.Vector3(bounds.max.x, bounds.min.y, bounds.max.z),
+            new THREE.Vector3(bounds.max.x, bounds.max.y, bounds.min.z),
+            new THREE.Vector3(bounds.max.x, bounds.max.y, bounds.max.z)
+        ];
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minY = Infinity;
+        let maxY = -Infinity;
+        const viewMatrix = this.camera.matrixWorldInverse;
+        corners.forEach((corner) => {
+            corner.applyMatrix4(viewMatrix);
+            minX = Math.min(minX, corner.x);
+            maxX = Math.max(maxX, corner.x);
+            minY = Math.min(minY, corner.y);
+            maxY = Math.max(maxY, corner.y);
+        });
+        const width = maxX - minX;
+        const height = maxY - minY;
+        const viewWidth = this.camera.right - this.camera.left;
+        const viewHeight = this.camera.top - this.camera.bottom;
+        const padding = this.netBoundsPadding;
+        let targetZoom = this.defaultCameraZoom;
+        if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+            targetZoom = Math.min(viewWidth / width, viewHeight / height) * padding;
+            targetZoom = Math.max(0.3, Math.min(2.5, targetZoom));
+        }
+        this.camera.position.copy(originalPosition);
+        this.controls.target.copy(originalTarget);
+        this.camera.up.copy(originalUp);
+        this.camera.zoom = originalZoom;
+        this.camera.lookAt(this.controls.target);
+        this.camera.updateMatrixWorld(true);
+        this.camera.updateProjectionMatrix();
+        return targetZoom;
+    }
+
     handleFlipCutClick() {
-        this.cutter.flipCut();
-        const solid = this.objectModelManager.getModel()?.ssot || null;
-        this.cutService.syncFromCutterResult(solid);
+        const snapIds = this.cutter.getLastSnapIds();
+        if (!snapIds || snapIds.length < 3) return;
+        this.cutter.setCutInverted(!this.cutter.isCutInverted(), false);
+        this.objectModelManager.syncFromCube();
+        const solid = this.objectModelManager.getModel()?.ssot;
+        this.cutService.executeCut({ snapIds, structure: solid });
+    }
+
+    getSolidCenter() {
+        const model = this.objectModelManager.getModel();
+        if (!model) return new THREE.Vector3();
+        const vertices = Object.keys(model.ssot.vertices);
+        if (vertices.length === 0) return new THREE.Vector3();
+        const center = new THREE.Vector3();
+        let count = 0;
+        vertices.forEach((vertexId) => {
+            const pos = this.resolver.resolveVertex(vertexId);
+            if (!pos) return;
+            center.add(pos);
+            count += 1;
+        });
+        if (count === 0) return new THREE.Vector3();
+        return center.divideScalar(count);
+    }
+
+    getFaceNormalOutward(faceId: string) {
+        const face = this.resolver.resolveFace(faceId);
+        const center = this.resolver.resolveFaceCenter(faceId);
+        if (!face) return null;
+        let normal = face.normal.clone().normalize();
+        if (center) {
+            const outward = center.clone().sub(this.getSolidCenter());
+            if (normal.dot(outward) < 0) {
+                normal.negate();
+            }
+        }
+        return normal;
+    }
+
+    updateNetCameraFrameFromView(center: THREE.Vector3, normal: THREE.Vector3, cameraPos?: THREE.Vector3) {
+        const origin = cameraPos ? cameraPos : this.camera.position;
+        const viewDir = origin.clone().sub(center);
+        const projected = viewDir.clone().sub(normal.clone().multiplyScalar(viewDir.dot(normal)));
+        let front = projected;
+        if (front.lengthSq() < 1e-4) {
+            front = this.netCameraBasisU.clone();
+        }
+        front.normalize();
+        const right = new THREE.Vector3().crossVectors(front, normal).normalize();
+        const orthoFront = new THREE.Vector3().crossVectors(normal, right).normalize();
+        this.netCameraFrontDir.copy(orthoFront);
+        this.netCameraRightDir.copy(right);
+    }
+
+    getReferenceFaceFrame() {
+        const refFace = this.resolver.resolveFace('F:0-3-2-1');
+        if (!refFace) return null;
+        return {
+            normal: refFace.normal.clone().normalize(),
+            basisU: refFace.basisU.clone().normalize(),
+        };
+    }
+
+    getReferenceNetFrame() {
+        const bottomNormal = this.getFaceNormalOutward('F:0-3-2-1');
+        const frontNormal = this.getFaceNormalOutward('F:0-4-5-1');
+        if (!bottomNormal || !frontNormal) return null;
+        const frontProj = frontNormal.clone().sub(bottomNormal.clone().multiplyScalar(frontNormal.dot(bottomNormal)));
+        const basisU = frontProj.lengthSq() > 1e-6
+            ? frontProj.normalize()
+            : new THREE.Vector3(1, 0, 0);
+        return {
+            normal: bottomNormal,
+            basisU
+        };
+    }
+
+    pickFrontFaceId(rootFaceId: string) {
+        const model = this.objectModelManager.getModel();
+        if (!model) return null;
+        const adjacency = model.derived.topologyIndex?.faceAdjacency;
+        const candidates = adjacency?.[rootFaceId]
+            ? [...adjacency[rootFaceId]]
+            : Object.keys(model.ssot.faces).filter((id) => id !== rootFaceId);
+        if (candidates.length === 0) return null;
+        const cameraDir = this.camera.position.clone().sub(this.controls.target).normalize();
+        let bestId: string | null = null;
+        let bestScore = -Infinity;
+        candidates.forEach((faceId) => {
+            const normal = this.getFaceNormalOutward(faceId);
+            if (!normal) return;
+            const score = normal.dot(cameraDir);
+            if (score > bestScore) {
+                bestScore = score;
+                bestId = faceId;
+            }
+        });
+        return bestId;
+    }
+
+    computeFaceAlignmentRotation({
+        sourceNormal,
+        sourceBasisU,
+        targetNormal,
+        targetBasisU
+    }: {
+        sourceNormal: THREE.Vector3;
+        sourceBasisU: THREE.Vector3;
+        targetNormal: THREE.Vector3;
+        targetBasisU: THREE.Vector3;
+    }) {
+        const n1 = sourceNormal.clone().normalize();
+        const n2 = targetNormal.clone().normalize();
+        const q1 = new THREE.Quaternion().setFromUnitVectors(n1, n2);
+        const u1 = sourceBasisU.clone().applyQuaternion(q1);
+        const u1proj = u1.clone().sub(n2.clone().multiplyScalar(u1.dot(n2))).normalize();
+        const u2proj = targetBasisU.clone().sub(n2.clone().multiplyScalar(targetBasisU.dot(n2))).normalize();
+        let angle = 0;
+        if (u1proj.lengthSq() > 1e-6 && u2proj.lengthSq() > 1e-6) {
+            const cross = new THREE.Vector3().crossVectors(u1proj, u2proj);
+            const sin = n2.dot(cross);
+            const cos = u1proj.dot(u2proj);
+            angle = Math.atan2(sin, cos);
+        }
+        const q2 = new THREE.Quaternion().setFromAxisAngle(n2, angle);
+        return q2.multiply(q1);
+    }
+
+    getNetCameraPose() {
+        if (!this.currentNetPlan) return null;
+        const rootFaceId = this.currentNetPlan.rootFaceId;
+        const faceInfo = this.resolver.resolveFace(rootFaceId);
+        const center = this.resolver.resolveFaceCenter(rootFaceId);
+        if (!faceInfo || !center) return null;
+        this.netCameraCenter.copy(center);
+        this.netCameraNormal.copy(faceInfo.normal).normalize();
+        this.netCameraBasisU.copy(faceInfo.basisU).normalize();
+        this.netCameraBasisV.copy(faceInfo.basisV).normalize();
+
+        const solidCenter = this.getSolidCenter();
+        const outward = this.netCameraCenter.clone().sub(solidCenter);
+        if (this.netCameraNormal.dot(outward) < 0) {
+            this.netCameraNormal.negate();
+        }
+
+        let basisU = this.netCameraBasisU.clone();
+        if (Math.abs(this.netCameraNormal.dot(basisU)) > 0.98) {
+            basisU = this.netCameraBasisV.clone();
+        }
+        let basisV = new THREE.Vector3().crossVectors(this.netCameraNormal, basisU).normalize();
+        basisU = new THREE.Vector3().crossVectors(basisV, this.netCameraNormal).normalize();
+        this.netCameraBasisU.copy(basisU);
+        this.netCameraBasisV.copy(basisV);
+
+        if (this.netCameraFrontDir.lengthSq() < 1e-4 || this.netCameraRightDir.lengthSq() < 1e-4) {
+            this.netCameraFrontDir.copy(this.netCameraBasisV);
+            this.netCameraRightDir.copy(this.netCameraBasisU);
+        }
+
+        const distance = this.cube.size * 3;
+        this.netCameraObliquePosition
+            .copy(this.netCameraCenter)
+            .addScaledVector(this.netCameraRightDir, distance * 0.35)
+            .addScaledVector(this.netCameraFrontDir, distance * 0.45)
+            .addScaledVector(this.netCameraNormal, distance * 0.9);
+        this.netCameraTopPosition
+            .copy(this.netCameraCenter)
+            .addScaledVector(this.netCameraNormal, distance);
+        this.netCameraObliqueUp.copy(this.netCameraNormal);
+        this.netCameraTopUp.copy(this.netCameraFrontDir);
+        return {
+            center: this.netCameraCenter,
+            topPosition: this.netCameraTopPosition,
+            obliquePosition: this.netCameraObliquePosition,
+            obliqueUp: this.netCameraObliqueUp,
+            topUp: this.netCameraTopUp
+        };
+    }
+
+    positionCameraForNetOblique() {
+        const pose = this.getNetCameraPose();
+        if (!pose) return;
+        this.camera.position.copy(pose.obliquePosition);
+        this.controls.target.copy(pose.center);
+        this.camera.up.copy(pose.obliqueUp);
+        this.camera.lookAt(this.controls.target);
+        this.camera.updateProjectionMatrix();
+    }
+
+    setNetFaceHighlight(faceId: string, kind: 'hover' | 'selected' | 'none') {
+        const mesh = this.cube.faceMeshes.get(faceId);
+        if (!mesh) return;
+        const material = mesh.material;
+        if (!(material instanceof THREE.MeshPhongMaterial)) return;
+        if (mesh.userData && mesh.userData.originalColor === undefined) {
+            mesh.userData.originalColor = material.color.getHex();
+        }
+        if (kind === 'none') {
+            const baseColor = mesh.userData ? mesh.userData.originalColor : null;
+            if (typeof baseColor === 'number') {
+                material.color.setHex(baseColor);
+            }
+            return;
+        }
+        material.color.setHex(0xffcc55);
+    }
+
+    clearNetHoverHighlight() {
+        if (!this.netHoverFaceId) return;
+        if (this.netHoverFaceId !== this.netSelectedFaceId) {
+            this.setNetFaceHighlight(this.netHoverFaceId, 'none');
+        }
+        this.netHoverFaceId = null;
+    }
+
+    clearNetSelectionHighlight() {
+        if (!this.netSelectedFaceId) return;
+        this.setNetFaceHighlight(this.netSelectedFaceId, 'none');
+        this.netSelectedFaceId = null;
+    }
+
+    clearNetFaceHighlights() {
+        this.clearNetHoverHighlight();
+        this.clearNetSelectionHighlight();
+    }
+
+    startNetBaseSelection() {
+        this.netSelectionActive = true;
+        this.netRootFaceId = null;
+        this.clearNetFaceHighlights();
+        this.cube.setFaceOutlineVisible(true);
+        this.highlightMarker.visible = false;
+        this.snappedPointInfo = null;
+        document.body.style.cursor = 'pointer';
+        this.ui.showMessage("底面を選択してください。", "info");
+    }
+
+    startNetPreCameraMove({
+        endPos,
+        endTarget,
+        endUp,
+        endZoom,
+        onComplete
+    }: {
+        endPos: THREE.Vector3;
+        endTarget: THREE.Vector3;
+        endUp: THREE.Vector3;
+        endZoom?: number;
+        onComplete: () => void;
+    }) {
+        this.netPreCameraActive = true;
+        this.netPreCameraStartAt = performance.now();
+        this.netPreCameraDurationMs = 650;
+        this.netPreCameraStartPos.copy(this.camera.position);
+        this.netPreCameraStartTarget.copy(this.controls.target);
+        this.netPreCameraStartUp.copy(this.camera.up);
+        this.netPreCameraStartZoom = this.camera.zoom;
+        this.netPreCameraEndPos.copy(endPos);
+        this.netPreCameraEndTarget.copy(endTarget);
+        this.netPreCameraEndUp.copy(endUp);
+        this.netPreCameraEndZoom = typeof endZoom === 'number' ? endZoom : this.camera.zoom;
+        this.netPreCameraOnComplete = onComplete;
+    }
+
+    cancelNetBaseSelection() {
+        this.netSelectionActive = false;
+        this.netRootFaceId = null;
+        this.clearNetFaceHighlights();
+        if (!this.objectModelManager.getNetVisible()) {
+            this.cube.setFaceOutlineVisible(false);
+        }
+        this.ui.showMessage("底面選択をキャンセルしました。", "info");
+        document.body.style.cursor = 'auto';
+    }
+
+    pickNetFaceIdFromEvent(e: MouseEvent): string | null {
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        const mouse = new THREE.Vector2(
+            ((e.clientX - rect.left) / rect.width) * 2 - 1,
+            -((e.clientY - rect.top) / rect.height) * 2 + 1
+        );
+        this.raycaster.setFromCamera(mouse, this.camera);
+        const faces = Array.from(this.cube.faceMeshes.values());
+        const intersects = this.raycaster.intersectObjects(faces);
+        if (intersects.length === 0) return null;
+        const cameraDir = this.camera.position.clone().sub(this.controls.target).normalize();
+        let bestFront = intersects[0];
+        let bestAny = intersects[0];
+        let bestFrontDistance = Number.POSITIVE_INFINITY;
+        let bestAnyDistance = bestAny.distance;
+        intersects.forEach((entry) => {
+            if (entry.distance < bestAnyDistance) {
+                bestAnyDistance = entry.distance;
+                bestAny = entry;
+            }
+            const faceId = entry.object.userData ? entry.object.userData.faceId : null;
+            if (!faceId) return;
+            const normal = this.getFaceNormalOutward(faceId);
+            if (!normal) return;
+            if (normal.dot(cameraDir) <= 0) return;
+            if (entry.distance < bestFrontDistance) {
+                bestFrontDistance = entry.distance;
+                bestFront = entry;
+            }
+        });
+        const target = bestFrontDistance < Number.POSITIVE_INFINITY ? bestFront.object : bestAny.object;
+        const faceId = target.userData ? target.userData.faceId : null;
+        return typeof faceId === 'string' ? faceId : null;
+    }
+
+    handleNetSelectionMove(e: MouseEvent) {
+        const faceId = this.pickNetFaceIdFromEvent(e);
+        if (faceId === this.netHoverFaceId) return;
+        this.clearNetHoverHighlight();
+        this.netHoverFaceId = faceId;
+        if (this.netHoverFaceId && this.netHoverFaceId !== this.netSelectedFaceId) {
+            this.setNetFaceHighlight(this.netHoverFaceId, 'hover');
+        }
+        document.body.style.cursor = faceId ? 'pointer' : 'auto';
+    }
+
+    openNetWithRoot(rootFaceId: string) {
+        this.netSelectionActive = false;
+        this.netRootFaceId = rootFaceId;
+        this.debugNetLogDone = false;
+        this.clearNetHoverHighlight();
+        this.netSelectedFaceId = rootFaceId;
+        this.setNetFaceHighlight(rootFaceId, 'selected');
+        this.cube.setFaceOutlineVisible(true);
+        this.objectModelManager.setNetVisible(true);
+        if (typeof (globalThis as any).__setNetVisible === 'function') {
+            (globalThis as any).__setNetVisible(true);
+        }
+        const model = this.objectModelManager.getModel();
+        if (model) {
+            this.currentNetPlan = this.netManager.generateNetPlan(model.ssot, {
+                rootFaceId,
+                topologyIndex: model.derived.topologyIndex,
+                faceAdjacency: model.derived.cut?.faceAdjacency,
+                vertexSnapMap: model.derived.cut?.vertexSnapMap
+            });
+        }
+        const faceInfo = this.resolver.resolveFace(rootFaceId);
+        const faceCenter = this.resolver.resolveFaceCenter(rootFaceId);
+        const solidCenter = this.getSolidCenter();
+        let targetCameraPos = this.defaultCameraPosition.clone();
+        let targetCameraUp = new THREE.Vector3(0, 1, 0);
+        if (faceInfo && faceCenter) {
+            const ref = this.getReferenceNetFrame();
+            const frontFaceId = this.pickFrontFaceId(rootFaceId);
+            const frontNormal = frontFaceId ? this.getFaceNormalOutward(frontFaceId) : null;
+            let sourceNormal = faceInfo.normal.clone().normalize();
+            const outward = faceCenter.clone().sub(solidCenter);
+            if (sourceNormal.dot(outward) < 0) {
+                sourceNormal.negate();
+            }
+            let sourceBasisU = faceInfo.basisU.clone().normalize();
+            if (frontNormal && ref) {
+                const projected = frontNormal.clone().sub(sourceNormal.clone().multiplyScalar(frontNormal.dot(sourceNormal)));
+                if (projected.lengthSq() > 1e-6) {
+                    sourceBasisU = projected.normalize();
+                }
+            }
+            if (ref) {
+                const rotation = this.computeFaceAlignmentRotation({
+                    sourceNormal,
+                    sourceBasisU,
+                    targetNormal: ref.normal,
+                    targetBasisU: ref.basisU
+                });
+                const inverse = rotation.clone().invert();
+                const offset = this.defaultCameraPosition.clone().sub(solidCenter).applyQuaternion(inverse);
+                targetCameraPos = solidCenter.clone().add(offset);
+                targetCameraUp = new THREE.Vector3(0, 1, 0).applyQuaternion(inverse);
+                this.updateNetCameraFrameFromView(faceCenter, sourceNormal, targetCameraPos);
+            }
+        }
+        this.netManager.show();
+        const pose = this.getNetCameraPose();
+        if (!pose) {
+            this.positionCameraForNetOblique();
+            this.startNetUnfold();
+            return;
+        }
+        const openProgress = new Map<string, number>();
+        if (this.currentNetPlan) {
+            this.currentNetPlan.faceOrder.forEach((faceId) => {
+                if (faceId === this.currentNetPlan!.rootFaceId) return;
+                openProgress.set(faceId, 1);
+            });
+        }
+        const openBounds = this.computeNetBoundsForProgress(openProgress, 0);
+        const targetZoom = openBounds
+            ? this.computeZoomForBounds(openBounds, targetCameraPos, pose.center.clone(), targetCameraUp)
+            : this.camera.zoom;
+        const targetPos = targetCameraPos.clone();
+        const targetCenter = pose.center.clone();
+        const targetUp = targetCameraUp.clone();
+        const currentZoom = this.camera.zoom;
+        this.startNetPreCameraMove({
+            endPos: targetPos.clone(),
+            endTarget: targetCenter.clone(),
+            endUp: targetUp.clone(),
+            endZoom: currentZoom,
+            onComplete: () => {
+                this.startNetPreCameraMove({
+                    endPos: targetPos.clone(),
+                    endTarget: targetCenter.clone(),
+                    endUp: targetUp.clone(),
+                    endZoom: targetZoom,
+                    onComplete: () => {
+                        if (this.netPreCameraTimeout) {
+                            clearTimeout(this.netPreCameraTimeout);
+                        }
+                        this.netPreCameraTimeout = setTimeout(() => {
+                            this.startNetUnfold();
+                            const solid = this.objectModelManager.getModel()?.ssot;
+                            if (solid) {
+                                this.netManager.update(this.objectModelManager.getCutSegments(), solid, this.resolver);
+                            }
+                            this.ui.showMessage("底面を確定しました。展開します。", "info");
+                        }, 1500);
+                    }
+                });
+            }
+        });
+    }
+
+    handleNetSelectionClick(e: MouseEvent) {
+        if (this.netAnimationPlayer.isPlaying() || this.netPreCameraActive) return;
+        const faceId = this.pickNetFaceIdFromEvent(e);
+        if (!faceId) return;
+        this.openNetWithRoot(faceId);
     }
 
     handleToggleNetClick() {
         const wasVisible = this.objectModelManager.getNetVisible();
-        const nextVisible = !wasVisible;
-        this.objectModelManager.setNetVisible(nextVisible);
-        if (typeof (globalThis as any).__setNetVisible === 'function') {
-            (globalThis as any).__setNetVisible(nextVisible);
-        }
-        if (nextVisible) {
-            const model = this.objectModelManager.getModel();
-            if (model) {
-                this.currentNetPlan = this.netManager.generateNetPlan(model.ssot);
+        if (this.netAnimationPlayer.isPlaying()) return;
+        if (!wasVisible) {
+            if (this.netSelectionActive) {
+                this.cancelNetBaseSelection();
+                return;
             }
-            this.netManager.show();
-            this.startNetUnfold();
-        } else {
+            this.startNetBaseSelection();
+            return;
+        }
+        if (!this.useAnimationSpecNet) {
+            this.objectModelManager.setNetVisible(false);
+            if (typeof (globalThis as any).__setNetVisible === 'function') {
+                (globalThis as any).__setNetVisible(false);
+            }
             this.netManager.hide();
+            this.startNetFoldLegacy();
+        } else {
+            if (typeof (globalThis as any).__setNetVisible === 'function') {
+                (globalThis as any).__setNetVisible(false);
+            }
+            this.startNetFoldWithPreCamera();
+        }
+        this.netRootFaceId = null;
+    }
+
+    startNetFoldWithPreCamera() {
+        if (this.netAnimationPlayer.isPlaying() || this.netPreCameraActive) return;
+        const rootFaceId = this.netRootFaceId || this.netSelectedFaceId;
+        if (!rootFaceId) {
             this.startNetFold();
+            return;
         }
-        const model = this.objectModelManager.getModel();
-        if (model) {
-            this.netManager.update(this.objectModelManager.getCutSegments(), model.ssot, this.resolver);
+        this.debugNetLogDone = false;
+        const faceInfo = this.resolver.resolveFace(rootFaceId);
+        const faceCenter = this.resolver.resolveFaceCenter(rootFaceId);
+        const solidCenter = this.getSolidCenter();
+        let targetCameraPos = this.defaultCameraPosition.clone();
+        let targetCameraUp = new THREE.Vector3(0, 1, 0);
+        if (faceInfo && faceCenter) {
+            const ref = this.getReferenceNetFrame();
+            const frontFaceId = this.pickFrontFaceId(rootFaceId);
+            const frontNormal = frontFaceId ? this.getFaceNormalOutward(frontFaceId) : null;
+            let sourceNormal = faceInfo.normal.clone().normalize();
+            const outward = faceCenter.clone().sub(solidCenter);
+            if (sourceNormal.dot(outward) < 0) {
+                sourceNormal.negate();
+            }
+            let sourceBasisU = faceInfo.basisU.clone().normalize();
+            if (frontNormal && ref) {
+                const projected = frontNormal.clone().sub(sourceNormal.clone().multiplyScalar(frontNormal.dot(sourceNormal)));
+                if (projected.lengthSq() > 1e-6) {
+                    sourceBasisU = projected.normalize();
+                }
+            }
+            if (ref) {
+                const rotation = this.computeFaceAlignmentRotation({
+                    sourceNormal,
+                    sourceBasisU,
+                    targetNormal: ref.normal,
+                    targetBasisU: ref.basisU
+                });
+                const inverse = rotation.clone().invert();
+                const offset = this.defaultCameraPosition.clone().sub(solidCenter).applyQuaternion(inverse);
+                targetCameraPos = solidCenter.clone().add(offset);
+                targetCameraUp = new THREE.Vector3(0, 1, 0).applyQuaternion(inverse);
+                this.updateNetCameraFrameFromView(faceCenter, sourceNormal, targetCameraPos);
+            }
         }
+        const pose = this.getNetCameraPose();
+        if (!pose) {
+            this.startNetFold();
+            return;
+        }
+        this.startNetPreCameraMove({
+            endPos: targetCameraPos.clone(),
+            endTarget: pose.center.clone(),
+            endUp: targetCameraUp.clone(),
+            endZoom: this.camera.zoom,
+            onComplete: () => {
+                this.startNetFold();
+            }
+        });
     }
 
     // --- Animation Loop ---
     animate() {
         requestAnimationFrame(this.animate.bind(this));
+        this.mainLight.position.copy(this.camera.position);
+        this.mainLight.target.position.copy(this.controls.target);
+        this.mainLight.target.updateMatrixWorld();
+        const debugEnabled = isDebugEnabled();
+        if (debugEnabled !== this.debugEnabledLast) {
+            this.debugEnabledLast = debugEnabled;
+            this.cutter.setDebug(debugEnabled);
+            if (debugEnabled) {
+                this.debugInitLogDone = false;
+                this.debugFaceLogDone = false;
+                this.debugNetLogDone = false;
+            }
+        }
+        if (debugEnabled && !this.debugInitLogDone) {
+            console.info('[init]', JSON.stringify({
+                camera: this.camera.position.toArray(),
+                target: this.controls.target.toArray(),
+                up: this.camera.up.toArray(),
+                light: this.mainLight.position.toArray()
+            }));
+            this.debugInitLogDone = true;
+        }
+        if (debugEnabled && !this.debugFaceLogDone) {
+            const model = this.objectModelManager.getModel();
+            if (model) {
+                const faceIds = ['F:2-3-7-6', 'F:0-3-7-4', 'F:0-1-2-3'];
+                faceIds.forEach((faceId) => {
+                    const normal = this.getFaceNormalOutward(faceId);
+                    const center = this.resolver.resolveFaceCenter(faceId);
+                    if (!normal || !center) return;
+                    const toLight = this.mainLight.position.clone().sub(center).normalize();
+                    const dot = normal.dot(toLight);
+                    console.info('[debug] face', JSON.stringify({
+                        faceId,
+                        normal: normal.toArray(),
+                        center: center.toArray(),
+                        dotLight: Number(dot.toFixed(3))
+                    }));
+                });
+                this.debugFaceLogDone = true;
+            }
+        }
+        if (this.cube.faceOutlineVisible) {
+            const cameraDir = this.camera.position.clone().sub(this.controls.target).normalize();
+            this.cube.faceOutlines.forEach((outline, faceId) => {
+                const normal = this.getFaceNormalOutward(faceId);
+                if (!normal) return;
+                const isFront = normal.dot(cameraDir) > 0;
+                outline.visible = this.cube.faceOutlineVisible && isFront;
+                const hidden = this.cube.faceHiddenOutlines.get(faceId);
+                if (hidden) {
+                    hidden.visible = this.cube.faceOutlineVisible && !isFront;
+                }
+            });
+        }
+        if (debugEnabled && !this.debugNetLogDone && this.netRootFaceId) {
+            const mesh = this.cube.faceMeshes.get(this.netRootFaceId);
+            if (mesh) {
+                console.info('[debug] netRoot', JSON.stringify({
+                    faceId: this.netRootFaceId,
+                    position: mesh.position.toArray(),
+                    quaternion: [mesh.quaternion.x, mesh.quaternion.y, mesh.quaternion.z, mesh.quaternion.w]
+                }));
+                this.debugNetLogDone = true;
+            }
+        }
         if (this.layoutTransitionActive) {
             const elapsed = performance.now() - this.layoutTransitionStart;
             const t = Math.min(1, elapsed / this.layoutTransitionDuration);
@@ -1498,6 +2576,26 @@ class App {
             }
         }
         this.updateNetUnfoldAnimation();
+        this.updateNetCameraZoom();
+        if (this.netPreCameraActive) {
+            const elapsed = performance.now() - this.netPreCameraStartAt;
+            const t = Math.max(0, Math.min(1, elapsed / this.netPreCameraDurationMs));
+            this.camera.position.lerpVectors(this.netPreCameraStartPos, this.netPreCameraEndPos, t);
+            this.controls.target.lerpVectors(this.netPreCameraStartTarget, this.netPreCameraEndTarget, t);
+            this.netPreCameraTempUp.copy(this.netPreCameraStartUp)
+                .lerp(this.netPreCameraEndUp, t)
+                .normalize();
+            this.camera.up.copy(this.netPreCameraTempUp);
+            this.camera.zoom = this.netPreCameraStartZoom + (this.netPreCameraEndZoom - this.netPreCameraStartZoom) * t;
+            this.camera.lookAt(this.controls.target);
+            this.camera.updateProjectionMatrix();
+            if (t >= 1) {
+                this.netPreCameraActive = false;
+                const onComplete = this.netPreCameraOnComplete;
+                this.netPreCameraOnComplete = null;
+                if (onComplete) onComplete();
+            }
+        }
         if (this.isCameraAnimating && this.cameraTargetPosition) {
             this.camera.position.lerp(this.cameraTargetPosition, 0.05);
             if (this.camera.position.distanceTo(this.cameraTargetPosition) < 0.1) {
