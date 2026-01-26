@@ -382,9 +382,11 @@ export class ObjectModelManager {
     const newPresEdges: Record<EdgeID, EdgePresentation> = {};
     const newPresFaces: Record<FaceID, FacePresentation> = {};
 
+    const toVertexId = (id: string) => (id.startsWith('V:') ? id : `V:${id}`);
+
     facePolygons.forEach(poly => {
       const faceId = poly.faceId;
-      const vertexIds = poly.vertexIds || [];
+      const vertexIds = (poly.vertexIds || []).map(toVertexId);
       newFaces[faceId] = { id: faceId, vertices: vertexIds };
       
       const presFace = createDefaultFacePresentation();
