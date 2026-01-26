@@ -101,6 +101,7 @@ class App {
     netFaceProgress: Map<string, number>;
     netCameraStarts: Map<string, { position: THREE.Vector3; target: THREE.Vector3 }>;
     netCameraEnds: Map<string, { position: THREE.Vector3; target: THREE.Vector3 }>;
+    useAnimationSpecNet: boolean;
     layoutPanelOffset: number;
     layoutTargetPanelOffset: number;
     layoutTransitionStart: number;
@@ -144,6 +145,7 @@ class App {
         this.netAnimationPlayer = new AnimationPlayer({
             dispatch: this.dispatchNetAnimation.bind(this)
         });
+        this.useAnimationSpecNet = true;
         this.layoutPanelOffset = 0;
         this.layoutTargetPanelOffset = 0;
         this.layoutTransitionStart = 0;
@@ -251,7 +253,9 @@ class App {
             getCubeSize: () => this.cube.getSize(),
             getVertexLabelMap: () => this.currentLabelMap, // Add this line
             setPanelOpen: (open: boolean) => this.handlePanelOpenChange(open),
-            getNetVisible: () => this.objectModelManager.getNetVisible()
+            getNetVisible: () => this.objectModelManager.getNetVisible(),
+            getAnimationSpecEnabled: () => this.useAnimationSpecNet,
+            setAnimationSpecEnabled: (enabled: boolean) => this.setAnimationSpecEnabled(enabled)
         };
         initReactApp();
 
@@ -1236,6 +1240,14 @@ class App {
         this.netCameraEnds.clear();
     }
 
+    setAnimationSpecEnabled(enabled: boolean) {
+        this.useAnimationSpecNet = enabled;
+        if (!enabled && this.netAnimationPlayer.isPlaying()) {
+            this.netAnimationPlayer.stop();
+            this.resetNetAnimationCaches();
+        }
+    }
+
     dispatchNetAnimation(
         stepId: string,
         action: string,
@@ -1366,6 +1378,10 @@ class App {
     }
 
     startNetUnfold() {
+        if (!this.useAnimationSpecNet) {
+            this.startNetUnfoldLegacy();
+            return;
+        }
         if (this.netAnimationPlayer.isPlaying()) return;
         this.isCameraAnimating = false;
         this.cameraTargetPosition = null;
@@ -1382,6 +1398,10 @@ class App {
     }
 
     startNetFold() {
+        if (!this.useAnimationSpecNet) {
+            this.startNetFoldLegacy();
+            return;
+        }
         if (this.netAnimationPlayer.isPlaying()) return;
         this.isCameraAnimating = false;
         this.cameraTargetPosition = null;
@@ -1400,8 +1420,75 @@ class App {
         });
     }
 
+    startNetUnfoldLegacy() {
+        const netState = this.objectModelManager.getNetState();
+        if (netState.state === 'opening' || netState.state === 'open' || netState.state === 'prescale') return;
+        this.isCameraAnimating = false;
+        this.cameraTargetPosition = null;
+
+        const startAt = performance.now();
+        this.cube.setVisible(true);
+        this.cutter.setVisible(false);
+        this.highlightMarker.visible = false;
+        this.snappedPointInfo = null;
+        const camera = {
+            startPos: this.camera.position.clone(),
+            startTarget: this.controls.target.clone(),
+            endPos: new THREE.Vector3(0, 0, this.cube.size * 3),
+            endTarget: new THREE.Vector3(0, 0, 0)
+        };
+        this.netUnfoldScaleReadyAt = null;
+
+        const nextState = this.objectModelManager.getNetState();
+        const duration = nextState.duration || this.netUnfoldDuration;
+        const faceDuration = nextState.faceDuration || this.netUnfoldFaceDuration;
+        const stagger = nextState.stagger || this.netUnfoldStagger;
+        this.setNetAnimationState({
+            state: 'prescale',
+            progress: 0,
+            duration,
+            faceDuration,
+            stagger,
+            scale: 1,
+            scaleTarget: nextState.scaleTarget,
+            preScaleDelay: nextState.preScaleDelay,
+            postScaleDelay: nextState.postScaleDelay,
+            startAt,
+            camera
+        });
+    }
+
+    startNetFoldLegacy() {
+        const netState = this.objectModelManager.getNetState();
+        if (netState.state === 'closed' || netState.state === 'closing' || netState.state === 'prescale') return;
+        this.isCameraAnimating = false;
+        this.cameraTargetPosition = null;
+        const duration = netState.duration || this.netUnfoldDuration;
+        const startAt = performance.now() - (1 - netState.progress) * duration;
+        const camera = {
+            startPos: this.camera.position.clone(),
+            startTarget: this.controls.target.clone(),
+            endPos: this.defaultCameraPosition.clone(),
+            endTarget: this.defaultCameraTarget.clone()
+        };
+        this.netUnfoldScaleReadyAt = null;
+        this.setNetAnimationState({
+            state: 'closing',
+            progress: netState.progress,
+            duration,
+            faceDuration: netState.faceDuration || this.netUnfoldFaceDuration,
+            stagger: netState.stagger || this.netUnfoldStagger,
+            scale: netState.scale,
+            scaleTarget: netState.scaleTarget,
+            preScaleDelay: netState.preScaleDelay,
+            postScaleDelay: netState.postScaleDelay,
+            startAt,
+            camera
+        });
+    }
+
     updateNetUnfoldAnimation() {
-        if (this.netAnimationPlayer.isPlaying()) return;
+        if (this.useAnimationSpecNet) return;
         const netState = this.objectModelManager.getNetState();
         if (netState.state === 'closed' || netState.state === 'open' || netState.state === 'prescale' || netState.state === 'postscale') return;
         if (netState.duration <= 0 || netState.faceDuration <= 0) return;
@@ -1459,6 +1546,30 @@ class App {
 
     handleToggleNetClick() {
         const wasVisible = this.objectModelManager.getNetVisible();
+        if (!this.useAnimationSpecNet) {
+            const nextVisible = !wasVisible;
+            this.objectModelManager.setNetVisible(nextVisible);
+            if (typeof (globalThis as any).__setNetVisible === 'function') {
+                (globalThis as any).__setNetVisible(nextVisible);
+            }
+            if (nextVisible) {
+                const model = this.objectModelManager.getModel();
+                if (model) {
+                    this.currentNetPlan = this.netManager.generateNetPlan(model.ssot);
+                }
+                this.netManager.show();
+                this.startNetUnfoldLegacy();
+            } else {
+                this.netManager.hide();
+                this.startNetFoldLegacy();
+            }
+            const model = this.objectModelManager.getModel();
+            if (model) {
+                this.netManager.update(this.objectModelManager.getCutSegments(), model.ssot, this.resolver);
+            }
+            return;
+        }
+
         if (this.netAnimationPlayer.isPlaying()) return;
         if (!wasVisible) {
             this.objectModelManager.setNetVisible(true);
