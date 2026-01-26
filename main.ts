@@ -1632,7 +1632,15 @@ class App {
                 endTarget,
                 endUp,
                 endZoom: this.defaultCameraZoom,
-                onComplete: () => {}
+                onComplete: () => {
+                    this.startNetPreCameraMove({
+                        endPos: this.defaultCameraPosition.clone(),
+                        endTarget: this.defaultCameraTarget.clone(),
+                        endUp: new THREE.Vector3(0, 1, 0),
+                        endZoom: this.camera.zoom,
+                        onComplete: () => {}
+                    });
+                }
             });
         });
     }
@@ -1902,6 +1910,20 @@ class App {
         return center.divideScalar(count);
     }
 
+    getFaceNormalOutward(faceId: string) {
+        const face = this.resolver.resolveFace(faceId);
+        const center = this.resolver.resolveFaceCenter(faceId);
+        if (!face) return null;
+        let normal = face.normal.clone().normalize();
+        if (center) {
+            const outward = center.clone().sub(this.getSolidCenter());
+            if (normal.dot(outward) < 0) {
+                normal.negate();
+            }
+        }
+        return normal;
+    }
+
     updateNetCameraFrameFromView(center: THREE.Vector3, normal: THREE.Vector3, cameraPos?: THREE.Vector3) {
         const origin = cameraPos ? cameraPos : this.camera.position;
         const viewDir = origin.clone().sub(center);
@@ -1924,6 +1946,43 @@ class App {
             normal: refFace.normal.clone().normalize(),
             basisU: refFace.basisU.clone().normalize(),
         };
+    }
+
+    getReferenceNetFrame() {
+        const bottomNormal = this.getFaceNormalOutward('F:0-3-2-1');
+        const frontNormal = this.getFaceNormalOutward('F:0-4-5-1');
+        if (!bottomNormal || !frontNormal) return null;
+        const frontProj = frontNormal.clone().sub(bottomNormal.clone().multiplyScalar(frontNormal.dot(bottomNormal)));
+        const basisU = frontProj.lengthSq() > 1e-6
+            ? frontProj.normalize()
+            : new THREE.Vector3(1, 0, 0);
+        return {
+            normal: bottomNormal,
+            basisU
+        };
+    }
+
+    pickFrontFaceId(rootFaceId: string) {
+        const model = this.objectModelManager.getModel();
+        if (!model) return null;
+        const adjacency = model.derived.topologyIndex?.faceAdjacency;
+        const candidates = adjacency?.[rootFaceId]
+            ? [...adjacency[rootFaceId]]
+            : Object.keys(model.ssot.faces).filter((id) => id !== rootFaceId);
+        if (candidates.length === 0) return null;
+        const cameraDir = this.camera.position.clone().sub(this.controls.target).normalize();
+        let bestId: string | null = null;
+        let bestScore = -Infinity;
+        candidates.forEach((faceId) => {
+            const normal = this.getFaceNormalOutward(faceId);
+            if (!normal) return;
+            const score = normal.dot(cameraDir);
+            if (score > bestScore) {
+                bestScore = score;
+                bestId = faceId;
+            }
+        });
+        return bestId;
     }
 
     computeFaceAlignmentRotation({
@@ -2111,17 +2170,27 @@ class App {
         const faces = Array.from(this.cube.faceMeshes.values());
         const intersects = this.raycaster.intersectObjects(faces);
         if (intersects.length === 0) return null;
-        const rayDir = this.raycaster.ray.direction;
-        let hit = intersects.find((entry) => {
-            if (!entry.face) return false;
-            const normalMatrix = new THREE.Matrix3().getNormalMatrix(entry.object.matrixWorld);
-            const worldNormal = entry.face.normal.clone().applyMatrix3(normalMatrix).normalize();
-            return worldNormal.dot(rayDir) < 0;
+        const cameraDir = this.camera.position.clone().sub(this.controls.target).normalize();
+        let bestFront = intersects[0];
+        let bestAny = intersects[0];
+        let bestFrontDistance = Number.POSITIVE_INFINITY;
+        let bestAnyDistance = bestAny.distance;
+        intersects.forEach((entry) => {
+            if (entry.distance < bestAnyDistance) {
+                bestAnyDistance = entry.distance;
+                bestAny = entry;
+            }
+            const faceId = entry.object.userData ? entry.object.userData.faceId : null;
+            if (!faceId) return;
+            const normal = this.getFaceNormalOutward(faceId);
+            if (!normal) return;
+            if (normal.dot(cameraDir) <= 0) return;
+            if (entry.distance < bestFrontDistance) {
+                bestFrontDistance = entry.distance;
+                bestFront = entry;
+            }
         });
-        if (!hit) {
-            hit = intersects[0];
-        }
-        const target = hit.object;
+        const target = bestFrontDistance < Number.POSITIVE_INFINITY ? bestFront.object : bestAny.object;
         const faceId = target.userData ? target.userData.faceId : null;
         return typeof faceId === 'string' ? faceId : null;
     }
@@ -2163,11 +2232,25 @@ class App {
         let targetCameraPos = this.defaultCameraPosition.clone();
         let targetCameraUp = new THREE.Vector3(0, 1, 0);
         if (faceInfo && faceCenter) {
-            const ref = this.getReferenceFaceFrame();
+            const ref = this.getReferenceNetFrame();
+            const frontFaceId = this.pickFrontFaceId(rootFaceId);
+            const frontNormal = frontFaceId ? this.getFaceNormalOutward(frontFaceId) : null;
+            let sourceNormal = faceInfo.normal.clone().normalize();
+            const outward = faceCenter.clone().sub(solidCenter);
+            if (sourceNormal.dot(outward) < 0) {
+                sourceNormal.negate();
+            }
+            let sourceBasisU = faceInfo.basisU.clone().normalize();
+            if (frontNormal && ref) {
+                const projected = frontNormal.clone().sub(sourceNormal.clone().multiplyScalar(frontNormal.dot(sourceNormal)));
+                if (projected.lengthSq() > 1e-6) {
+                    sourceBasisU = projected.normalize();
+                }
+            }
             if (ref) {
                 const rotation = this.computeFaceAlignmentRotation({
-                    sourceNormal: faceInfo.normal,
-                    sourceBasisU: faceInfo.basisU,
+                    sourceNormal,
+                    sourceBasisU,
                     targetNormal: ref.normal,
                     targetBasisU: ref.basisU
                 });
@@ -2175,7 +2258,7 @@ class App {
                 const offset = this.defaultCameraPosition.clone().sub(solidCenter).applyQuaternion(inverse);
                 targetCameraPos = solidCenter.clone().add(offset);
                 targetCameraUp = new THREE.Vector3(0, 1, 0).applyQuaternion(inverse);
-                this.updateNetCameraFrameFromView(faceCenter, faceInfo.normal, targetCameraPos);
+                this.updateNetCameraFrameFromView(faceCenter, sourceNormal, targetCameraPos);
             }
         }
         this.netManager.show();
@@ -2276,11 +2359,25 @@ class App {
         let targetCameraPos = this.defaultCameraPosition.clone();
         let targetCameraUp = new THREE.Vector3(0, 1, 0);
         if (faceInfo && faceCenter) {
-            const ref = this.getReferenceFaceFrame();
+            const ref = this.getReferenceNetFrame();
+            const frontFaceId = this.pickFrontFaceId(rootFaceId);
+            const frontNormal = frontFaceId ? this.getFaceNormalOutward(frontFaceId) : null;
+            let sourceNormal = faceInfo.normal.clone().normalize();
+            const outward = faceCenter.clone().sub(solidCenter);
+            if (sourceNormal.dot(outward) < 0) {
+                sourceNormal.negate();
+            }
+            let sourceBasisU = faceInfo.basisU.clone().normalize();
+            if (frontNormal && ref) {
+                const projected = frontNormal.clone().sub(sourceNormal.clone().multiplyScalar(frontNormal.dot(sourceNormal)));
+                if (projected.lengthSq() > 1e-6) {
+                    sourceBasisU = projected.normalize();
+                }
+            }
             if (ref) {
                 const rotation = this.computeFaceAlignmentRotation({
-                    sourceNormal: faceInfo.normal,
-                    sourceBasisU: faceInfo.basisU,
+                    sourceNormal,
+                    sourceBasisU,
                     targetNormal: ref.normal,
                     targetBasisU: ref.basisU
                 });
@@ -2288,7 +2385,7 @@ class App {
                 const offset = this.defaultCameraPosition.clone().sub(solidCenter).applyQuaternion(inverse);
                 targetCameraPos = solidCenter.clone().add(offset);
                 targetCameraUp = new THREE.Vector3(0, 1, 0).applyQuaternion(inverse);
-                this.updateNetCameraFrameFromView(faceCenter, faceInfo.normal, targetCameraPos);
+                this.updateNetCameraFrameFromView(faceCenter, sourceNormal, targetCameraPos);
             }
         }
         const pose = this.getNetCameraPose();
