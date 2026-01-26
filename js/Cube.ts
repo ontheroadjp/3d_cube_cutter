@@ -355,8 +355,8 @@ export class Cube {
               color: 0xaaaaaa,
               transparent: true,
               opacity: 0.4,
-              dashSize: 0.3,
-              gapSize: 0.2,
+              dashSize: 0.8,
+              gapSize: 0.6,
               depthWrite: false,
               depthTest: false
           });

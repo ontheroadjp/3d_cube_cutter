@@ -18,7 +18,8 @@ import type { ObjectNetState, NetPlan } from './js/model/objectModel.js';
 import { normalizeSnapPointId, parseSnapPointId, type SnapPointID } from './js/geometry/snapPointId.js';
 import { createLabel, createMarker } from './js/utils.js';
 
-const DEBUG = false;
+const isDebugEnabled = () =>
+    (globalThis as any).__DEBUG__ === true || (globalThis as any).DEBUG === true;
 
 class App {
     isCutExecuted: boolean;
@@ -286,7 +287,7 @@ class App {
         this.mainLight.target.position.set(0, 0, 0);
         this.scene.add(this.mainLight);
         this.scene.add(this.mainLight.target);
-        if (DEBUG) {
+        if (isDebugEnabled()) {
             console.info('[init]', JSON.stringify({
                 camera: this.camera.position.toArray(),
                 target: this.controls.target.toArray(),
@@ -308,7 +309,7 @@ class App {
         this.cube.setFaceOutlineVisible(true);
         this.resolver = new GeometryResolver({ size: this.cube.getSize(), indexMap: this.cube.getIndexMap() });
         this.cutter = new Cutter(this.scene);
-        this.cutter.setDebug(DEBUG);
+        this.cutter.setDebug(isDebugEnabled());
         this.netManager = new NetManager();
         this.netManager.setResolver(this.resolver);
         this.netManager.enable2dView = false;
@@ -1554,6 +1555,9 @@ class App {
 
     prepareNetAnimationZoom(direction: 'open' | 'close', enableZoom = true) {
         if (!this.currentNetPlan) return;
+        const currentUp = this.camera.up.clone();
+        this.netUpStart.copy(currentUp);
+        this.netUpEnd.copy(currentUp);
         if (!enableZoom) {
             this.netZoomStart = this.camera.zoom;
             this.netZoomEnd = this.camera.zoom;
@@ -1570,7 +1574,6 @@ class App {
         const openBounds = this.computeNetBoundsForProgress(openProgress, 0);
         const currentPosition = this.camera.position.clone();
         const currentTarget = this.controls.target.clone();
-        const currentUp = this.camera.up.clone();
         const startBounds = openBounds;
         const endBounds = direction === 'open' ? openBounds : closedBounds;
         const startCam = { position: currentPosition, target: currentTarget, up: currentUp };
@@ -2440,7 +2443,7 @@ class App {
                     if (!normal || !center) return;
                     const toLight = this.mainLight.position.clone().sub(center).normalize();
                     const dot = normal.dot(toLight);
-                    if (DEBUG) {
+                    if (isDebugEnabled()) {
                         console.info('[debug] face', JSON.stringify({
                             faceId,
                             normal: normal.toArray(),
@@ -2468,7 +2471,7 @@ class App {
         if (!this.debugNetLogDone && this.netRootFaceId) {
             const mesh = this.cube.faceMeshes.get(this.netRootFaceId);
             if (mesh) {
-                if (DEBUG) {
+                if (isDebugEnabled()) {
                     console.info('[debug] netRoot', JSON.stringify({
                         faceId: this.netRootFaceId,
                         position: mesh.position.toArray(),

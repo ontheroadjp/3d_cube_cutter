@@ -128,7 +128,7 @@ describe('UIManager', () => {
       edgeLabelMode: 'visible',
       showCutSurface: true,
       showPyramid: false,
-      cubeTransparent: true,
+      cubeTransparent: false,
       showCutPoints: true,
       colorizeCutLines: false,
       showNormalHelper: false
