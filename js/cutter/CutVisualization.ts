@@ -114,6 +114,7 @@ export class CutVisualization {
     const marker = createMarker(position, this.scene, color, isMidpoint, this.cutOverlayGroup || undefined);
     this.vertexMarkers.push(marker);
     marker.visible = this.visible && this.showCutPoints;
+    return marker;
   }
 
   updateCutPointMarkers(intersections: IntersectionPoint[], resolver: any) {
@@ -131,7 +132,14 @@ export class CutVisualization {
         const position = resolver.resolveSnapPoint(ref.id);
         if (!(position instanceof THREE.Vector3)) return;
         const markerColor = 0xffff00;
-        this.addMarker(position.clone(), markerColor, false);
+        const marker = this.addMarker(position.clone(), markerColor, false);
+        const edgeId = ref.edgeId || null;
+        marker.userData = {
+          type: 'cutPoint',
+          edgeId: edgeId ? (edgeId.startsWith('E:') ? edgeId : `E:${edgeId}`) : null,
+          snapId: ref.id,
+          ratio: ref.ratio || null
+        };
       });
     this.setCutPointsVisible(this.showCutPoints);
   }

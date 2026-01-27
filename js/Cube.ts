@@ -17,6 +17,7 @@ export class Cube {
   faceOutlines: Map<FaceID, THREE.LineSegments>;
   faceHiddenOutlines: Map<FaceID, THREE.LineSegments>;
   faceOutlineVisible: boolean;
+  cutFaceVisible: boolean;
   faceColorCache: Map<FaceID, number>;
   faceColorPalette: number[];
   edgeLines: Map<EdgeID, THREE.Line>;
@@ -78,6 +79,7 @@ export class Cube {
     this.faceOutlines = new Map();
     this.faceHiddenOutlines = new Map();
     this.faceOutlineVisible = false;
+    this.cutFaceVisible = true;
     this.faceColorCache = new Map();
     this.faceColorPalette = [
         0xa6cee3,
@@ -307,24 +309,37 @@ export class Cube {
 
       const geometry = this.createFaceGeometry(vertices, solidCenter);
       const facePres = presentation.faces[face.id];
-      const material = this.createFaceMaterial(face.id, facePres);
+      const sourceFaceId = facePres?.sourceFaceId || null;
+      const material = this.createFaceMaterial(face.id, facePres, sourceFaceId);
+      const isCutFace = !!facePres?.isCutFace;
+      const isOriginalFace = !!facePres?.isOriginalFace;
+      const labelSourceFaceId = (isOriginalFace && sourceFaceId) ? sourceFaceId : face.id;
 
       if (!mesh) {
         mesh = new THREE.Mesh(geometry, material);
-        mesh.userData = { type: 'face', faceId: face.id };
+        mesh.userData = { type: 'face', faceId: face.id, isCutFace, sourceFaceId: labelSourceFaceId };
         this.scene.add(mesh);
         this.faceMeshes.set(face.id, mesh);
       } else {
         mesh.geometry.dispose();
         mesh.geometry = geometry;
         mesh.material = material;
+        mesh.userData = { type: 'face', faceId: face.id, isCutFace, sourceFaceId: labelSourceFaceId };
         // Reset transform since geometry is world-space
         mesh.position.set(0, 0, 0);
         mesh.quaternion.set(0, 0, 0, 1);
       }
+      mesh.visible = !isCutFace || this.cutFaceVisible;
 
       // Sync labels
-      this.syncFaceLabel(face.id, vertices, presentation.display.showFaceLabels);
+      this.syncFaceLabel(
+        face.id,
+        vertices,
+        presentation.display.showFaceLabels,
+        isCutFace,
+        mesh.visible,
+        labelSourceFaceId
+      );
 
       // Sync outline
       let outline = this.faceOutlines.get(face.id);
@@ -477,8 +492,11 @@ export class Cube {
 
       // Sprite
       const pres = presentation.vertices[vertex.id];
-      const label = pres?.label || vertex.id.replace('V:', '');
-      this.syncVertexLabel(vertex.id, pos, label, presentation.display.showVertexLabels);
+      const isCutPoint = !!pres?.isCutPoint;
+      const hasLabel = typeof pres?.label === 'string' && pres.label.length > 0;
+      const label = hasLabel ? pres!.label! : (isCutPoint ? '' : vertex.id.replace('V:', ''));
+      const visible = presentation.display.showVertexLabels && (hasLabel || !isCutPoint);
+      this.syncVertexLabel(vertex.id, pos, label, visible);
     });
   }
 
@@ -512,25 +530,26 @@ export class Cube {
     return geometry;
   }
 
-  private getFaceBaseColor(faceId: FaceID, pres?: any) {
+  private getFaceBaseColor(faceId: FaceID, pres?: any, sourceFaceId?: FaceID | null) {
     if (pres?.isCutFace) return 0xffcccc;
-    const cached = this.faceColorCache.get(faceId);
+    const baseId = sourceFaceId || faceId;
+    const cached = this.faceColorCache.get(baseId);
     if (typeof cached === 'number') return cached;
     let hash = 0;
-    for (let i = 0; i < faceId.length; i++) {
-      hash = ((hash << 5) - hash) + faceId.charCodeAt(i);
+    for (let i = 0; i < baseId.length; i++) {
+      hash = ((hash << 5) - hash) + baseId.charCodeAt(i);
       hash |= 0;
     }
     const index = Math.abs(hash) % this.faceColorPalette.length;
     const color = this.faceColorPalette[index];
-    this.faceColorCache.set(faceId, color);
+    this.faceColorCache.set(baseId, color);
     return color;
   }
 
-  private createFaceMaterial(faceId: FaceID, pres?: any) {
+  private createFaceMaterial(faceId: FaceID, pres?: any, sourceFaceId?: FaceID | null) {
     const isCutFace = pres?.isCutFace;
     return new THREE.MeshPhongMaterial({
-      color: this.getFaceBaseColor(faceId, pres),
+      color: this.getFaceBaseColor(faceId, pres, sourceFaceId),
       transparent: true,
       opacity: 0.4,
       depthWrite: false,
@@ -539,18 +558,47 @@ export class Cube {
     });
   }
 
-  private syncFaceLabel(id: FaceID, vertices: THREE.Vector3[], visible: boolean) {
+  private getFaceLabelText(id: FaceID, isCutFace: boolean, sourceFaceId?: FaceID | null) {
+      if (isCutFace) return '切断面';
+      const baseId = sourceFaceId || id;
+      const labels: Record<string, string> = {
+          'F:0-1-5-4': '前',
+          'F:2-3-7-6': '後',
+          'F:4-5-6-7': '上',
+          'F:0-3-2-1': '下',
+          'F:0-4-7-3': '左',
+          'F:1-2-6-5': '右'
+      };
+      return labels[baseId] || baseId.replace('F:', '');
+  }
+
+  private syncFaceLabel(
+    id: FaceID,
+    vertices: THREE.Vector3[],
+    visible: boolean,
+    isCutFace: boolean,
+    meshVisible: boolean,
+    sourceFaceId: FaceID | null
+  ) {
       let label = this.faceLabels.get(id);
       const center = vertices.reduce((acc, v) => acc.add(v), new THREE.Vector3()).divideScalar(vertices.length);
-      
-      if (!label) {
-          // Use a placeholder or derive name from FaceID
-          label = createLabel(id.replace('F:', 'Face '), this.size / 8, 'rgba(0,0,0,0.5)');
+      const text = this.getFaceLabelText(id, isCutFace, sourceFaceId);
+
+      if (!label || label.userData?.labelText !== text) {
+          if (label) {
+              this.scene.remove(label);
+          }
+          label = createLabel(text, this.size / 8, 'rgba(0,0,0,0.5)');
+          label.userData = { labelText: text, baseVisible: visible, isCutFace };
           this.scene.add(label);
           this.faceLabels.set(id, label);
       }
+      if (label.userData) {
+          label.userData.baseVisible = visible;
+          label.userData.isCutFace = isCutFace;
+      }
       label.position.copy(center);
-      label.visible = visible;
+      label.visible = visible && meshVisible && (!isCutFace || this.cutFaceVisible);
   }
 
   private syncEdgeHitbox(id: EdgeID, v0: THREE.Vector3, v1: THREE.Vector3) {
@@ -579,9 +627,14 @@ export class Cube {
       let label = this.edgeLabels.get(id);
       const center = v0.clone().add(v1).multiplyScalar(0.5);
       const length = v0.distanceTo(v1);
+      const text = `${length.toFixed(0)}cm`;
 
-      if (!label) {
-          label = createLabel(`${length.toFixed(0)}cm`, this.size / 15);
+      if (!label || label.userData?.labelText !== text) {
+          if (label) {
+              this.scene.remove(label);
+          }
+          label = createLabel(text, this.size / 15);
+          label.userData = { labelText: text };
           this.scene.add(label);
           this.edgeLabels.set(id, label);
       }
@@ -607,7 +660,14 @@ export class Cube {
   }
 
   toggleFaceLabels(visible: boolean) {
-    this.faceLabels.forEach(l => l.visible = visible);
+    this.faceLabels.forEach((label, faceId) => {
+      const mesh = this.faceMeshes.get(faceId);
+      const isCutFace = !!mesh?.userData?.isCutFace;
+      if (label.userData) {
+        label.userData.baseVisible = visible;
+      }
+      label.visible = visible && (mesh ? mesh.visible : true) && (!isCutFace || this.cutFaceVisible);
+    });
   }
 
   setEdgeLabelMode(mode: 'visible' | 'popup' | 'hidden') {
@@ -618,6 +678,25 @@ export class Cube {
   setEdgeLabelVisible(id: EdgeID, visible: boolean) {
       const label = this.edgeLabels.get(id);
       if (label) label.visible = visible;
+  }
+
+  setCutFaceVisible(visible: boolean) {
+      this.cutFaceVisible = !!visible;
+      this.faceMeshes.forEach(mesh => {
+          const isCutFace = !!mesh.userData?.isCutFace;
+          if (isCutFace) {
+              mesh.visible = this.cutFaceVisible;
+          }
+      });
+      this.faceLabels.forEach((label, faceId) => {
+          const mesh = this.faceMeshes.get(faceId);
+          const isCutFace = !!mesh?.userData?.isCutFace;
+          if (isCutFace) {
+              const baseVisible = !!label.userData?.baseVisible;
+              const meshVisible = mesh ? mesh.visible : this.cutFaceVisible;
+              label.visible = this.cutFaceVisible && baseVisible && meshVisible;
+          }
+      });
   }
 
   toggleTransparency(transparent: boolean) {
@@ -695,6 +774,9 @@ export class Cube {
   }
   setVertexLabelMap(labelMap: any) {
       this.displayLabelMap = labelMap;
+  }
+  getVertexLabelMap() {
+      return this.displayLabelMap || null;
   }
   getDisplayLabelByIndex(index: number) { 
       return this.displayLabelMap ? this.displayLabelMap[`V:${index}`] : `V:${index}`; 

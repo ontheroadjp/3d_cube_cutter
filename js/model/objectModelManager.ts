@@ -112,7 +112,20 @@ export class ObjectModelManager {
   }
 
   build(displayOverride?: DisplayState) {
-    const structure = this.cube.getStructure() || buildCubeStructure({ indexMap: this.cube.getIndexMap() });
+    const defaultLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    const indexMap = this.cube.getIndexMap();
+    const indices = indexMap
+      ? Object.keys(indexMap).map(Number).sort((a, b) => a - b)
+      : Array.from({ length: defaultLabels.length }, (_, i) => i);
+    const fallbackLabelMap: Record<number, string> = {};
+    indices.forEach((index, i) => {
+      fallbackLabelMap[index] = defaultLabels[i] || `V${index}`;
+    });
+    const labelMap = typeof this.cube.getVertexLabelMap === 'function'
+      ? this.cube.getVertexLabelMap()
+      : null;
+    const structure = this.cube.getStructure()
+      || buildCubeStructure({ indexMap, labelMap, fallbackLabelMap });
     const display = displayOverride || (this.ui ? this.ui.getDisplayState() : DEFAULT_DISPLAY);
     
     const built = buildObjectModelData({
@@ -199,6 +212,7 @@ export class ObjectModelManager {
     if (!display) return;
     
     const showCutSurface = this.model && this.model.derived.cut ? this.model.derived.cut.showCutSurface : display.showCutSurface;
+    this.cube.setCutFaceVisible(showCutSurface);
     cutter.toggleSurface(showCutSurface);
     cutter.togglePyramid(display.showPyramid);
     cutter.setCutPointsVisible(display.showCutPoints);
@@ -450,13 +464,23 @@ export class ObjectModelManager {
       newFaces[faceId] = { id: faceId, vertices: vertexIds };
       
       const presFace = createDefaultFacePresentation();
-      if (poly.type === 'cut') presFace.isCutFace = true;
+      presFace.isCutFace = poly.type === 'cut';
+      presFace.isOriginalFace = poly.type === 'original';
+      presFace.sourceFaceId = (poly.type === 'original' ? (poly.sourceFaceId || originalFaceId) : null) || null;
       newPresFaces[faceId] = presFace;
 
       vertexIds.forEach((vId, i) => {
         if (!newVertices[vId]) {
           newVertices[vId] = { id: vId };
           newPresVertices[vId] = this.model!.presentation.vertices[vId] || createDefaultVertexPresentation();
+        }
+        const snapId = orderedSnapIds[i];
+        const parsed = snapId ? normalizeSnapPointId(parseSnapPointId(snapId)) : null;
+        if (parsed && parsed.type === 'edge' && parsed.ratio && parsed.ratio.denominator) {
+          const isEndpoint = parsed.ratio.numerator === 0 || parsed.ratio.numerator === parsed.ratio.denominator;
+          if (!isEndpoint) {
+            newPresVertices[vId].isCutPoint = true;
+          }
         }
 
         const nextVId = vertexIds[(i + 1) % vertexIds.length];
