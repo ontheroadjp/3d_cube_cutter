@@ -316,6 +316,9 @@ export class Cutter {
         if (csgResult) {
             this.resultMesh = csgResult.resultMesh;
             this.removedMesh = csgResult.removedMesh;
+            if (isSSOT && this.resultMesh) {
+                this.resultMesh.visible = false;
+            }
             this.visualization.refreshNormalHelper(this.resultMesh);
         }
     }
