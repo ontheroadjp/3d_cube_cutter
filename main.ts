@@ -2220,12 +2220,14 @@ class App {
         const faces = Array.from(this.cube.faceMeshes.values());
         const intersects = this.raycaster.intersectObjects(faces);
         if (intersects.length === 0) return null;
+        const candidates = intersects.filter(entry => !(entry.object.userData && entry.object.userData.isCutFace));
+        if (candidates.length === 0) return null;
         const cameraDir = this.camera.position.clone().sub(this.controls.target).normalize();
-        let bestFront = intersects[0];
-        let bestAny = intersects[0];
+        let bestFront = candidates[0];
+        let bestAny = candidates[0];
         let bestFrontDistance = Number.POSITIVE_INFINITY;
         let bestAnyDistance = bestAny.distance;
-        intersects.forEach((entry) => {
+        candidates.forEach((entry) => {
             if (entry.distance < bestAnyDistance) {
                 bestAnyDistance = entry.distance;
                 bestAny = entry;
@@ -2270,11 +2272,15 @@ class App {
         }
         const model = this.objectModelManager.getModel();
         if (model) {
+            const cutFaceIds = Object.entries(model.presentation.faces || {})
+                .filter(([, pres]) => pres && pres.isCutFace)
+                .map(([faceId]) => faceId);
             this.currentNetPlan = this.netManager.generateNetPlan(model.ssot, {
                 rootFaceId,
                 topologyIndex: model.derived.topologyIndex,
                 faceAdjacency: model.derived.cut?.faceAdjacency,
-                vertexSnapMap: model.derived.cut?.vertexSnapMap
+                vertexSnapMap: model.derived.cut?.vertexSnapMap,
+                excludeFaceIds: cutFaceIds
             });
         }
         const faceInfo = this.resolver.resolveFace(rootFaceId);

@@ -130,21 +130,38 @@ export class NetManager {
             topologyIndex?: TopologyIndex;
             faceAdjacency?: ObjectCutAdjacency[];
             vertexSnapMap?: Record<VertexID, SnapPointID>;
+            excludeFaceIds?: FaceID[];
         }
     ): NetPlan {
         const faceIds = Object.keys(solid.faces);
+        const excluded = new Set(options?.excludeFaceIds || []);
+        const usableFaceIds = faceIds.filter(faceId => !excluded.has(faceId));
+        if (usableFaceIds.length === 0) {
+            return {
+                id: `net-plan:${Date.now()}`,
+                targetSolidId: solid.id,
+                rootFaceId: '',
+                hinges: [],
+                faceOrder: []
+            };
+        }
         const hasCutAdjacency = Array.isArray(options?.faceAdjacency) && options!.faceAdjacency!.length > 0;
         const hasVertexSnapMap = !!options?.vertexSnapMap && Object.keys(options.vertexSnapMap).length > 0;
-        const topologyAdjacency = this.buildFaceAdjacencyFromFaces(solid.faces);
+        const filteredFaces: Record<FaceID, { id: FaceID; vertices: VertexID[] }> = {};
+        usableFaceIds.forEach(faceId => {
+            filteredFaces[faceId] = solid.faces[faceId];
+        });
+        const topologyAdjacency = this.buildFaceAdjacencyFromFaces(filteredFaces);
         const cutAdjacency = hasCutAdjacency && hasVertexSnapMap
             ? this.buildAdjacencyFromCutAdjacency(options!.faceAdjacency!, options!.vertexSnapMap!)
             : null;
-        const adjacency = cutAdjacency
+        const mergedAdjacency = cutAdjacency
             ? this.mergeAdjacency(topologyAdjacency, cutAdjacency)
             : topologyAdjacency;
-        const root = options?.rootFaceId && faceIds.includes(options.rootFaceId)
+        const adjacency = this.filterAdjacency(mergedAdjacency, new Set(usableFaceIds));
+        const root = options?.rootFaceId && usableFaceIds.includes(options.rootFaceId)
             ? options.rootFaceId
-            : this.pickRootFace(faceIds, adjacency);
+            : this.pickRootFace(usableFaceIds, adjacency);
 
         const hinges: NetHinge[] = [];
         const visited = new Set<FaceID>();
@@ -174,8 +191,8 @@ export class NetManager {
             });
         }
 
-        if (visited.size < faceIds.length) {
-            const disconnected = faceIds.filter(faceId => !visited.has(faceId));
+        if (visited.size < usableFaceIds.length) {
+            const disconnected = usableFaceIds.filter(faceId => !visited.has(faceId));
             if (disconnected.length > 0) {
                 console.warn('[net] disconnected faces detected', { faces: disconnected });
                 disconnected.forEach(faceId => faceOrder.push(faceId));
@@ -275,6 +292,24 @@ export class NetManager {
             });
         });
         return merged;
+    }
+
+    private filterAdjacency(
+        adjacency: Map<FaceID, Map<FaceID, EdgeID>>,
+        allowed: Set<FaceID>
+    ): Map<FaceID, Map<FaceID, EdgeID>> {
+        const filtered = new Map<FaceID, Map<FaceID, EdgeID>>();
+        adjacency.forEach((neighbors, faceId) => {
+            if (!allowed.has(faceId)) return;
+            const next = new Map<FaceID, EdgeID>();
+            neighbors.forEach((edgeId, neighborId) => {
+                if (allowed.has(neighborId)) {
+                    next.set(neighborId, edgeId);
+                }
+            });
+            filtered.set(faceId, next);
+        });
+        return filtered;
     }
 
     private pickRootFace(faceIds: FaceID[], adjacency: Map<FaceID, Map<FaceID, EdgeID>>): FaceID {

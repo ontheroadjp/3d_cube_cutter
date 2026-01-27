@@ -169,6 +169,10 @@ export class Cube {
     if (!plan || !this.resolver) return;
 
     const { rootFaceId, hinges } = plan;
+    this.faceMeshes.forEach(mesh => {
+      mesh.position.set(0, 0, 0);
+      mesh.quaternion.set(0, 0, 0, 1);
+    });
     // Map to store world poses of each face during unfolding
     const worldPoses = new Map<string, { position: THREE.Vector3, quaternion: THREE.Quaternion }>();
     const progressForFace = (faceId: FaceID) => {
