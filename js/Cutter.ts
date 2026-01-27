@@ -951,7 +951,8 @@ export class Cutter {
           .filter((id): id is string => id !== null);
       if (cutIds.length >= 3) {
           let vertexIds = canonicalizeVertexIds(cutIds);
-          vertexIds = orientVertexIds(vertexIds, plane.normal);
+          const cutNormal = keepPositive ? plane.normal.clone().negate() : plane.normal.clone();
+          vertexIds = orientVertexIds(vertexIds, cutNormal);
           polygons.push({
               faceId: 'F:cut',
               type: 'cut',
