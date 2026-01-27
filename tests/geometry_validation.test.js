@@ -97,10 +97,10 @@ describe('Geometry Validation', () => {
     expect(structResult.eulerCharacteristic).toBe(2);
   });
 
-  it.skip('should handle tiny corner cut (Degeneracy Check) - TODO: Fix Cutter ID normalization', () => {
+  it('should handle tiny corner cut (Degeneracy Check)', () => {
     // Cut very close to corner V:4
     // E:4-5, E:4-0, E:4-7
-    const snapIds = ['E:4-5@1/10', 'E:4-0@1/10', 'E:4-7@1/10'];
+    const snapIds = ['E:4-5@1/100', 'E:4-0@1/100', 'E:4-7@1/100'];
     const success = cutter.cut(cube, snapIds, resolver);
     expect(success).toBe(true);
 

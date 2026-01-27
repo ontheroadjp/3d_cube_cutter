@@ -286,7 +286,7 @@ export const computeCutState = (
     const center = new THREE.Vector3();
     cutPoints.forEach(p => center.add(p.pos));
     center.divideScalar(cutPoints.length);
-    const normal = plane.normal;
+    const normal = keepPositive ? plane.normal.clone().negate() : plane.normal.clone();
     const base = new THREE.Vector3().subVectors(cutPoints[0].pos, center).normalize();
     const up = new THREE.Vector3().crossVectors(normal, base).normalize();
 
