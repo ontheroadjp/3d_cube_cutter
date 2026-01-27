@@ -11,9 +11,9 @@ export class SelectionManager {
   selected: Array<{ snapId: SnapPointID }>;
   markers: THREE.Object3D[];
   splitEdgeLabels: THREE.Object3D[];
-  hiddenEdgeLabels: number[];
+  hiddenEdgeLabels: string[];
   previewLabels: THREE.Object3D[];
-  hiddenOriginalLabel: number | null;
+  hiddenOriginalLabel: string | null;
   currentEdgeLabelMode: string;
   selectedObjects: Set<string>;
 
@@ -25,7 +25,7 @@ export class SelectionManager {
     this.selected = []; // オブジェクトの配列 { snapId }
     this.markers = []; // 赤丸、点ラベル、辺ラベル(分割分) 全て含むが、管理しやすくする
     this.splitEdgeLabels = []; // 分割辺の長さラベルだけ別途保持
-    this.hiddenEdgeLabels = []; // 隠した元の辺ラベルのインデックス
+    this.hiddenEdgeLabels = []; // 隠した元の辺ラベルのID
     this.previewLabels = []; // プレビュー用の分割ラベル
     this.hiddenOriginalLabel = null; // プレビューで隠した元のラベル
     this.currentEdgeLabelMode = 'visible';
@@ -50,14 +50,12 @@ export class SelectionManager {
           .forEach(ref => {
               const edgeId = ref.edgeId || null;
               if (!edgeId) return;
+              const normalizedEdgeId = edgeId.startsWith('E:') ? edgeId : `E:${edgeId}`;
               const point = this.resolver ? this.resolver.resolveSnapPoint(ref.id) : null;
               if (!point) return;
-              const edgeIdx = this.cube.getEdgeMeshIndexById(edgeId);
-              if (edgeIdx !== -1 && edgeIdx !== null) {
-                  const isHidden = this.hiddenEdgeLabels && this.hiddenEdgeLabels.includes(edgeIdx);
-                  if (!isHidden) {
-                      this._addSplitLabel(edgeId, point);
-                  }
+              const isHidden = this.hiddenEdgeLabels && this.hiddenEdgeLabels.includes(normalizedEdgeId);
+              if (!isHidden) {
+                  this._addSplitLabel(normalizedEdgeId, point);
               }
           });
   }
@@ -135,20 +133,29 @@ export class SelectionManager {
   }
 
   _addSplitLabel(edgeRef: string | number, proj: THREE.Vector3) {
-      const edgeId = typeof edgeRef === 'string' ? edgeRef : null;
-      const edgeIdx = edgeId ? this.cube.getEdgeMeshIndexById(edgeId) : edgeRef;
+      let edgeId: string | null = null;
+      if (typeof edgeRef === 'string') {
+          edgeId = edgeRef.startsWith('E:') ? edgeRef : `E:${edgeRef}`;
+      } else if (typeof this.cube.getEdgeNameByIndex === 'function') {
+          edgeId = this.cube.getEdgeNameByIndex(edgeRef);
+      }
+      if (!edgeId) return;
+
       // 既に処理済みの辺なら何もしない
-      if (edgeIdx !== null && this.hiddenEdgeLabels && this.hiddenEdgeLabels.includes(edgeIdx)) {
+      if (this.hiddenEdgeLabels && this.hiddenEdgeLabels.includes(edgeId)) {
           return;
       }
 
       // 元の辺のラベルを非表示にする
-      if (edgeIdx !== null && this.cube.edgeLabels[edgeIdx]) {
-          this.cube.setEdgeLabelVisible(edgeIdx, false);
+      if (this.cube.edgeLabels && typeof this.cube.edgeLabels.get === 'function') {
+          const label = this.cube.edgeLabels.get(edgeId);
+          if (label) {
+              this.cube.setEdgeLabelVisible(edgeId, false);
+          }
       }
       
       if(!this.hiddenEdgeLabels) this.hiddenEdgeLabels = [];
-      if (edgeIdx !== null) this.hiddenEdgeLabels.push(edgeIdx);
+      this.hiddenEdgeLabels.push(edgeId);
 
       // 分割された辺の長さを表示
       let start: THREE.Vector3 | null = null;
@@ -204,22 +211,19 @@ export class SelectionManager {
     this.splitEdgeLabels.forEach(s => s.visible = visible);
   }
 
-  previewSplit(edgeRef: string | number, point: THREE.Vector3) {
-    this.clearPreview(); // 既存のプレビューをクリア
-
-    const edgeId = typeof edgeRef === 'string' ? edgeRef : null;
-    const edgeIdx = edgeId ? this.cube.getEdgeMeshIndexById(edgeId) : edgeRef;
-    if (edgeIdx === -1 || edgeIdx === null) return;
-
+  private previewSplitInternal(edgeId: string, point: THREE.Vector3, forceVisible: boolean) {
     // バグ修正: 既に確定選択で分割されている辺にはプレビューを表示しない
-    if (this.hiddenEdgeLabels.includes(edgeIdx)) {
+    if (this.hiddenEdgeLabels.includes(edgeId)) {
         return;
     }
 
     // 元の辺ラベルを非表示に
-    if (this.cube.edgeLabels[edgeIdx] && this.cube.edgeLabels[edgeIdx].visible) {
-        this.cube.setEdgeLabelVisible(edgeIdx, false);
-        this.hiddenOriginalLabel = edgeIdx;
+    if (this.cube.edgeLabels && typeof this.cube.edgeLabels.get === 'function') {
+        const label = this.cube.edgeLabels.get(edgeId);
+        if (label && label.visible) {
+            this.cube.setEdgeLabelVisible(edgeId, false);
+            this.hiddenOriginalLabel = edgeId;
+        }
     }
 
     // 分割された辺の長さを計算・表示
@@ -251,9 +255,37 @@ export class SelectionManager {
     this.scene.add(s2);
     this.previewLabels.push(s2);
 
-    const showEdgeLabels = (this.currentEdgeLabelMode === 'visible');
+    const showEdgeLabels = forceVisible || (this.currentEdgeLabelMode === 'popup' || this.currentEdgeLabelMode === 'visible');
     s1.visible = showEdgeLabels;
     s2.visible = showEdgeLabels;
+  }
+
+  previewSplit(edgeRef: string | number, point: THREE.Vector3) {
+    this.clearPreview(); // 既存のプレビューをクリア
+    if (this.currentEdgeLabelMode !== 'popup') return;
+
+    let edgeId: string | null = null;
+    if (typeof edgeRef === 'string') {
+        edgeId = edgeRef.startsWith('E:') ? edgeRef : `E:${edgeRef}`;
+    } else if (typeof this.cube.getEdgeNameByIndex === 'function') {
+        edgeId = this.cube.getEdgeNameByIndex(edgeRef);
+    }
+    if (!edgeId) return;
+
+    this.previewSplitInternal(edgeId, point, false);
+  }
+
+  previewSplitAtCutPoint(edgeRef: string | number, point: THREE.Vector3) {
+    this.clearPreview();
+    if (this.currentEdgeLabelMode === 'hidden') return;
+    let edgeId: string | null = null;
+    if (typeof edgeRef === 'string') {
+        edgeId = edgeRef.startsWith('E:') ? edgeRef : `E:${edgeRef}`;
+    } else if (typeof this.cube.getEdgeNameByIndex === 'function') {
+        edgeId = this.cube.getEdgeNameByIndex(edgeRef);
+    }
+    if (!edgeId) return;
+    this.previewSplitInternal(edgeId, point, this.currentEdgeLabelMode !== 'hidden');
   }
 
   clearPreview() {
@@ -293,8 +325,8 @@ export class SelectionManager {
     // reset時の順序として、selection.reset() -> cube.setEdgeLabelMode() とすれば整合する。
     
     if(this.hiddenEdgeLabels){
-        this.hiddenEdgeLabels.forEach(idx => {
-            this.cube.setEdgeLabelVisible(idx, true);
+        this.hiddenEdgeLabels.forEach(edgeId => {
+            this.cube.setEdgeLabelVisible(edgeId, true);
         });
         this.hiddenEdgeLabels = [];
     }

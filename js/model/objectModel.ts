@@ -53,6 +53,7 @@ export type FacePresentation = {
   hovered: boolean;
   isCutFace: boolean;
   isOriginalFace: boolean;
+  sourceFaceId?: FaceID | null;
 };
 
 export type PresentationModel = {
@@ -196,5 +197,6 @@ export const createDefaultFacePresentation = (): FacePresentation => ({
   selected: false,
   hovered: false,
   isCutFace: false,
-  isOriginalFace: true
+  isOriginalFace: true,
+  sourceFaceId: null
 });

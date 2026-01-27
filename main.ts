@@ -476,6 +476,12 @@ class App {
             this.ui.onPresetChange(this.handlePresetChange.bind(this));
             this.ui.onConfigureClick(this.handleConfigureClick.bind(this));
         }
+        this.ui.onVertexLabelChange((checked) => this.applyDisplayState({ showVertexLabels: checked }));
+        this.ui.onFaceLabelChange((checked) => this.applyDisplayState({ showFaceLabels: checked }));
+        this.ui.onEdgeLabelModeChange((mode) => this.applyDisplayState({ edgeLabelMode: mode }));
+        this.ui.onCutSurfaceChange((checked) => this.applyDisplayState({ showCutSurface: checked }));
+        this.ui.onPyramidChange((checked) => this.applyDisplayState({ showPyramid: checked }));
+        this.ui.onTransparencyChange((checked) => this.applyDisplayState({ cubeTransparent: checked }));
         // this.ui.onConfigureVertexLabelsClick(this.handleConfigureVertexLabelsClick.bind(this)); // REMOVE
         if (!this.useReactUserPresets) {
             this.ui.onSaveUserPresetClick(this.handleSaveUserPreset.bind(this));
@@ -707,6 +713,8 @@ class App {
         const next = { ...current, ...display };
         this.ui.applyDisplayState(next);
         this.objectModelManager.setDisplay(next);
+        this.objectModelManager.applyDisplayToView(next);
+        this.objectModelManager.applyCutDisplayToView({ cutter: this.cutter });
         
         if (this.objectModelManager.getNetState().state !== 'closed') {
             this.cube.setVisible(false);
@@ -792,21 +800,39 @@ class App {
             this.handleNetSelectionMove(e);
             return;
         }
-        if (this.isCutExecuted || this.currentMode !== 'free') {
-            this.highlightMarker.visible = false;
-            this.snappedPointInfo = null;
-            document.body.style.cursor = 'auto';
-            return;
-        }
         const rect = this.renderer.domElement.getBoundingClientRect();
         const mouse = new THREE.Vector2(
             ((e.clientX - rect.left) / rect.width) * 2 - 1,
             -((e.clientY - rect.top) / rect.height) * 2 + 1
         );
         this.raycaster.setFromCamera(mouse, this.camera);
-        const intersects = this.raycaster.intersectObjects([...this.cube.vertexMeshes, ...this.cube.edgeMeshes]);
         this.selection.clearPreview();
 
+        const cutMarkers = (this.cutter.vertexMarkers || [])
+            .filter(m => m.visible && m.userData && m.userData.type === 'cutPoint');
+        if (cutMarkers.length) {
+            const cutHits = this.raycaster.intersectObjects(cutMarkers);
+            if (cutHits.length > 0) {
+                const marker = cutHits[0].object;
+                const edgeId = marker.userData ? marker.userData.edgeId : null;
+                if (edgeId) {
+                    this.selection.previewSplitAtCutPoint(edgeId, marker.position);
+                }
+                this.highlightMarker.visible = false;
+                this.snappedPointInfo = null;
+                document.body.style.cursor = 'pointer';
+                return;
+            }
+        }
+
+        if (this.isCutExecuted || this.currentMode !== 'free') {
+            this.highlightMarker.visible = false;
+            this.snappedPointInfo = null;
+            document.body.style.cursor = 'auto';
+            return;
+        }
+
+        const intersects = this.raycaster.intersectObjects([...this.cube.vertexMeshes, ...this.cube.edgeMeshes]);
         if (intersects.length > 0) {
             const intersection = intersects[0];
             const object = intersection.object;
