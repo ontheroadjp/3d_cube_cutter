@@ -929,7 +929,7 @@ class App {
         const panelWidth = 320;
         const panelOffset = panelOffsetOverride ?? (this.panelOpen ? panelWidth : 0);
         const availableWidth = Math.max(200, window.innerWidth - sidebarWidth - panelOffset);
-        const messageHeight = Math.round(window.innerHeight * 0.2);
+        const messageHeight = Math.round(window.innerHeight * 0.4);
         const availableHeight = Math.max(200, window.innerHeight - messageHeight);
         const rootStyle = document.documentElement.style;
         rootStyle.setProperty('--sidebar-width', `${sidebarWidth}px`);

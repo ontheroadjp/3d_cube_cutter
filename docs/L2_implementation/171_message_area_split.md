@@ -1,8 +1,9 @@
 # 171 message area split
 
 - 実装(技術)について
-  - message area を上部 20% 高さで固定し、alert/explanation をその領域へ移動。
+  - message area を上部 40% 高さで固定し、alert/explanation をその領域へ移動。
   - Canvas は message area 分だけ下げて描画し、3D 表示との重なりを回避。
+  - message area の背景に黒板画像（kokuban.png）を敷き、視認性を確保。
   - ExplanationPanel を上部固定領域に合わせて配置。
 
 - 仕様(L1ドキュメント)について
@@ -13,3 +14,4 @@
 
 - ユーザー体験(ユーザー価値)について
   - 上部固定のメッセージ領域により、説明や通知が常時視認しやすくなる。
+  - 黒板背景でメッセージの集約先が直感的に伝わる。
