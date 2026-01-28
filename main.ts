@@ -1588,6 +1588,35 @@ class App {
         }
     }
 
+    updateNetPlaybackState(partial: {
+        playbackMode?: ObjectNetState['playbackMode'];
+        stepIndex?: number;
+        state?: ObjectNetState['state'];
+        progress?: number;
+        applyStepState?: boolean;
+    } = {}) {
+        const hasPlaybackMode = partial.playbackMode !== undefined;
+        const hasStepIndex = Number.isFinite(partial.stepIndex as number);
+        if (hasPlaybackMode) {
+            this.netPlaybackMode = partial.playbackMode!;
+        }
+        if (hasStepIndex) {
+            this.netStepIndex = partial.stepIndex as number;
+        }
+        if (partial.applyStepState) {
+            this.applyNetStepState(this.netStepIndex);
+        }
+        if (hasPlaybackMode || hasStepIndex || partial.state !== undefined || partial.progress !== undefined) {
+            const sync: Partial<ObjectNetState> = {};
+            if (hasPlaybackMode) sync.playbackMode = partial.playbackMode!;
+            if (hasStepIndex) sync.stepIndex = partial.stepIndex as number;
+            if (partial.state !== undefined) sync.state = partial.state;
+            if (partial.progress !== undefined) sync.progress = partial.progress;
+            this.setNetAnimationState(sync);
+        }
+        this.updateNetStepUi();
+    }
+
     applyNetStepState(stepIndex: number) {
         if (!this.currentNetPlan) return;
         const faces = this.getNetStepFaces();
@@ -1603,18 +1632,15 @@ class App {
     setNetPlaybackMode(mode: 'auto' | 'step') {
         if (this.netPlaybackMode === mode) return;
         if (this.netAnimationPlayer.isPlaying() || this.netStepAnimating || this.netPreCameraActive) return;
-        if (mode === 'auto' && this.netStepIndex > 0) {
-            this.netStepIndex = 0;
-            this.applyNetStepState(0);
-        }
-        this.netPlaybackMode = mode;
-        this.setNetAnimationState({
+        const nextStepIndex = mode === 'auto' ? 0 : this.netStepIndex;
+        const shouldApply = mode === 'auto' && this.netStepIndex > 0;
+        this.updateNetPlaybackState({
             playbackMode: mode,
-            stepIndex: this.netStepIndex,
-            state: this.getNetStepStateName(),
-            progress: this.getNetStepProgress()
+            stepIndex: nextStepIndex,
+            state: this.getNetStepStateName(nextStepIndex),
+            progress: this.getNetStepProgress(nextStepIndex),
+            applyStepState: shouldApply
         });
-        this.updateNetStepUi();
     }
 
     getHingeEdgeForFace(faceId: string) {
@@ -1629,11 +1655,11 @@ class App {
         this.applyNetStepState(this.netStepIndex);
         this.netStepAnimating = true;
         this.netAnimationDirection = direction;
-        this.setNetAnimationState({
+        this.updateNetPlaybackState({
             playbackMode: 'step',
             stepIndex: this.netStepIndex,
             state: direction === 'open' ? 'opening' : 'closing',
-            progress: this.getNetStepProgress()
+            progress: this.getNetStepProgress(this.netStepIndex)
         });
         const baseDurationMs = this.netUnfoldFaceDuration > 0 ? this.netUnfoldFaceDuration : 900;
         const durationSec = baseDurationMs / 1000;
@@ -1660,15 +1686,13 @@ class App {
             this.netStepAnimating = false;
             this.netStepIndex = nextIndex;
             this.applyNetStepState(nextIndex);
-            this.setNetAnimationState({
+            this.updateNetPlaybackState({
                 playbackMode: 'step',
                 stepIndex: nextIndex,
                 state: this.getNetStepStateName(nextIndex),
                 progress: this.getNetStepProgress(nextIndex)
             });
-            this.updateNetStepUi();
         });
-        this.updateNetStepUi();
     }
 
     stepNetForward() {
@@ -1703,13 +1727,14 @@ class App {
         if (state.stagger > 0) this.netUnfoldStagger = state.stagger;
         if (state.preScaleDelay > 0) this.netUnfoldPreScaleDelay = state.preScaleDelay;
         if (state.postScaleDelay > 0) this.netUnfoldPostScaleDelay = state.postScaleDelay;
+        const playbackUpdate: { playbackMode?: ObjectNetState['playbackMode']; stepIndex?: number } = {};
         if (state.playbackMode) {
-            this.netPlaybackMode = state.playbackMode;
+            playbackUpdate.playbackMode = state.playbackMode;
         }
         if (Number.isFinite(state.stepIndex)) {
-            this.netStepIndex = state.stepIndex;
+            playbackUpdate.stepIndex = state.stepIndex;
         }
-        this.updateNetStepUi();
+        this.updateNetPlaybackState(playbackUpdate);
     }
 
     setNetAnimationState(partial: {
@@ -1764,13 +1789,12 @@ class App {
         this.netStepIndex = 0;
         this.netStepAnimating = false;
         this.netFaceProgress.clear();
-        this.setNetAnimationState({
+        this.updateNetPlaybackState({
             playbackMode: this.netPlaybackMode,
             stepIndex: 0,
             state: 'closed',
             progress: 0
         });
-        this.updateNetStepUi();
     }
 
     getNetAnimationTotalDurationSec() {
@@ -1848,19 +1872,16 @@ class App {
         this.clearNetSelectionHighlight();
         this.resetNetAnimationCaches();
         this.netAnimationDirection = 'open';
-        this.netPlaybackMode = 'auto';
-        this.netStepIndex = 0;
+        this.updateNetPlaybackState({
+            playbackMode: 'auto',
+            stepIndex: 0
+        });
         this.prepareNetAnimationZoom('open', false);
         const spec = this.buildNetAnimationSpec('open');
         if (!spec) return;
         this.netAnimationPlayer.play(spec, () => {
-            this.updateNetStepUi();
+            this.updateNetPlaybackState();
         });
-        this.setNetAnimationState({
-            playbackMode: 'auto',
-            stepIndex: 0
-        });
-        this.updateNetStepUi();
     }
 
     startNetFold() {
@@ -1910,7 +1931,7 @@ class App {
                     });
                 }
             });
-            this.updateNetStepUi();
+            this.updateNetPlaybackState();
         });
     }
 
@@ -2504,7 +2525,7 @@ class App {
                 excludeFaceIds: cutFaceIds
             });
         }
-        this.updateNetStepUi();
+        this.updateNetPlaybackState();
         const faceInfo = this.resolver.resolveFace(rootFaceId);
         const faceCenter = this.resolver.resolveFaceCenter(rootFaceId);
         const solidCenter = this.getSolidCenter();
@@ -2579,20 +2600,18 @@ class App {
                         }
                         this.netPreCameraTimeout = setTimeout(() => {
                             if (this.netPlaybackMode === 'step') {
-                                this.netStepIndex = 0;
-                                this.applyNetStepState(0);
-                                this.setNetAnimationState({
+                                this.updateNetPlaybackState({
                                     playbackMode: 'step',
                                     stepIndex: 0,
                                     state: 'closed',
-                                    progress: 0
+                                    progress: 0,
+                                    applyStepState: true
                                 });
                                 const solid = this.objectModelManager.getModel()?.ssot;
                                 if (solid) {
                                     this.netManager.update(this.objectModelManager.getCutSegments(), solid, this.resolver);
                                 }
                                 this.clearNetSelectionHighlight();
-                                this.updateNetStepUi();
                                 this.showNetSelectionMessage('confirmStep');
                                 return;
                             }
@@ -2903,7 +2922,7 @@ class App {
                 this.netPreCameraActive = false;
                 const onComplete = this.netPreCameraOnComplete;
                 this.netPreCameraOnComplete = null;
-                this.updateNetStepUi();
+                this.updateNetPlaybackState();
                 if (onComplete) onComplete();
             }
         }
