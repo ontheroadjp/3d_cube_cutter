@@ -277,7 +277,7 @@ export function SidePanel() {
         }),
     ),
 
-    netVisible && React.createElement(
+    React.createElement(
       'div',
       {
         style: {
@@ -296,6 +296,7 @@ export function SidePanel() {
           boxShadow: '0 8px 18px rgba(0,0,0,0.12)'
         }
       },
+      React.createElement('span', { className: 'small text-muted' }, '連続再生'),
       React.createElement(
         'div',
         { className: 'form-check form-switch m-0' },
@@ -357,7 +358,7 @@ export function SidePanel() {
         className: 'btn btn-sm btn-outline-primary',
         onClick: () => globalThis.__engine?.toggleNet?.(),
         title: '展開図'
-      }, '展開')
+      }, netVisible ? '閉じる' : '展開')
     )
   );
 }
