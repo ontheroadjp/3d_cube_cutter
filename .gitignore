@@ -13,6 +13,8 @@ coverage/
 dist/
 supabase/
 sample/
+images/*
+!images/kokuban_9slice.png
 .env
 .env.*
 npm-debug.log*
