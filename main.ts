@@ -1594,7 +1594,9 @@ class App {
         state?: ObjectNetState['state'];
         progress?: number;
         applyStepState?: boolean;
+        syncNetState?: boolean;
     } = {}) {
+        const shouldSync = partial.syncNetState !== false;
         const hasPlaybackMode = partial.playbackMode !== undefined;
         const hasStepIndex = Number.isFinite(partial.stepIndex as number);
         if (hasPlaybackMode) {
@@ -1606,7 +1608,7 @@ class App {
         if (partial.applyStepState) {
             this.applyNetStepState(this.netStepIndex);
         }
-        if (hasPlaybackMode || hasStepIndex || partial.state !== undefined || partial.progress !== undefined) {
+        if (shouldSync && (hasPlaybackMode || hasStepIndex || partial.state !== undefined || partial.progress !== undefined)) {
             const sync: Partial<ObjectNetState> = {};
             if (hasPlaybackMode) sync.playbackMode = partial.playbackMode!;
             if (hasStepIndex) sync.stepIndex = partial.stepIndex as number;
@@ -1734,7 +1736,10 @@ class App {
         if (Number.isFinite(state.stepIndex)) {
             playbackUpdate.stepIndex = state.stepIndex;
         }
-        this.updateNetPlaybackState(playbackUpdate);
+        this.updateNetPlaybackState({
+            ...playbackUpdate,
+            syncNetState: false
+        });
     }
 
     setNetAnimationState(partial: {
