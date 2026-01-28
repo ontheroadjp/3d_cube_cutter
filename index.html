@@ -27,6 +27,10 @@ html, body { margin:0; width:100%; height:100%; overflow:hidden; }
     --chat-danger-soft: rgba(216,74,74,0.14);
     --message-area-height: 40vh;
     --message-area-offset: 64px;
+    --message-area-top: 0px;
+    --message-area-left: 0px;
+    --message-area-width: 100%;
+    --navbar-height: 0px;
 }
 #ui-container {
     position: absolute; top: 0; left: 0; width: 100%; z-index: 100;
@@ -34,9 +38,9 @@ html, body { margin:0; width:100%; height:100%; overflow:hidden; }
 #tooltip { position:absolute; display:none; background:rgba(0,0,0,0.7); color:white; padding:4px 8px; border-radius:4px; pointer-events:none; z-index:1020; }
 #message-area {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
+    top: var(--message-area-top);
+    left: var(--message-area-left);
+    width: var(--message-area-width);
     height: var(--message-area-height);
     z-index: 1500;
     pointer-events: none;
