@@ -1037,7 +1037,7 @@ class App {
         if (typeof (globalThis as any).__setReactMode === 'function') {
             (globalThis as any).__setReactMode(mode);
         }
-        if (mode !== 'settings') {
+        if (mode === 'preset' || mode === 'learning') {
             this.resetScene();
         }
         if (!this.useReactPresets) {

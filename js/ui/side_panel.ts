@@ -310,7 +310,7 @@ export function SidePanel() {
         mode: 'preset',
         currentMode: currentMode,
         onClick: handleModeChange,
-        icon: 'pencil'
+        icon: 'scissors'
       }),
       React.createElement(ModeButton, {
         mode: 'learning',
@@ -322,7 +322,7 @@ export function SidePanel() {
         mode: 'settings',
         currentMode: currentMode,
         onClick: handleModeChange,
-        icon: 'sliders'
+        icon: 'gear'
       })
     ),
 
@@ -413,6 +413,16 @@ function Icon({ name }: { name: string }) {
         React.createElement('path', { d: 'M12 20h9' }),
         React.createElement('path', { d: 'M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z' })
       );
+    case 'scissors':
+      return React.createElement(
+        'svg',
+        shared,
+        React.createElement('circle', { cx: 6, cy: 7, r: 3 }),
+        React.createElement('circle', { cx: 6, cy: 17, r: 3 }),
+        React.createElement('path', { d: 'M9 8l12-6' }),
+        React.createElement('path', { d: 'M9 16l12 6' }),
+        React.createElement('path', { d: 'M9 12h5' })
+      );
     case 'sparkle':
       return React.createElement(
         'svg',
@@ -432,6 +442,20 @@ function Icon({ name }: { name: string }) {
         shared,
         React.createElement('path', { d: 'M4.5 5.5c0-1 1-2 2.2-2H20v15.5H7.2c-1.2 0-2.2 1-2.2 2' }),
         React.createElement('path', { d: 'M4.5 5.5v13c0 1 1 2 2.2 2H20' })
+      );
+    case 'gear':
+      return React.createElement(
+        'svg',
+        shared,
+        React.createElement('circle', { cx: 12, cy: 12, r: 3 }),
+        React.createElement('path', { d: 'M12 2v3' }),
+        React.createElement('path', { d: 'M12 19v3' }),
+        React.createElement('path', { d: 'M4.2 4.2l2.1 2.1' }),
+        React.createElement('path', { d: 'M17.7 17.7l2.1 2.1' }),
+        React.createElement('path', { d: 'M2 12h3' }),
+        React.createElement('path', { d: 'M19 12h3' }),
+        React.createElement('path', { d: 'M4.2 19.8l2.1-2.1' }),
+        React.createElement('path', { d: 'M17.7 6.3l2.1-2.1' })
       );
     case 'sliders':
       return React.createElement(
