@@ -9,6 +9,7 @@ declare global {
   var __setExplanation: ((text: string) => void) | undefined;
   var __setDisplayState: ((display: DisplayState | null) => void) | undefined;
   var __setReactMode: ((mode: string) => void) | undefined;
+  var __setUiMode: ((mode: 'rotate' | 'cut' | 'net') => void) | undefined;
   var __refreshUserPresets: (() => void) | undefined;
 }
 
@@ -41,6 +42,8 @@ type Engine = {
   configureCube?: (lx: number, ly: number, lz: number) => void;
   getCubeSize?: () => { lx: number; ly: number; lz: number };
   setPanelOpen?: (open: boolean) => void;
+  getUiMode?: () => 'rotate' | 'cut' | 'net';
+  setUiMode?: (mode: 'rotate' | 'cut' | 'net') => void;
   getNetVisible?: () => boolean;
   getNetStepInfo?: () => {
     mode: 'auto' | 'step';
@@ -95,6 +98,52 @@ function ExplanationPanel() {
   );
 }
 
+function ModeBar() {
+  const [mode, setMode] = useState<'rotate' | 'cut' | 'net'>('rotate');
+
+  useEffect(() => {
+    const engine = globalThis.__engine;
+    if (engine && typeof engine.getUiMode === 'function') {
+      setMode(engine.getUiMode());
+    }
+    globalThis.__setUiMode = (next) => {
+      setMode(next);
+    };
+    return () => {
+      if (globalThis.__setUiMode) {
+        delete globalThis.__setUiMode;
+      }
+    };
+  }, []);
+
+  const handleModeChange = (next: 'rotate' | 'cut' | 'net') => {
+    const engine = globalThis.__engine;
+    if (engine && typeof engine.setUiMode === 'function') {
+      engine.setUiMode(next);
+    }
+  };
+
+  return (
+    React.createElement(React.Fragment, null,
+      React.createElement('button', {
+        type: 'button',
+        className: `mode-button ${mode === 'rotate' ? 'is-active' : ''}`,
+        onClick: () => handleModeChange('rotate')
+      }, '回転'),
+      React.createElement('button', {
+        type: 'button',
+        className: `mode-button ${mode === 'cut' ? 'is-active' : ''}`,
+        onClick: () => handleModeChange('cut')
+      }, '切断'),
+      React.createElement('button', {
+        type: 'button',
+        className: `mode-button ${mode === 'net' ? 'is-active' : ''}`,
+        onClick: () => handleModeChange('net')
+      }, '展開')
+    )
+  );
+}
+
 export function initReactApp() {
   const rootEl = document.getElementById('react-root');
   if (!rootEl) return;
@@ -104,6 +153,12 @@ export function initReactApp() {
       React.createElement(ExplanationPanel)
     )
   );
+
+  const modeRootEl = document.getElementById('mode-bar-root');
+  if (modeRootEl) {
+    const modeRoot = createRoot(modeRootEl);
+    modeRoot.render(React.createElement(ModeBar));
+  }
 
   initSidePanel(); // Call the new SidePanel initialization
 }
