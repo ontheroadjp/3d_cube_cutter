@@ -27,6 +27,7 @@ export type DisplayState = {
   showCutPoints: boolean;
   colorizeCutLines: boolean;
   showNormalHelper: boolean;
+  faceColorTheme?: 'blue' | 'red' | 'green' | 'colorful';
 };
 
 export type IntersectionPoint = {

@@ -722,6 +722,49 @@ function DisplaySettingsPanel() {
           React.createElement('option', { value: 'hidden' }, '表示しない')
         )
       ),
+    React.createElement('div', { className: 'mb-3' },
+      React.createElement('label', { className: 'form-label small mb-1' }, '面の色'),
+      React.createElement('div', { className: 'form-check' },
+        React.createElement('input', {
+          className: 'form-check-input',
+          type: 'radio',
+          name: 'faceColorTheme',
+          checked: (display.faceColorTheme || 'colorful') === 'blue',
+          onChange: () => updateDisplayState({ faceColorTheme: 'blue' })
+        }),
+        React.createElement('label', { className: 'form-check-label' }, '青系')
+      ),
+      React.createElement('div', { className: 'form-check' },
+        React.createElement('input', {
+          className: 'form-check-input',
+          type: 'radio',
+          name: 'faceColorTheme',
+          checked: (display.faceColorTheme || 'colorful') === 'red',
+          onChange: () => updateDisplayState({ faceColorTheme: 'red' })
+        }),
+        React.createElement('label', { className: 'form-check-label' }, '赤（ピンク）系')
+      ),
+      React.createElement('div', { className: 'form-check' },
+        React.createElement('input', {
+          className: 'form-check-input',
+          type: 'radio',
+          name: 'faceColorTheme',
+          checked: (display.faceColorTheme || 'colorful') === 'green',
+          onChange: () => updateDisplayState({ faceColorTheme: 'green' })
+        }),
+        React.createElement('label', { className: 'form-check-label' }, '緑系')
+      ),
+      React.createElement('div', { className: 'form-check' },
+        React.createElement('input', {
+          className: 'form-check-input',
+          type: 'radio',
+          name: 'faceColorTheme',
+          checked: (display.faceColorTheme || 'colorful') === 'colorful',
+          onChange: () => updateDisplayState({ faceColorTheme: 'colorful' })
+        }),
+        React.createElement('label', { className: 'form-check-label' }, 'カラフル')
+      )
+    ),
     React.createElement('button', {
       className: 'btn btn-outline-secondary btn-sm mt-3',
       onClick: () => setShowModal(true)

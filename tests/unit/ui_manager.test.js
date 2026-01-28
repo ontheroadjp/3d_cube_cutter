@@ -68,7 +68,8 @@ describe('UIManager', () => {
       showPyramid: true,
       cubeTransparent: false,
       showCutPoints: false,
-      colorizeCutLines: true
+      colorizeCutLines: true,
+      faceColorTheme: 'red'
     });
 
     expect(ui.getDisplayState()).toEqual({
@@ -80,7 +81,8 @@ describe('UIManager', () => {
       cubeTransparent: false,
       showCutPoints: false,
       colorizeCutLines: true,
-      showNormalHelper: false
+      showNormalHelper: false,
+      faceColorTheme: 'red'
     });
   });
 
@@ -110,7 +112,8 @@ describe('UIManager', () => {
       cubeTransparent: false,
       showCutPoints: true,
       colorizeCutLines: true,
-      showNormalHelper: false
+      showNormalHelper: false,
+      faceColorTheme: 'colorful'
     });
   });
 
@@ -131,7 +134,8 @@ describe('UIManager', () => {
       cubeTransparent: false,
       showCutPoints: true,
       colorizeCutLines: false,
-      showNormalHelper: false
+      showNormalHelper: false,
+      faceColorTheme: 'colorful'
     });
   });
 
