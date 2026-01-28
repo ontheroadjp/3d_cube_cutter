@@ -3,7 +3,7 @@
 - 実装(技術)について
   - message area を上部 40% 高さで固定し、alert/explanation をその領域へ移動。
   - Canvas は message area 分だけ下げて描画し、3D 表示との重なりを回避。
-  - message area の背景に黒板画像（kokuban.png）を敷き、視認性を確保。
+  - message area の背景に黒板画像（kokuban_9slice.png）を 9-slice で適用し、枠や日付の歪みを回避。
   - ExplanationPanel を上部固定領域に合わせて配置。
 
 - 仕様(L1ドキュメント)について
