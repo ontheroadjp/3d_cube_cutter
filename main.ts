@@ -2130,7 +2130,7 @@ class App {
         if (!mesh) return;
         const material = mesh.material;
         if (!(material instanceof THREE.MeshBasicMaterial)) return;
-        if (mesh.userData && mesh.userData.originalColor === undefined) {
+        if (mesh.userData) {
             mesh.userData.originalColor = material.color.getHex();
         }
         if (kind === 'none') {

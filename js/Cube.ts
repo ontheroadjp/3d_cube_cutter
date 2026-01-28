@@ -593,6 +593,9 @@ export class Cube {
     this.faceMeshes.forEach((mesh, faceId) => {
       const material = mesh.material;
       if (!(material instanceof THREE.MeshBasicMaterial)) return;
+      if (mesh.userData) {
+        delete mesh.userData.originalColor;
+      }
       const isCutFace = !!mesh.userData?.isCutFace;
       const sourceFaceId = mesh.userData?.sourceFaceId || null;
       const color = this.getFaceBaseColor(faceId, { isCutFace }, sourceFaceId);
