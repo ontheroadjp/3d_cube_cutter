@@ -18,6 +18,15 @@ import type { ObjectNetState, NetPlan } from './js/model/objectModel.js';
 import { normalizeSnapPointId, parseSnapPointId, type SnapPointID } from './js/geometry/snapPointId.js';
 import { createLabel, createMarker } from './js/utils.js';
 
+const NET_SELECTION_MESSAGES = {
+    selectPrompt: "基準面を選択してください。",
+    cancel: "基準面選択をキャンセルしました。",
+    confirmStep: "基準面を確定しました。ステップで展開します。",
+    confirmAuto: "基準面を確定しました。展開します。"
+} as const;
+
+type NetSelectionMessageKey = keyof typeof NET_SELECTION_MESSAGES;
+
 const isDebugEnabled = () => {
     const flag = (globalThis as any).__DEBUG__ === true || (globalThis as any).DEBUG === true;
     if (flag) return true;
@@ -2390,6 +2399,10 @@ class App {
         this.clearNetSelectionHighlight();
     }
 
+    showNetSelectionMessage(key: NetSelectionMessageKey) {
+        this.ui.showMessage(NET_SELECTION_MESSAGES[key], "info");
+    }
+
     startNetBaseSelection() {
         this.netSelectionActive = true;
         this.netRootFaceId = null;
@@ -2398,7 +2411,7 @@ class App {
         this.highlightMarker.visible = false;
         this.snappedPointInfo = null;
         document.body.style.cursor = 'pointer';
-        this.ui.showMessage("基準面を選択してください。", "info");
+        this.showNetSelectionMessage('selectPrompt');
     }
 
     startNetPreCameraMove({
@@ -2435,7 +2448,7 @@ class App {
         if (!this.objectModelManager.getNetVisible()) {
             this.cube.setFaceOutlineVisible(false);
         }
-        this.ui.showMessage("基準面選択をキャンセルしました。", "info");
+        this.showNetSelectionMessage('cancel');
         document.body.style.cursor = 'auto';
     }
 
@@ -2599,7 +2612,7 @@ class App {
                                     this.netManager.update(this.objectModelManager.getCutSegments(), solid, this.resolver);
                                 }
                                 this.clearNetSelectionHighlight();
-                                this.ui.showMessage("基準面を確定しました。ステップで展開します。", "info");
+                                this.showNetSelectionMessage('confirmStep');
                                 return;
                             }
                             this.startNetUnfold();
@@ -2607,7 +2620,7 @@ class App {
                             if (solid) {
                                 this.netManager.update(this.objectModelManager.getCutSegments(), solid, this.resolver);
                             }
-                            this.ui.showMessage("基準面を確定しました。展開します。", "info");
+                            this.showNetSelectionMessage('confirmAuto');
                         }, 1500);
                     }
                 });
