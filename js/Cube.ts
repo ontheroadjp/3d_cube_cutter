@@ -585,22 +585,29 @@ export class Cube {
     return null;
   }
 
+  private applyFaceBaseColor(faceId: FaceID) {
+    const mesh = this.faceMeshes.get(faceId);
+    if (!mesh) return;
+    const material = mesh.material;
+    if (!(material instanceof THREE.MeshBasicMaterial)) return;
+    const isCutFace = !!mesh.userData?.isCutFace;
+    const sourceFaceId = mesh.userData?.sourceFaceId || null;
+    const color = this.getFaceBaseColor(faceId, { isCutFace }, sourceFaceId);
+    material.color.setHex(color);
+    material.needsUpdate = true;
+  }
+
+  resetFaceColor(faceId: FaceID) {
+    this.applyFaceBaseColor(faceId);
+  }
+
   setFaceColorTheme(theme: 'blue' | 'red' | 'green' | 'colorful') {
     const next = theme || 'colorful';
     if (this.faceColorTheme === next) return;
     this.faceColorTheme = next;
     this.faceColorCache.clear();
-    this.faceMeshes.forEach((mesh, faceId) => {
-      const material = mesh.material;
-      if (!(material instanceof THREE.MeshBasicMaterial)) return;
-      const isCutFace = !!mesh.userData?.isCutFace;
-      const sourceFaceId = mesh.userData?.sourceFaceId || null;
-      const color = this.getFaceBaseColor(faceId, { isCutFace }, sourceFaceId);
-      material.color.setHex(color);
-      material.needsUpdate = true;
-      if (mesh.userData) {
-        mesh.userData.originalColor = color;
-      }
+    this.faceMeshes.forEach((_, faceId) => {
+      this.applyFaceBaseColor(faceId);
     });
   }
 

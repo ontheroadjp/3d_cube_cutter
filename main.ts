@@ -2130,14 +2130,8 @@ class App {
         if (!mesh) return;
         const material = mesh.material;
         if (!(material instanceof THREE.MeshBasicMaterial)) return;
-        if (mesh.userData) {
-            mesh.userData.originalColor = material.color.getHex();
-        }
         if (kind === 'none') {
-            const baseColor = mesh.userData ? mesh.userData.originalColor : null;
-            if (typeof baseColor === 'number') {
-                material.color.setHex(baseColor);
-            }
+            this.cube.resetFaceColor(faceId);
             return;
         }
         material.color.setHex(0xffcc55);
