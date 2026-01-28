@@ -44,7 +44,7 @@ const DEFAULT_DISPLAY: DisplayState = {
   showCutPoints: true,
   colorizeCutLines: false,
   showNormalHelper: false,
-  faceColorTheme: 'colorful'
+  faceColorTheme: 'blue'
 };
 
 // Helper to create default empty cut derived

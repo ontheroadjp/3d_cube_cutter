@@ -113,7 +113,7 @@ describe('UIManager', () => {
       showCutPoints: true,
       colorizeCutLines: true,
       showNormalHelper: false,
-      faceColorTheme: 'colorful'
+      faceColorTheme: 'blue'
     });
   });
 
@@ -135,7 +135,7 @@ describe('UIManager', () => {
       showCutPoints: true,
       colorizeCutLines: false,
       showNormalHelper: false,
-      faceColorTheme: 'colorful'
+      faceColorTheme: 'blue'
     });
   });
 

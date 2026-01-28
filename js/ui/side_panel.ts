@@ -729,7 +729,7 @@ function DisplaySettingsPanel() {
           className: 'form-check-input',
           type: 'radio',
           name: 'faceColorTheme',
-          checked: (display.faceColorTheme || 'colorful') === 'blue',
+          checked: (display.faceColorTheme || 'blue') === 'blue',
           onChange: () => updateDisplayState({ faceColorTheme: 'blue' })
         }),
         React.createElement('label', { className: 'form-check-label' }, '青系')
@@ -739,7 +739,7 @@ function DisplaySettingsPanel() {
           className: 'form-check-input',
           type: 'radio',
           name: 'faceColorTheme',
-          checked: (display.faceColorTheme || 'colorful') === 'red',
+          checked: (display.faceColorTheme || 'blue') === 'red',
           onChange: () => updateDisplayState({ faceColorTheme: 'red' })
         }),
         React.createElement('label', { className: 'form-check-label' }, '赤（ピンク）系')
@@ -749,7 +749,7 @@ function DisplaySettingsPanel() {
           className: 'form-check-input',
           type: 'radio',
           name: 'faceColorTheme',
-          checked: (display.faceColorTheme || 'colorful') === 'green',
+          checked: (display.faceColorTheme || 'blue') === 'green',
           onChange: () => updateDisplayState({ faceColorTheme: 'green' })
         }),
         React.createElement('label', { className: 'form-check-label' }, '緑系')
@@ -759,7 +759,7 @@ function DisplaySettingsPanel() {
           className: 'form-check-input',
           type: 'radio',
           name: 'faceColorTheme',
-          checked: (display.faceColorTheme || 'colorful') === 'colorful',
+          checked: (display.faceColorTheme || 'blue') === 'colorful',
           onChange: () => updateDisplayState({ faceColorTheme: 'colorful' })
         }),
         React.createElement('label', { className: 'form-check-label' }, 'カラフル')

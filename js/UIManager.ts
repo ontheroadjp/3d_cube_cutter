@@ -148,7 +148,7 @@ export class UIManager {
       showCutPoints: this.toggleCutPoints ? this.toggleCutPoints.checked : true,
       colorizeCutLines: this.toggleCutLineColor ? this.toggleCutLineColor.checked : false,
       showNormalHelper: false,
-      faceColorTheme: 'colorful'
+      faceColorTheme: 'blue'
     };
     this.currentMode = this.modeSelector ? this.modeSelector.value : 'free';
     this.currentSettingsCategory = this.settingsCategorySelector ? this.settingsCategorySelector.value : 'display';
@@ -209,7 +209,7 @@ export class UIManager {
       showCutPoints: this.displayState.showCutPoints,
       colorizeCutLines: this.displayState.colorizeCutLines,
       showNormalHelper: this.displayState.showNormalHelper,
-      faceColorTheme: this.displayState.faceColorTheme || 'colorful'
+      faceColorTheme: this.displayState.faceColorTheme || 'blue'
     };
   }
 

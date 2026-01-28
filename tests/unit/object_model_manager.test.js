@@ -253,7 +253,7 @@ describe('object model manager', () => {
       showCutPoints: true,
       colorizeCutLines: false,
       showNormalHelper: false,
-      faceColorTheme: 'colorful',
+      faceColorTheme: 'blue',
     });
     manager.setDisplay({
       showVertexLabels: false,
@@ -265,7 +265,7 @@ describe('object model manager', () => {
       showCutPoints: true,
       colorizeCutLines: false,
       showNormalHelper: false,
-      faceColorTheme: 'colorful',
+      faceColorTheme: 'blue',
     });
     manager.applyCutDisplayToView({ cutter });
 
@@ -287,7 +287,7 @@ describe('object model manager', () => {
       showCutPoints: true,
       colorizeCutLines: false,
       showNormalHelper: false,
-      faceColorTheme: 'colorful',
+      faceColorTheme: 'blue',
     });
     manager.applyCutDisplayToView({ cutter });
     expect(cutter.toggleSurface).toHaveBeenCalledWith(false);

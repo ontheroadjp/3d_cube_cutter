@@ -82,7 +82,7 @@ export class Cube {
     this.faceOutlineVisible = false;
     this.cutFaceVisible = true;
     this.faceColorCache = new Map();
-    this.faceColorTheme = 'colorful';
+    this.faceColorTheme = 'blue';
     this.faceColorPalettes = {
         blue: [0xc6dbef, 0x9ecae1, 0x6baed6, 0x3182bd, 0x9ecae1, 0x6baed6],
         red: [0xfcbba1, 0xfc9272, 0xfb6a4a, 0xde2d26, 0xfc9272, 0xfb6a4a],
@@ -572,12 +572,12 @@ export class Cube {
 
   private getFaceGroupIndex(faceId: FaceID): number | null {
     const groups: Record<string, number> = {
-      'F:0-1-5-4': 0,
-      'F:2-3-7-6': 0,
+      'F:0-1-5-4': 2,
+      'F:2-3-7-6': 2,
       'F:4-5-6-7': 1,
       'F:0-3-2-1': 1,
-      'F:0-4-7-3': 2,
-      'F:1-2-6-5': 2
+      'F:0-4-7-3': 0,
+      'F:1-2-6-5': 0
     };
     if (Object.prototype.hasOwnProperty.call(groups, faceId)) {
       return groups[faceId];
