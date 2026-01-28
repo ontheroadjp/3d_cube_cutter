@@ -592,7 +592,7 @@ export class Cube {
     this.faceColorCache.clear();
     this.faceMeshes.forEach((mesh, faceId) => {
       const material = mesh.material;
-      if (!(material instanceof THREE.MeshPhongMaterial)) return;
+      if (!(material instanceof THREE.MeshBasicMaterial)) return;
       const isCutFace = !!mesh.userData?.isCutFace;
       const sourceFaceId = mesh.userData?.sourceFaceId || null;
       const color = this.getFaceBaseColor(faceId, { isCutFace }, sourceFaceId);
@@ -603,7 +603,7 @@ export class Cube {
 
   private createFaceMaterial(faceId: FaceID, pres?: any, sourceFaceId?: FaceID | null) {
     const isCutFace = pres?.isCutFace;
-    return new THREE.MeshPhongMaterial({
+    return new THREE.MeshBasicMaterial({
       color: this.getFaceBaseColor(faceId, pres, sourceFaceId),
       transparent: true,
       opacity: 0.4,
@@ -756,7 +756,8 @@ export class Cube {
 
   toggleTransparency(transparent: boolean) {
     this.faceMeshes.forEach(mesh => {
-      const mat = mesh.material as THREE.MeshPhongMaterial;
+      const mat = mesh.material;
+      if (!(mat instanceof THREE.MeshBasicMaterial)) return;
       mat.transparent = transparent;
       mat.opacity = transparent ? 0.4 : 1.0;
       mat.depthWrite = !transparent;

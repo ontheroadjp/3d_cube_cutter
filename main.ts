@@ -1637,6 +1637,7 @@ class App {
         this.cutter.setVisible(false);
         this.highlightMarker.visible = false;
         this.snappedPointInfo = null;
+        this.clearNetSelectionHighlight();
         this.resetNetAnimationCaches();
         this.netAnimationDirection = 'open';
         this.prepareNetAnimationZoom('open', false);
@@ -2128,7 +2129,7 @@ class App {
         const mesh = this.cube.faceMeshes.get(faceId);
         if (!mesh) return;
         const material = mesh.material;
-        if (!(material instanceof THREE.MeshPhongMaterial)) return;
+        if (!(material instanceof THREE.MeshBasicMaterial)) return;
         if (mesh.userData && mesh.userData.originalColor === undefined) {
             mesh.userData.originalColor = material.color.getHex();
         }
