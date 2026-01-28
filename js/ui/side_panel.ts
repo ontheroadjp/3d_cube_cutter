@@ -30,6 +30,8 @@ type Engine = {
   configureCube?: (lx: number, ly: number, lz: number) => void;
   getCubeSize?: () => { lx: number; ly: number; lz: number };
   setPanelOpen?: (open: boolean) => void;
+  getUiMode?: () => 'rotate' | 'cut' | 'net';
+  setUiMode?: (mode: 'rotate' | 'cut' | 'net') => void;
   getNetVisible?: () => boolean;
   getNetStepInfo?: () => {
     mode: 'auto' | 'step';

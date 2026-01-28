@@ -39,6 +39,7 @@ const isDebugEnabled = () => {
 
 class App {
     isCutExecuted: boolean;
+    uiMode: 'rotate' | 'cut' | 'net';
     currentNetPlan: NetPlan | null;
     snappedPointInfo: {
         point: THREE.Vector3;
@@ -178,6 +179,7 @@ class App {
     constructor() {
         // --- State Properties ---
         this.isCutExecuted = false;
+        this.uiMode = 'rotate';
         this.currentNetPlan = null;
         this.snappedPointInfo = null;
         this.cameraTargetPosition = null;
@@ -380,6 +382,8 @@ class App {
             getCubeSize: () => this.cube.getSize(),
             getVertexLabelMap: () => this.currentLabelMap, // Add this line
             setPanelOpen: (open: boolean) => this.handlePanelOpenChange(open),
+            getUiMode: () => this.uiMode,
+            setUiMode: (mode: 'rotate' | 'cut' | 'net') => this.setUiMode(mode),
             getNetVisible: () => this.objectModelManager.getNetVisible(),
             getNetStepInfo: () => this.getNetStepInfo(),
             getAnimationSpecEnabled: () => this.useAnimationSpecNet,
@@ -950,10 +954,11 @@ class App {
         const panelOffset = panelOffsetOverride ?? (this.panelOpen ? panelWidth : 0);
         const availableWidth = Math.max(200, window.innerWidth - sidebarWidth - panelOffset);
         const messageHeight = Math.round(window.innerHeight * 0.4);
+        const modeBarHeight = 52;
         const navbar = document.querySelector('.navbar') as HTMLElement | null;
         const navbarHeight = Math.round(navbar?.getBoundingClientRect().height ?? 0);
         const messageAreaHeight = Math.max(0, messageHeight - navbarHeight);
-        const availableHeight = Math.max(200, window.innerHeight - messageHeight);
+        const availableHeight = Math.max(200, window.innerHeight - messageHeight - modeBarHeight);
         const rootStyle = document.documentElement.style;
         rootStyle.setProperty('--sidebar-width', `${sidebarWidth}px`);
         rootStyle.setProperty('--panel-offset', `${panelOffset}px`);
@@ -962,12 +967,13 @@ class App {
         rootStyle.setProperty('--message-area-top', `${navbarHeight}px`);
         rootStyle.setProperty('--message-area-left', `${sidebarWidth + panelOffset}px`);
         rootStyle.setProperty('--message-area-width', `${availableWidth}px`);
+        rootStyle.setProperty('--mode-bar-height', `${modeBarHeight}px`);
         this.cube.resize(this.camera, availableWidth, availableHeight);
         this.resolver.setSize(this.cube.getSize());
         this.renderer.setSize(availableWidth, availableHeight);
         const canvas = this.renderer.domElement;
         canvas.style.position = 'fixed';
-        canvas.style.top = `${messageHeight}px`;
+        canvas.style.top = `${messageHeight + modeBarHeight}px`;
         canvas.style.left = `${sidebarWidth + panelOffset}px`;
         this.updateNetUnfoldScale();
     }
@@ -1030,6 +1036,13 @@ class App {
         this.layoutTransitionTo = this.panelOpen ? 320 : 0;
         this.layoutTransitionStart = performance.now();
         this.layoutTransitionActive = true;
+    }
+
+    setUiMode(mode: 'rotate' | 'cut' | 'net') {
+        this.uiMode = mode;
+        if (typeof (globalThis as any).__setUiMode === 'function') {
+            (globalThis as any).__setUiMode(mode);
+        }
     }
     
     handleModeChange(mode: string) {

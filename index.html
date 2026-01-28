@@ -32,6 +32,7 @@ html, body { margin:0; width:100%; height:100%; overflow:hidden; }
     --message-area-left: 0px;
     --message-area-width: 100%;
     --navbar-height: 0px;
+    --mode-bar-height: 52px;
 }
 #ui-container {
     position: absolute; top: 0; left: 0; width: 100%; z-index: 100;
@@ -79,6 +80,37 @@ html, body { margin:0; width:100%; height:100%; overflow:hidden; }
 }
 #message-area .alert .btn-close {
     display: none;
+}
+.mode-bar {
+    position: fixed;
+    top: calc(var(--message-area-top) + var(--message-area-height));
+    left: var(--message-area-left);
+    width: var(--message-area-width);
+    height: var(--mode-bar-height);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    z-index: 1501;
+    pointer-events: auto;
+}
+.mode-bar .mode-button {
+    background: #f6c945;
+    border: 1px solid rgba(0,0,0,0.2);
+    color: #2d2308;
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-weight: 700;
+    font-size: 14px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.mode-bar .mode-button.is-active {
+    background: #ffde6a;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+.mode-bar .mode-button:active {
+    transform: translateY(1px);
 }
 .navbar {
     background: var(--ui-muted-bg) !important;
@@ -244,6 +276,7 @@ body {
     <div id="alert-container" style="position: absolute; top: var(--message-area-offset); left: 50%; transform: translateX(-50%); z-index: 2000; width: 80%; max-width: 600px; pointer-events: none;"></div>
   </div>
 </div>
+<div id="mode-bar-root" class="mode-bar"></div>
 <div id="react-side-panel-root"></div>
 <div id="tooltip"></div>
 
