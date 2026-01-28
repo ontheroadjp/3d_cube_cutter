@@ -42,8 +42,17 @@ type Engine = {
   getCubeSize?: () => { lx: number; ly: number; lz: number };
   setPanelOpen?: (open: boolean) => void;
   getNetVisible?: () => boolean;
+  getNetStepInfo?: () => {
+    mode: 'auto' | 'step';
+    stepIndex: number;
+    stepCount: number;
+    isPlaying: boolean;
+  };
   getAnimationSpecEnabled?: () => boolean;
   setAnimationSpecEnabled?: (enabled: boolean) => void;
+  setNetPlaybackMode?: (mode: 'auto' | 'step') => void;
+  stepNetForward?: () => void;
+  stepNetBackward?: () => void;
 };
 
 type UserPresetForm = {
