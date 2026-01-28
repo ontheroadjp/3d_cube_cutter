@@ -68,6 +68,114 @@ type NetStepState = {
   isPlaying: boolean;
 };
 
+type NetPlaybackControlsProps = {
+  netVisible: boolean;
+  netStepState: NetStepState;
+  onToggleNet: () => void;
+  onPlaybackModeChange: (enabled: boolean) => void;
+  onStepForward: () => void;
+  onStepBackward: () => void;
+};
+
+function NetPlaybackControls({
+  netVisible,
+  netStepState,
+  onToggleNet,
+  onPlaybackModeChange,
+  onStepForward,
+  onStepBackward
+}: NetPlaybackControlsProps) {
+  const switchDisabled =
+    netStepState.isPlaying || (netStepState.mode === 'step' && netStepState.stepIndex > 0);
+  const stepDisabled = netStepState.mode !== 'step' || netStepState.isPlaying;
+  const canStepForward = !stepDisabled && netStepState.stepIndex < netStepState.stepCount;
+  const canStepBackward = !stepDisabled && netStepState.stepIndex > 0;
+
+  return React.createElement(
+    'div',
+    {
+      style: {
+        position: 'fixed',
+        left: 'calc(var(--sidebar-width, 64px) + var(--panel-offset, 0px) + 12px)',
+        bottom: '16px',
+        zIndex: 1200,
+        background: 'rgba(255, 255, 255, 0.92)',
+        border: '1px solid rgba(0,0,0,0.12)',
+        borderRadius: '12px',
+        padding: '8px 12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        pointerEvents: 'auto',
+        boxShadow: '0 8px 18px rgba(0,0,0,0.12)'
+      }
+    },
+    React.createElement('span', { className: 'small text-muted' }, '連続再生'),
+    React.createElement(
+      'div',
+      { className: 'form-check form-switch m-0' },
+      React.createElement('input', {
+        className: 'form-check-input',
+        type: 'checkbox',
+        role: 'switch',
+        checked: netStepState.mode === 'auto',
+        onChange: (event) => onPlaybackModeChange(event.currentTarget.checked),
+        disabled: switchDisabled,
+        title: '連続再生',
+        'aria-label': '連続再生'
+      })
+    ),
+    React.createElement('button', {
+      type: 'button',
+      className: 'btn btn-sm btn-outline-secondary',
+      onClick: onStepBackward,
+      disabled: !canStepBackward,
+      title: '前の面'
+    }, React.createElement(
+      'svg',
+      {
+        width: 16,
+        height: 16,
+        viewBox: '0 0 24 24',
+        fill: 'none',
+        stroke: 'currentColor',
+        strokeWidth: 2,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+        'aria-hidden': 'true'
+      },
+      React.createElement('polyline', { points: '15 18 9 12 15 6' })
+    )),
+    React.createElement('button', {
+      type: 'button',
+      className: 'btn btn-sm btn-outline-secondary',
+      onClick: onStepForward,
+      disabled: !canStepForward,
+      title: '次の面'
+    }, React.createElement(
+      'svg',
+      {
+        width: 16,
+        height: 16,
+        viewBox: '0 0 24 24',
+        fill: 'none',
+        stroke: 'currentColor',
+        strokeWidth: 2,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+        'aria-hidden': 'true'
+      },
+      React.createElement('polyline', { points: '9 18 15 12 9 6' })
+    )),
+    React.createElement('button', {
+      type: 'button',
+      className: 'btn btn-sm btn-outline-primary',
+      onClick: onToggleNet,
+      title: '展開図'
+    }, netVisible ? '閉じる' : '展開')
+  );
+}
+
 // --- SidePanel Component ---
 export function SidePanel() {
   const [currentMode, setCurrentMode] = useState<string>('free'); // 'free', 'preset', 'learning', 'settings'
@@ -174,11 +282,6 @@ export function SidePanel() {
     }
   };
 
-  const switchDisabled = netStepState.isPlaying || (netStepState.mode === 'step' && netStepState.stepIndex > 0);
-  const stepDisabled = netStepState.mode !== 'step' || netStepState.isPlaying;
-  const canStepForward = !stepDisabled && netStepState.stepIndex < netStepState.stepCount;
-  const canStepBackward = !stepDisabled && netStepState.stepIndex > 0;
-
   return React.createElement(
     'div',
     {
@@ -278,89 +381,14 @@ export function SidePanel() {
         }),
     ),
 
-    React.createElement(
-      'div',
-      {
-        style: {
-          position: 'fixed',
-          left: 'calc(var(--sidebar-width, 64px) + var(--panel-offset, 0px) + 12px)',
-          bottom: '16px',
-          zIndex: 1200,
-          background: 'rgba(255, 255, 255, 0.92)',
-          border: '1px solid rgba(0,0,0,0.12)',
-          borderRadius: '12px',
-          padding: '8px 12px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          pointerEvents: 'auto',
-          boxShadow: '0 8px 18px rgba(0,0,0,0.12)'
-        }
-      },
-      React.createElement('span', { className: 'small text-muted' }, '連続再生'),
-      React.createElement(
-        'div',
-        { className: 'form-check form-switch m-0' },
-        React.createElement('input', {
-          className: 'form-check-input',
-          type: 'checkbox',
-          role: 'switch',
-          checked: netStepState.mode === 'auto',
-          onChange: (event) => handleNetPlaybackToggle(event.currentTarget.checked),
-          disabled: switchDisabled,
-          title: '連続再生',
-          'aria-label': '連続再生'
-        })
-      ),
-      React.createElement('button', {
-        type: 'button',
-        className: 'btn btn-sm btn-outline-secondary',
-        onClick: handleNetStepBackward,
-        disabled: !canStepBackward,
-        title: '前の面'
-      }, React.createElement(
-        'svg',
-        {
-          width: 16,
-          height: 16,
-          viewBox: '0 0 24 24',
-          fill: 'none',
-          stroke: 'currentColor',
-          strokeWidth: 2,
-          strokeLinecap: 'round',
-          strokeLinejoin: 'round',
-          'aria-hidden': 'true'
-        },
-        React.createElement('polyline', { points: '15 18 9 12 15 6' })
-      )),
-      React.createElement('button', {
-        type: 'button',
-        className: 'btn btn-sm btn-outline-secondary',
-        onClick: handleNetStepForward,
-        disabled: !canStepForward,
-        title: '次の面'
-      }, React.createElement(
-        'svg',
-        {
-          width: 16,
-          height: 16,
-          viewBox: '0 0 24 24',
-          fill: 'none',
-          stroke: 'currentColor',
-          strokeWidth: 2,
-          strokeLinecap: 'round',
-          strokeLinejoin: 'round',
-          'aria-hidden': 'true'
-        },
-        React.createElement('polyline', { points: '9 18 15 12 9 6' })
-      )),
-      React.createElement('button', {
-        type: 'button',
-        className: 'btn btn-sm btn-outline-primary',
-        onClick: () => globalThis.__engine?.toggleNet?.(),
-        title: '展開図'
-      }, netVisible ? '閉じる' : '展開')
-    )
+    React.createElement(NetPlaybackControls, {
+      netVisible: netVisible,
+      netStepState: netStepState,
+      onToggleNet: () => globalThis.__engine?.toggleNet?.(),
+      onPlaybackModeChange: handleNetPlaybackToggle,
+      onStepForward: handleNetStepForward,
+      onStepBackward: handleNetStepBackward
+    })
   );
 }
 
