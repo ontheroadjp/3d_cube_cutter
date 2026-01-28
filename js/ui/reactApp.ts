@@ -44,6 +44,10 @@ type Engine = {
   setPanelOpen?: (open: boolean) => void;
   getUiMode?: () => 'rotate' | 'cut' | 'net';
   setUiMode?: (mode: 'rotate' | 'cut' | 'net') => void;
+  startNetSelection?: () => void;
+  startNetUnfold?: () => void;
+  startNetFold?: () => void;
+  getNetStateName?: () => string;
   getNetVisible?: () => boolean;
   getNetStepInfo?: () => {
     mode: 'auto' | 'step';
