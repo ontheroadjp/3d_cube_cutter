@@ -386,6 +386,10 @@ class App {
             setPanelOpen: (open: boolean) => this.handlePanelOpenChange(open),
             getUiMode: () => this.uiMode,
             setUiMode: (mode: 'rotate' | 'cut' | 'net') => this.setUiMode(mode),
+            startNetSelection: () => this.startNetSelection(),
+            startNetUnfold: () => this.startNetUnfoldFromUi(),
+            startNetFold: () => this.startNetFoldFromUi(),
+            getNetStateName: () => this.getNetStateName(),
             getNetVisible: () => this.objectModelManager.getNetVisible(),
             getNetStepInfo: () => this.getNetStepInfo(),
             getAnimationSpecEnabled: () => this.useAnimationSpecNet,
@@ -1048,10 +1052,50 @@ class App {
         if (typeof (globalThis as any).__setUiMode === 'function') {
             (globalThis as any).__setUiMode(mode);
         }
+        if (typeof (globalThis as any).__setSidePanelUiMode === 'function') {
+            (globalThis as any).__setSidePanelUiMode(mode);
+        }
+        if (mode === 'net') {
+            this.setNetPlaybackMode('auto');
+            this.ui.showMessage("基準面を選ぶボタンを押して、図形を展開する基準面を選択してね", "info");
+        } else if (this.netSelectionActive) {
+            this.cancelNetBaseSelection();
+        }
         if (this.controls) {
             this.controls.enableRotate = mode === 'rotate';
             this.controls.enableZoom = true;
         }
+    }
+
+    startNetSelection() {
+        if (this.objectModelManager.getNetVisible()) return;
+        if (this.netSelectionActive) return;
+        this.startNetBaseSelection();
+    }
+
+    startNetUnfoldFromUi() {
+        if (this.netPlaybackMode !== 'auto') return;
+        if (!this.objectModelManager.getNetVisible()) return;
+        if (this.netAnimationPlayer.isPlaying() || this.netPreCameraActive) return;
+        this.startNetUnfold();
+    }
+
+    startNetFoldFromUi() {
+        if (!this.objectModelManager.getNetVisible()) return;
+        if (this.netAnimationPlayer.isPlaying()) return;
+        if (this.netPlaybackMode === 'step') {
+            if (this.netStepIndex > 0) {
+                this.stepNetBackward();
+                return;
+            }
+            this.exitNetStepMode();
+            return;
+        }
+        this.startNetFoldWithPreCamera();
+    }
+
+    getNetStateName() {
+        return this.objectModelManager.getNetState().state;
     }
     
     handleModeChange(mode: string) {
@@ -2626,28 +2670,18 @@ class App {
                             clearTimeout(this.netPreCameraTimeout);
                         }
                         this.netPreCameraTimeout = setTimeout(() => {
-                            if (this.netPlaybackMode === 'step') {
-                                this.updateNetPlaybackState({
-                                    playbackMode: 'step',
-                                    stepIndex: 0,
-                                    state: 'closed',
-                                    progress: 0,
-                                    applyStepState: true
-                                });
-                                const solid = this.objectModelManager.getModel()?.ssot;
-                                if (solid) {
-                                    this.netManager.update(this.objectModelManager.getCutSegments(), solid, this.resolver);
-                                }
-                                this.clearNetSelectionHighlight();
-                                this.showNetSelectionMessage('confirmStep');
-                                return;
-                            }
-                            this.startNetUnfold();
                             const solid = this.objectModelManager.getModel()?.ssot;
                             if (solid) {
                                 this.netManager.update(this.objectModelManager.getCutSegments(), solid, this.resolver);
                             }
-                            this.showNetSelectionMessage('confirmAuto');
+                            this.updateNetPlaybackState({
+                                playbackMode: this.netPlaybackMode,
+                                stepIndex: 0,
+                                state: 'closed',
+                                progress: 0,
+                                applyStepState: this.netPlaybackMode === 'step'
+                            });
+                            this.clearNetSelectionHighlight();
                         }, 1500);
                     }
                 });
