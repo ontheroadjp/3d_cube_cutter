@@ -1836,7 +1836,9 @@ class App {
         this.prepareNetAnimationZoom('open', false);
         const spec = this.buildNetAnimationSpec('open');
         if (!spec) return;
-        this.netAnimationPlayer.play(spec);
+        this.netAnimationPlayer.play(spec, () => {
+            this.updateNetStepUi();
+        });
         this.setNetAnimationState({
             playbackMode: 'auto',
             stepIndex: 0
@@ -1891,6 +1893,7 @@ class App {
                     });
                 }
             });
+            this.updateNetStepUi();
         });
     }
 
@@ -2606,7 +2609,10 @@ class App {
             if (typeof (globalThis as any).__setNetVisible === 'function') {
                 (globalThis as any).__setNetVisible(false);
             }
-            this.exitNetStepMode();
+            this.netAfterFoldAction = () => {
+                this.resetNetStepState();
+            };
+            this.startNetFoldWithPreCamera();
             this.netRootFaceId = null;
             return;
         }
@@ -2874,6 +2880,7 @@ class App {
                 this.netPreCameraActive = false;
                 const onComplete = this.netPreCameraOnComplete;
                 this.netPreCameraOnComplete = null;
+                this.updateNetStepUi();
                 if (onComplete) onComplete();
             }
         }
