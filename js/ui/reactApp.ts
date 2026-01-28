@@ -54,7 +54,7 @@ type UserPresetForm = {
 
 const panelStyle = {
   position: 'absolute',
-  bottom: '12px',
+  top: '64px',
   left: '12px',
   width: '320px',
   maxWidth: '70vw',

@@ -13,6 +13,7 @@ coverage/
 dist/
 supabase/
 sample/
+images/
 .env
 .env.*
 npm-debug.log*

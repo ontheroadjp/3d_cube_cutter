@@ -929,16 +929,18 @@ class App {
         const panelWidth = 320;
         const panelOffset = panelOffsetOverride ?? (this.panelOpen ? panelWidth : 0);
         const availableWidth = Math.max(200, window.innerWidth - sidebarWidth - panelOffset);
-        const availableHeight = window.innerHeight;
+        const messageHeight = Math.round(window.innerHeight * 0.2);
+        const availableHeight = Math.max(200, window.innerHeight - messageHeight);
         const rootStyle = document.documentElement.style;
         rootStyle.setProperty('--sidebar-width', `${sidebarWidth}px`);
         rootStyle.setProperty('--panel-offset', `${panelOffset}px`);
+        rootStyle.setProperty('--message-area-height', `${messageHeight}px`);
         this.cube.resize(this.camera, availableWidth, availableHeight);
         this.resolver.setSize(this.cube.getSize());
         this.renderer.setSize(availableWidth, availableHeight);
         const canvas = this.renderer.domElement;
         canvas.style.position = 'fixed';
-        canvas.style.top = '0';
+        canvas.style.top = `${messageHeight}px`;
         canvas.style.left = `${sidebarWidth + panelOffset}px`;
         this.updateNetUnfoldScale();
     }
