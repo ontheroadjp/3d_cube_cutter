@@ -2377,7 +2377,7 @@ class App {
         this.highlightMarker.visible = false;
         this.snappedPointInfo = null;
         document.body.style.cursor = 'pointer';
-        this.ui.showMessage("底面を選択してください。", "info");
+        this.ui.showMessage("基準面を選択してください。", "info");
     }
 
     startNetPreCameraMove({
@@ -2414,7 +2414,7 @@ class App {
         if (!this.objectModelManager.getNetVisible()) {
             this.cube.setFaceOutlineVisible(false);
         }
-        this.ui.showMessage("底面選択をキャンセルしました。", "info");
+        this.ui.showMessage("基準面選択をキャンセルしました。", "info");
         document.body.style.cursor = 'auto';
     }
 
@@ -2578,8 +2578,9 @@ class App {
                                 if (solid) {
                                     this.netManager.update(this.objectModelManager.getCutSegments(), solid, this.resolver);
                                 }
+                                this.clearNetSelectionHighlight();
                                 this.updateNetStepUi();
-                                this.ui.showMessage("底面を確定しました。ステップで展開します。", "info");
+                                this.ui.showMessage("基準面を確定しました。ステップで展開します。", "info");
                                 return;
                             }
                             this.startNetUnfold();
@@ -2587,7 +2588,7 @@ class App {
                             if (solid) {
                                 this.netManager.update(this.objectModelManager.getCutSegments(), solid, this.resolver);
                             }
-                            this.ui.showMessage("底面を確定しました。展開します。", "info");
+                            this.ui.showMessage("基準面を確定しました。展開します。", "info");
                         }, 1500);
                     }
                 });
@@ -2614,13 +2615,14 @@ class App {
             return;
         }
         if (this.netPlaybackMode === 'step') {
+            if (this.netStepIndex > 0) {
+                this.stepNetBackward();
+                return;
+            }
             if (typeof (globalThis as any).__setNetVisible === 'function') {
                 (globalThis as any).__setNetVisible(false);
             }
-            this.netAfterFoldAction = () => {
-                this.resetNetStepState();
-            };
-            this.startNetFoldWithPreCamera();
+            this.exitNetStepMode();
             this.netRootFaceId = null;
             return;
         }

@@ -174,6 +174,7 @@ export function SidePanel() {
     }
   };
 
+  const switchDisabled = netStepState.isPlaying || (netStepState.mode === 'step' && netStepState.stepIndex > 0);
   const stepDisabled = netStepState.mode !== 'step' || netStepState.isPlaying;
   const canStepForward = !stepDisabled && netStepState.stepIndex < netStepState.stepCount;
   const canStepBackward = !stepDisabled && netStepState.stepIndex > 0;
@@ -306,7 +307,7 @@ export function SidePanel() {
           role: 'switch',
           checked: netStepState.mode === 'auto',
           onChange: (event) => handleNetPlaybackToggle(event.currentTarget.checked),
-          disabled: netStepState.isPlaying,
+          disabled: switchDisabled,
           title: '連続再生',
           'aria-label': '連続再生'
         })
