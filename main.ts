@@ -1519,8 +1519,8 @@ class App {
         const cameraPosition = { x: this.camera.position.x, y: this.camera.position.y, z: this.camera.position.z };
         const cameraTarget = { x: this.controls.target.x, y: this.controls.target.y, z: this.controls.target.z };
         const faceCount = Math.max(0, this.currentNetPlan.faceOrder.length - 1);
-        const faceDurationSec = this.netUnfoldFaceDuration / 1000;
-        const staggerSec = this.netUnfoldStagger / 1000;
+        const faceDurationSec = this.getNetFaceDurationMs() / 1000;
+        const staggerSec = this.getNetStaggerMs() / 1000;
         const totalDurationSec = faceCount <= 1
             ? faceDurationSec
             : faceDurationSec + (faceCount - 1) * staggerSec;
@@ -1689,11 +1689,11 @@ class App {
         const state = this.objectModelManager.getNetState();
         if (!state) return;
         this.netUnfoldState = state.state;
-        this.netUnfoldDuration = state.duration;
-        this.netUnfoldFaceDuration = state.faceDuration;
-        this.netUnfoldStagger = state.stagger;
-        this.netUnfoldPreScaleDelay = state.preScaleDelay;
-        this.netUnfoldPostScaleDelay = state.postScaleDelay;
+        if (state.duration > 0) this.netUnfoldDuration = state.duration;
+        if (state.faceDuration > 0) this.netUnfoldFaceDuration = state.faceDuration;
+        if (state.stagger > 0) this.netUnfoldStagger = state.stagger;
+        if (state.preScaleDelay > 0) this.netUnfoldPreScaleDelay = state.preScaleDelay;
+        if (state.postScaleDelay > 0) this.netUnfoldPostScaleDelay = state.postScaleDelay;
         if (state.playbackMode) {
             this.netPlaybackMode = state.playbackMode;
         }
@@ -1767,10 +1767,18 @@ class App {
     getNetAnimationTotalDurationSec() {
         if (!this.currentNetPlan) return 0;
         const faceCount = Math.max(0, this.currentNetPlan.faceOrder.length - 1);
-        const faceDurationSec = this.netUnfoldFaceDuration / 1000;
-        const staggerSec = this.netUnfoldStagger / 1000;
+        const faceDurationSec = this.getNetFaceDurationMs() / 1000;
+        const staggerSec = this.getNetStaggerMs() / 1000;
         if (faceCount <= 1) return faceDurationSec;
         return faceDurationSec + (faceCount - 1) * staggerSec;
+    }
+
+    getNetFaceDurationMs() {
+        return this.netUnfoldFaceDuration > 0 ? this.netUnfoldFaceDuration : 900;
+    }
+
+    getNetStaggerMs() {
+        return this.netUnfoldStagger > 0 ? this.netUnfoldStagger : 800;
     }
 
     prepareNetAnimationZoom(direction: 'open' | 'close', enableZoom = true) {
