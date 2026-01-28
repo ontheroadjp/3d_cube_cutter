@@ -124,6 +124,8 @@ export type ObjectNetState = {
   startAt: number;
   preScaleDelay: number;
   postScaleDelay: number;
+  playbackMode: 'auto' | 'step';
+  stepIndex: number;
   camera?: {
     startPos: THREE.Vector3 | null;
     startTarget: THREE.Vector3 | null;
@@ -170,6 +172,8 @@ export const createDefaultNetDerived = (): NetDerived => ({
     startAt: 0,
     preScaleDelay: 0,
     postScaleDelay: 0,
+    playbackMode: 'auto',
+    stepIndex: 0,
     camera: undefined
   },
   visible: false

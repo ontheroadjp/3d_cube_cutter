@@ -113,6 +113,9 @@ class App {
     netUnfoldScaleReadyAt: number | null;
     netAnimationPlayer: AnimationPlayer;
     netAnimationDirection: 'open' | 'close';
+    netPlaybackMode: 'auto' | 'step';
+    netStepIndex: number;
+    netStepAnimating: boolean;
     netFaceProgress: Map<string, number>;
     netCameraStarts: Map<string, { position: THREE.Vector3; target: THREE.Vector3 }>;
     netCameraEnds: Map<string, { position: THREE.Vector3; target: THREE.Vector3 }>;
@@ -206,6 +209,9 @@ class App {
         this.netCameraStarts = new Map();
         this.netCameraEnds = new Map();
         this.netAnimationDirection = 'open';
+        this.netPlaybackMode = 'auto';
+        this.netStepIndex = 0;
+        this.netStepAnimating = false;
         this.netAnimationPlayer = new AnimationPlayer({
             dispatch: this.dispatchNetAnimation.bind(this)
         });
@@ -366,8 +372,12 @@ class App {
             getVertexLabelMap: () => this.currentLabelMap, // Add this line
             setPanelOpen: (open: boolean) => this.handlePanelOpenChange(open),
             getNetVisible: () => this.objectModelManager.getNetVisible(),
+            getNetStepInfo: () => this.getNetStepInfo(),
             getAnimationSpecEnabled: () => this.useAnimationSpecNet,
-            setAnimationSpecEnabled: (enabled: boolean) => this.setAnimationSpecEnabled(enabled)
+            setAnimationSpecEnabled: (enabled: boolean) => this.setAnimationSpecEnabled(enabled),
+            setNetPlaybackMode: (mode: 'auto' | 'step') => this.setNetPlaybackMode(mode),
+            stepNetForward: () => this.stepNetForward(),
+            stepNetBackward: () => this.stepNetBackward()
         };
         initReactApp();
 
@@ -506,6 +516,7 @@ class App {
         this.netSelectionActive = false;
         this.netRootFaceId = null;
         this.clearNetFaceHighlights();
+        this.resetNetStepState();
         this.netPreCameraActive = false;
         this.netPreCameraOnComplete = null;
         if (this.netPreCameraTimeout) {
@@ -1508,8 +1519,8 @@ class App {
         const cameraPosition = { x: this.camera.position.x, y: this.camera.position.y, z: this.camera.position.z };
         const cameraTarget = { x: this.controls.target.x, y: this.controls.target.y, z: this.controls.target.z };
         const faceCount = Math.max(0, this.currentNetPlan.faceOrder.length - 1);
-        const faceDurationSec = this.netUnfoldFaceDuration / 1000;
-        const staggerSec = this.netUnfoldStagger / 1000;
+        const faceDurationSec = this.getNetFaceDurationMs() / 1000;
+        const staggerSec = this.getNetStaggerMs() / 1000;
         const totalDurationSec = faceCount <= 1
             ? faceDurationSec
             : faceDurationSec + (faceCount - 1) * staggerSec;
@@ -1526,15 +1537,170 @@ class App {
         });
     }
 
+    getNetStepFaces() {
+        if (!this.currentNetPlan) return [];
+        const root = this.currentNetPlan.rootFaceId;
+        const hingeChildren = new Set(this.currentNetPlan.hinges.map(hinge => hinge.childFaceId));
+        return this.currentNetPlan.faceOrder.filter(faceId => faceId !== root && hingeChildren.has(faceId));
+    }
+
+    getNetStepCount() {
+        return this.getNetStepFaces().length;
+    }
+
+    getNetStepProgress(stepIndex = this.netStepIndex) {
+        const stepCount = this.getNetStepCount();
+        if (stepCount <= 0) return 0;
+        return Math.max(0, Math.min(1, stepIndex / stepCount));
+    }
+
+    getNetStepStateName(stepIndex = this.netStepIndex) {
+        const stepCount = this.getNetStepCount();
+        if (stepIndex <= 0) return 'closed' as const;
+        if (stepIndex >= stepCount) return 'open' as const;
+        return 'open' as const;
+    }
+
+    getNetStepInfo() {
+        const state = this.objectModelManager.getNetState();
+        const mode = state.playbackMode || this.netPlaybackMode;
+        const stepIndex = Number.isFinite(state.stepIndex) ? state.stepIndex : this.netStepIndex;
+        return {
+            mode,
+            stepIndex,
+            stepCount: this.getNetStepCount(),
+            isPlaying: this.netAnimationPlayer.isPlaying() || this.netStepAnimating || this.netPreCameraActive
+        };
+    }
+
+    updateNetStepUi() {
+        if (typeof (globalThis as any).__setNetStepState === 'function') {
+            (globalThis as any).__setNetStepState(this.getNetStepInfo());
+        }
+    }
+
+    applyNetStepState(stepIndex: number) {
+        if (!this.currentNetPlan) return;
+        const faces = this.getNetStepFaces();
+        this.netFaceProgress.clear();
+        for (let i = 0; i < faces.length; i++) {
+            if (i < stepIndex) {
+                this.netFaceProgress.set(faces[i], 1);
+            }
+        }
+        this.cube.applyNetPlan(this.currentNetPlan, 0, this.netFaceProgress);
+    }
+
+    setNetPlaybackMode(mode: 'auto' | 'step') {
+        if (this.netPlaybackMode === mode) return;
+        if (this.netAnimationPlayer.isPlaying() || this.netStepAnimating || this.netPreCameraActive) return;
+        if (mode === 'auto' && this.netStepIndex > 0) {
+            this.netStepIndex = 0;
+            this.applyNetStepState(0);
+        }
+        this.netPlaybackMode = mode;
+        this.setNetAnimationState({
+            playbackMode: mode,
+            stepIndex: this.netStepIndex,
+            state: this.getNetStepStateName(),
+            progress: this.getNetStepProgress()
+        });
+        this.updateNetStepUi();
+    }
+
+    getHingeEdgeForFace(faceId: string) {
+        if (!this.currentNetPlan) return null;
+        const hinge = this.currentNetPlan.hinges.find(entry => entry.childFaceId === faceId);
+        return hinge ? hinge.hingeEdgeId : null;
+    }
+
+    playNetStep(faceId: string, direction: 'open' | 'close', nextIndex: number) {
+        const hingeEdgeId = this.getHingeEdgeForFace(faceId);
+        if (!hingeEdgeId) return;
+        this.applyNetStepState(this.netStepIndex);
+        this.netStepAnimating = true;
+        this.netAnimationDirection = direction;
+        this.setNetAnimationState({
+            playbackMode: 'step',
+            stepIndex: this.netStepIndex,
+            state: direction === 'open' ? 'opening' : 'closing',
+            progress: this.getNetStepProgress()
+        });
+        const baseDurationMs = this.netUnfoldFaceDuration > 0 ? this.netUnfoldFaceDuration : 900;
+        const durationSec = baseDurationMs / 1000;
+        const spec = {
+            id: 'net-step',
+            version: 1,
+            timeline: [
+                {
+                    id: `net-step-${faceId}`,
+                    at: 0,
+                    duration: durationSec,
+                    ease: 'easeOutCubic',
+                    action: 'rotateFace',
+                    targets: { type: 'netFaces', ids: [faceId] },
+                    params: {
+                        faceId,
+                        hingeEdgeId,
+                        angleRad: Math.PI / 2
+                    }
+                }
+            ]
+        };
+        this.netAnimationPlayer.play(spec, () => {
+            this.netStepAnimating = false;
+            this.netStepIndex = nextIndex;
+            this.applyNetStepState(nextIndex);
+            this.setNetAnimationState({
+                playbackMode: 'step',
+                stepIndex: nextIndex,
+                state: this.getNetStepStateName(nextIndex),
+                progress: this.getNetStepProgress(nextIndex)
+            });
+            this.updateNetStepUi();
+        });
+        this.updateNetStepUi();
+    }
+
+    stepNetForward() {
+        if (this.netPlaybackMode !== 'step') return;
+        if (!this.currentNetPlan) return;
+        if (this.netAnimationPlayer.isPlaying() || this.netStepAnimating || this.netPreCameraActive) return;
+        const faces = this.getNetStepFaces();
+        const stepCount = faces.length;
+        if (this.netStepIndex >= stepCount) return;
+        const faceId = faces[this.netStepIndex];
+        if (!faceId) return;
+        this.playNetStep(faceId, 'open', this.netStepIndex + 1);
+    }
+
+    stepNetBackward() {
+        if (this.netPlaybackMode !== 'step') return;
+        if (!this.currentNetPlan) return;
+        if (this.netAnimationPlayer.isPlaying() || this.netStepAnimating || this.netPreCameraActive) return;
+        const faces = this.getNetStepFaces();
+        if (this.netStepIndex <= 0) return;
+        const faceId = faces[this.netStepIndex - 1];
+        if (!faceId) return;
+        this.playNetStep(faceId, 'close', this.netStepIndex - 1);
+    }
+
     applyNetStateFromModel() {
         const state = this.objectModelManager.getNetState();
         if (!state) return;
         this.netUnfoldState = state.state;
-        this.netUnfoldDuration = state.duration;
-        this.netUnfoldFaceDuration = state.faceDuration;
-        this.netUnfoldStagger = state.stagger;
-        this.netUnfoldPreScaleDelay = state.preScaleDelay;
-        this.netUnfoldPostScaleDelay = state.postScaleDelay;
+        if (state.duration > 0) this.netUnfoldDuration = state.duration;
+        if (state.faceDuration > 0) this.netUnfoldFaceDuration = state.faceDuration;
+        if (state.stagger > 0) this.netUnfoldStagger = state.stagger;
+        if (state.preScaleDelay > 0) this.netUnfoldPreScaleDelay = state.preScaleDelay;
+        if (state.postScaleDelay > 0) this.netUnfoldPostScaleDelay = state.postScaleDelay;
+        if (state.playbackMode) {
+            this.netPlaybackMode = state.playbackMode;
+        }
+        if (Number.isFinite(state.stepIndex)) {
+            this.netStepIndex = state.stepIndex;
+        }
+        this.updateNetStepUi();
     }
 
     setNetAnimationState(partial: {
@@ -1548,6 +1714,8 @@ class App {
         startAt?: number;
         preScaleDelay?: number;
         postScaleDelay?: number;
+        playbackMode?: ObjectNetState['playbackMode'];
+        stepIndex?: number;
         camera?: {
             startPos: THREE.Vector3 | null;
             startTarget: THREE.Vector3 | null;
@@ -1576,19 +1744,41 @@ class App {
                 endTarget: null
             }
         });
+        this.resetNetStepState();
         this.netUnfoldTargetCenter = null;
         this.netUnfoldPositionTarget = null;
         this.camera.zoom = this.defaultCameraZoom;
         this.camera.updateProjectionMatrix();
     }
 
+    resetNetStepState() {
+        this.netStepIndex = 0;
+        this.netStepAnimating = false;
+        this.netFaceProgress.clear();
+        this.setNetAnimationState({
+            playbackMode: this.netPlaybackMode,
+            stepIndex: 0,
+            state: 'closed',
+            progress: 0
+        });
+        this.updateNetStepUi();
+    }
+
     getNetAnimationTotalDurationSec() {
         if (!this.currentNetPlan) return 0;
         const faceCount = Math.max(0, this.currentNetPlan.faceOrder.length - 1);
-        const faceDurationSec = this.netUnfoldFaceDuration / 1000;
-        const staggerSec = this.netUnfoldStagger / 1000;
+        const faceDurationSec = this.getNetFaceDurationMs() / 1000;
+        const staggerSec = this.getNetStaggerMs() / 1000;
         if (faceCount <= 1) return faceDurationSec;
         return faceDurationSec + (faceCount - 1) * staggerSec;
+    }
+
+    getNetFaceDurationMs() {
+        return this.netUnfoldFaceDuration > 0 ? this.netUnfoldFaceDuration : 900;
+    }
+
+    getNetStaggerMs() {
+        return this.netUnfoldStagger > 0 ? this.netUnfoldStagger : 800;
     }
 
     prepareNetAnimationZoom(direction: 'open' | 'close', enableZoom = true) {
@@ -1649,10 +1839,19 @@ class App {
         this.clearNetSelectionHighlight();
         this.resetNetAnimationCaches();
         this.netAnimationDirection = 'open';
+        this.netPlaybackMode = 'auto';
+        this.netStepIndex = 0;
         this.prepareNetAnimationZoom('open', false);
         const spec = this.buildNetAnimationSpec('open');
         if (!spec) return;
-        this.netAnimationPlayer.play(spec);
+        this.netAnimationPlayer.play(spec, () => {
+            this.updateNetStepUi();
+        });
+        this.setNetAnimationState({
+            playbackMode: 'auto',
+            stepIndex: 0
+        });
+        this.updateNetStepUi();
     }
 
     startNetFold() {
@@ -1702,6 +1901,7 @@ class App {
                     });
                 }
             });
+            this.updateNetStepUi();
         });
     }
 
@@ -1746,6 +1946,8 @@ class App {
             preScaleDelay: nextState.preScaleDelay,
             postScaleDelay: nextState.postScaleDelay,
             startAt,
+            playbackMode: 'auto',
+            stepIndex: 0,
             camera
         });
     }
@@ -2175,7 +2377,7 @@ class App {
         this.highlightMarker.visible = false;
         this.snappedPointInfo = null;
         document.body.style.cursor = 'pointer';
-        this.ui.showMessage("底面を選択してください。", "info");
+        this.ui.showMessage("基準面を選択してください。", "info");
     }
 
     startNetPreCameraMove({
@@ -2212,7 +2414,7 @@ class App {
         if (!this.objectModelManager.getNetVisible()) {
             this.cube.setFaceOutlineVisible(false);
         }
-        this.ui.showMessage("底面選択をキャンセルしました。", "info");
+        this.ui.showMessage("基準面選択をキャンセルしました。", "info");
         document.body.style.cursor = 'auto';
     }
 
@@ -2289,6 +2491,7 @@ class App {
                 excludeFaceIds: cutFaceIds
             });
         }
+        this.updateNetStepUi();
         const faceInfo = this.resolver.resolveFace(rootFaceId);
         const faceCenter = this.resolver.resolveFaceCenter(rootFaceId);
         const solidCenter = this.getSolidCenter();
@@ -2362,12 +2565,30 @@ class App {
                             clearTimeout(this.netPreCameraTimeout);
                         }
                         this.netPreCameraTimeout = setTimeout(() => {
+                            if (this.netPlaybackMode === 'step') {
+                                this.netStepIndex = 0;
+                                this.applyNetStepState(0);
+                                this.setNetAnimationState({
+                                    playbackMode: 'step',
+                                    stepIndex: 0,
+                                    state: 'closed',
+                                    progress: 0
+                                });
+                                const solid = this.objectModelManager.getModel()?.ssot;
+                                if (solid) {
+                                    this.netManager.update(this.objectModelManager.getCutSegments(), solid, this.resolver);
+                                }
+                                this.clearNetSelectionHighlight();
+                                this.updateNetStepUi();
+                                this.ui.showMessage("基準面を確定しました。ステップで展開します。", "info");
+                                return;
+                            }
                             this.startNetUnfold();
                             const solid = this.objectModelManager.getModel()?.ssot;
                             if (solid) {
                                 this.netManager.update(this.objectModelManager.getCutSegments(), solid, this.resolver);
                             }
-                            this.ui.showMessage("底面を確定しました。展開します。", "info");
+                            this.ui.showMessage("基準面を確定しました。展開します。", "info");
                         }, 1500);
                     }
                 });
@@ -2393,6 +2614,18 @@ class App {
             this.startNetBaseSelection();
             return;
         }
+        if (this.netPlaybackMode === 'step') {
+            if (this.netStepIndex > 0) {
+                this.stepNetBackward();
+                return;
+            }
+            if (typeof (globalThis as any).__setNetVisible === 'function') {
+                (globalThis as any).__setNetVisible(false);
+            }
+            this.exitNetStepMode();
+            this.netRootFaceId = null;
+            return;
+        }
         if (!this.useAnimationSpecNet) {
             this.objectModelManager.setNetVisible(false);
             if (typeof (globalThis as any).__setNetVisible === 'function') {
@@ -2407,6 +2640,32 @@ class App {
             this.startNetFoldWithPreCamera();
         }
         this.netRootFaceId = null;
+    }
+
+    exitNetStepMode() {
+        if (this.netAnimationPlayer.isPlaying()) {
+            this.netAnimationPlayer.stop();
+        }
+        this.netStepAnimating = false;
+        this.netSelectionActive = false;
+        this.netRootFaceId = null;
+        this.netSelectedFaceId = null;
+        this.clearNetSelectionHighlight();
+        this.netFaceProgress.clear();
+        if (this.currentNetPlan) {
+            this.cube.applyNetPlan(this.currentNetPlan, 0, this.netFaceProgress);
+        }
+        this.objectModelManager.setNetVisible(false);
+        this.netManager.hide();
+        this.cube.setFaceOutlineVisible(false);
+        this.resetNetStepState();
+        this.startNetPreCameraMove({
+            endPos: this.defaultCameraPosition.clone(),
+            endTarget: this.defaultCameraTarget.clone(),
+            endUp: new THREE.Vector3(0, 1, 0),
+            endZoom: this.defaultCameraZoom,
+            onComplete: () => {}
+        });
     }
 
     startNetFoldWithPreCamera() {
@@ -2631,6 +2890,7 @@ class App {
                 this.netPreCameraActive = false;
                 const onComplete = this.netPreCameraOnComplete;
                 this.netPreCameraOnComplete = null;
+                this.updateNetStepUi();
                 if (onComplete) onComplete();
             }
         }
