@@ -2131,6 +2131,8 @@ class App {
         const material = mesh.material;
         if (!(material instanceof THREE.MeshBasicMaterial)) return;
         if (kind === 'none') {
+            const display = this.objectModelManager.getDisplayState();
+            this.cube.setFaceColorTheme(display.faceColorTheme || 'blue');
             this.cube.resetFaceColor(faceId);
             return;
         }
