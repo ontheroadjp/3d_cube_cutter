@@ -1626,7 +1626,8 @@ class App {
             state: direction === 'open' ? 'opening' : 'closing',
             progress: this.getNetStepProgress()
         });
-        const durationSec = this.netUnfoldFaceDuration / 1000;
+        const baseDurationMs = this.netUnfoldFaceDuration > 0 ? this.netUnfoldFaceDuration : 900;
+        const durationSec = baseDurationMs / 1000;
         const spec = {
             id: 'net-step',
             version: 1,
