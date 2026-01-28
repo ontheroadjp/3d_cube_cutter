@@ -68,6 +68,7 @@ html, body { margin:0; width:100%; height:100%; overflow:hidden; }
     left: calc(var(--sidebar-width, 64px) + var(--panel-offset, 0px));
     width: calc(100% - var(--sidebar-width, 64px) - var(--panel-offset, 0px));
     transition: none;
+    z-index: 2050;
 }
 /* New style for main content to make space for sidebar */
 body {
@@ -77,6 +78,7 @@ body {
 .chatgpt-panel {
     font-family: 'Manrope', 'Noto Sans JP', sans-serif;
     color: var(--chat-text);
+    z-index: 2100;
 }
 .chatgpt-sidebar {
     background: var(--chat-bg);
