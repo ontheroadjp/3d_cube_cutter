@@ -32,6 +32,10 @@ type Engine = {
   setPanelOpen?: (open: boolean) => void;
   getUiMode?: () => 'rotate' | 'cut' | 'net';
   setUiMode?: (mode: 'rotate' | 'cut' | 'net') => void;
+  startNetSelection?: () => void;
+  startNetUnfold?: () => void;
+  startNetFold?: () => void;
+  getNetStateName?: () => string;
   getNetVisible?: () => boolean;
   getNetStepInfo?: () => {
     mode: 'auto' | 'step';
@@ -61,6 +65,7 @@ declare global {
   var __setDisplayState: ((display: DisplayState | null) => void) | undefined;
   var __setNetVisible: ((visible: boolean) => void) | undefined;
   var __setNetStepState: ((state: NetStepState) => void) | undefined;
+  var __setSidePanelUiMode: ((mode: 'rotate' | 'cut' | 'net') => void) | undefined;
 }
 
 type NetStepState = {
@@ -71,27 +76,42 @@ type NetStepState = {
 };
 
 type NetPlaybackControlsProps = {
+  uiMode: 'rotate' | 'cut' | 'net';
   netVisible: boolean;
   netStepState: NetStepState;
+  netStateName: string;
+  netSelectionStage: 'idle' | 'selecting' | 'selected';
+  onSelectBase: () => void;
   onToggleNet: () => void;
   onPlaybackModeChange: (enabled: boolean) => void;
   onStepForward: () => void;
   onStepBackward: () => void;
+  onStartUnfold: () => void;
+  onStartFold: () => void;
 };
 
 function NetPlaybackControls({
+  uiMode,
   netVisible,
   netStepState,
+  netStateName,
+  netSelectionStage,
+  onSelectBase,
   onToggleNet,
   onPlaybackModeChange,
   onStepForward,
-  onStepBackward
+  onStepBackward,
+  onStartUnfold,
+  onStartFold
 }: NetPlaybackControlsProps) {
+  if (uiMode !== 'net') return null;
+  const isAuto = netStepState.mode === 'auto';
   const switchDisabled =
     netStepState.isPlaying || (netStepState.mode === 'step' && netStepState.stepIndex > 0);
   const stepDisabled = netStepState.mode !== 'step' || netStepState.isPlaying;
   const canStepForward = !stepDisabled && netStepState.stepIndex < netStepState.stepCount;
   const canStepBackward = !stepDisabled && netStepState.stepIndex > 0;
+  const showControls = netSelectionStage === 'selected';
 
   return React.createElement(
     'div',
@@ -112,69 +132,82 @@ function NetPlaybackControls({
         boxShadow: '0 8px 18px rgba(0,0,0,0.12)'
       }
     },
-    React.createElement('span', { className: 'small text-muted' }, '連続再生'),
-    React.createElement(
-      'div',
-      { className: 'form-check form-switch m-0' },
-      React.createElement('input', {
-        className: 'form-check-input',
-        type: 'checkbox',
-        role: 'switch',
-        checked: netStepState.mode === 'auto',
-        onChange: (event) => onPlaybackModeChange(event.currentTarget.checked),
-        disabled: switchDisabled,
-        title: '連続再生',
-        'aria-label': '連続再生'
-      })
-    ),
-    React.createElement('button', {
+    !showControls && React.createElement('button', {
       type: 'button',
-      className: 'btn btn-sm btn-outline-secondary',
-      onClick: onStepBackward,
-      disabled: !canStepBackward,
-      title: '前の面'
-    }, React.createElement(
-      'svg',
-      {
-        width: 16,
-        height: 16,
-        viewBox: '0 0 24 24',
-        fill: 'none',
-        stroke: 'currentColor',
-        strokeWidth: 2,
-        strokeLinecap: 'round',
-        strokeLinejoin: 'round',
-        'aria-hidden': 'true'
-      },
-      React.createElement('polyline', { points: '15 18 9 12 15 6' })
-    )),
-    React.createElement('button', {
-      type: 'button',
-      className: 'btn btn-sm btn-outline-secondary',
-      onClick: onStepForward,
-      disabled: !canStepForward,
-      title: '次の面'
-    }, React.createElement(
-      'svg',
-      {
-        width: 16,
-        height: 16,
-        viewBox: '0 0 24 24',
-        fill: 'none',
-        stroke: 'currentColor',
-        strokeWidth: 2,
-        strokeLinecap: 'round',
-        strokeLinejoin: 'round',
-        'aria-hidden': 'true'
-      },
-      React.createElement('polyline', { points: '9 18 15 12 9 6' })
-    )),
-    React.createElement('button', {
-      type: 'button',
-      className: 'btn btn-sm btn-outline-primary',
-      onClick: onToggleNet,
-      title: '展開図'
-    }, netVisible ? '閉じる' : '展開')
+      className: 'btn btn-sm btn-warning',
+      onClick: onSelectBase,
+      disabled: netSelectionStage === 'selecting',
+      title: '基準面を選ぶ'
+    }, '基準面を選ぶ'),
+    showControls && React.createElement(
+      React.Fragment,
+      null,
+      React.createElement('span', { className: 'small text-muted' }, '自動展開'),
+      React.createElement(
+        'div',
+        { className: 'form-check form-switch m-0' },
+        React.createElement('input', {
+          className: 'form-check-input',
+          type: 'checkbox',
+          role: 'switch',
+          checked: isAuto,
+          onChange: (event) => onPlaybackModeChange(event.currentTarget.checked),
+          disabled: switchDisabled,
+          title: '自動展開',
+          'aria-label': '自動展開'
+        })
+      ),
+      isAuto && React.createElement('button', {
+        type: 'button',
+        className: 'btn btn-sm btn-outline-primary',
+        onClick: netStateName === 'open' ? onStartFold : onStartUnfold,
+        disabled: netStepState.isPlaying || !netVisible
+      }, netStateName === 'open' ? '折り畳む' : '開始'),
+      !isAuto && React.createElement(React.Fragment, null,
+        React.createElement('button', {
+          type: 'button',
+          className: 'btn btn-sm btn-outline-secondary',
+          onClick: onStepBackward,
+          disabled: !canStepBackward,
+          title: '前の面'
+        }, React.createElement(
+          'svg',
+          {
+            width: 16,
+            height: 16,
+            viewBox: '0 0 24 24',
+            fill: 'none',
+            stroke: 'currentColor',
+            strokeWidth: 2,
+            strokeLinecap: 'round',
+            strokeLinejoin: 'round',
+            'aria-hidden': 'true'
+          },
+          React.createElement('polyline', { points: '15 18 9 12 15 6' })
+        )),
+        React.createElement('button', {
+          type: 'button',
+          className: 'btn btn-sm btn-outline-secondary',
+          onClick: onStepForward,
+          disabled: !canStepForward,
+          title: '次の面'
+        }, React.createElement(
+          'svg',
+          {
+            width: 16,
+            height: 16,
+            viewBox: '0 0 24 24',
+            fill: 'none',
+            stroke: 'currentColor',
+            strokeWidth: 2,
+            strokeLinecap: 'round',
+            strokeLinejoin: 'round',
+            'aria-hidden': 'true'
+          },
+          React.createElement('polyline', { points: '9 18 15 12 9 6' })
+        ))
+      )
+    )
   );
 }
 
@@ -185,12 +218,15 @@ export function SidePanel() {
   const [activePanel, setActivePanel] = useState<string | null>(null);
   const [activeSettingsPanel, setActiveSettingsPanel] = useState<string>('display'); // 'display', 'cuboid'
   const [netVisible, setNetVisible] = useState<boolean>(false);
+  const [uiMode, setUiMode] = useState<'rotate' | 'cut' | 'net'>('rotate');
   const [netStepState, setNetStepState] = useState<NetStepState>({
     mode: 'auto',
     stepIndex: 0,
     stepCount: 0,
     isPlaying: false
   });
+  const [netSelectionStage, setNetSelectionStage] = useState<'idle' | 'selecting' | 'selected'>('idle');
+  const [netStateName, setNetStateName] = useState<string>('closed');
 
   useEffect(() => {
     // Register global function to allow main.ts to update the mode
@@ -215,6 +251,9 @@ export function SidePanel() {
     if (engine && typeof engine.getNetVisible === 'function') {
       setNetVisible(!!engine.getNetVisible());
     }
+    if (engine && typeof engine.getUiMode === 'function') {
+      setUiMode(engine.getUiMode());
+    }
     if (engine && typeof engine.getNetStepInfo === 'function') {
       setNetStepState(engine.getNetStepInfo());
     }
@@ -224,11 +263,33 @@ export function SidePanel() {
     globalThis.__setNetStepState = (state: NetStepState) => {
       setNetStepState(state);
     };
+    globalThis.__setSidePanelUiMode = (mode) => {
+      setUiMode(mode);
+    };
     return () => {
       if (globalThis.__setNetVisible) delete globalThis.__setNetVisible;
       if (globalThis.__setNetStepState) delete globalThis.__setNetStepState;
+      if (globalThis.__setSidePanelUiMode) delete globalThis.__setSidePanelUiMode;
     };
   }, []);
+
+  useEffect(() => {
+    if (uiMode !== 'net') {
+      setNetSelectionStage('idle');
+      return;
+    }
+    if (netVisible) {
+      setNetSelectionStage('selected');
+    } else if (netSelectionStage === 'selected') {
+      setNetSelectionStage('idle');
+    }
+  }, [uiMode, netVisible, netSelectionStage]);
+
+  useEffect(() => {
+    const engine = globalThis.__engine;
+    if (!engine || typeof engine.getNetStateName !== 'function') return;
+    setNetStateName(engine.getNetStateName() || 'closed');
+  }, [netVisible, netStepState]);
 
   const handleModeChange = (mode: string) => {
     if (mode === 'free') {
@@ -281,6 +342,28 @@ export function SidePanel() {
     const engine = globalThis.__engine;
     if (engine && typeof engine.stepNetBackward === 'function') {
       engine.stepNetBackward();
+    }
+  };
+
+  const handleNetSelectionStart = () => {
+    const engine = globalThis.__engine;
+    if (engine && typeof engine.startNetSelection === 'function') {
+      setNetSelectionStage('selecting');
+      engine.startNetSelection();
+    }
+  };
+
+  const handleNetUnfoldStart = () => {
+    const engine = globalThis.__engine;
+    if (engine && typeof engine.startNetUnfold === 'function') {
+      engine.startNetUnfold();
+    }
+  };
+
+  const handleNetFoldStart = () => {
+    const engine = globalThis.__engine;
+    if (engine && typeof engine.startNetFold === 'function') {
+      engine.startNetFold();
     }
   };
 
@@ -384,12 +467,18 @@ export function SidePanel() {
     ),
 
     React.createElement(NetPlaybackControls, {
+      uiMode: uiMode,
       netVisible: netVisible,
       netStepState: netStepState,
+      netStateName: netStateName,
+      netSelectionStage: netSelectionStage,
+      onSelectBase: handleNetSelectionStart,
       onToggleNet: () => globalThis.__engine?.toggleNet?.(),
       onPlaybackModeChange: handleNetPlaybackToggle,
       onStepForward: handleNetStepForward,
-      onStepBackward: handleNetStepBackward
+      onStepBackward: handleNetStepBackward,
+      onStartUnfold: handleNetUnfoldStart,
+      onStartFold: handleNetFoldStart
     })
   );
 }
