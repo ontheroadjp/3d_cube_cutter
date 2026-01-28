@@ -31,8 +31,17 @@ type Engine = {
   getCubeSize?: () => { lx: number; ly: number; lz: number };
   setPanelOpen?: (open: boolean) => void;
   getNetVisible?: () => boolean;
+  getNetStepInfo?: () => {
+    mode: 'auto' | 'step';
+    stepIndex: number;
+    stepCount: number;
+    isPlaying: boolean;
+  };
   getAnimationSpecEnabled?: () => boolean;
   setAnimationSpecEnabled?: (enabled: boolean) => void;
+  setNetPlaybackMode?: (mode: 'auto' | 'step') => void;
+  stepNetForward?: () => void;
+  stepNetBackward?: () => void;
 };
 
 // Removed duplicate declare global for __engine
@@ -49,7 +58,15 @@ declare global {
   var __setReactMode: ((mode: string) => void) | undefined;
   var __setDisplayState: ((display: DisplayState | null) => void) | undefined;
   var __setNetVisible: ((visible: boolean) => void) | undefined;
+  var __setNetStepState: ((state: NetStepState) => void) | undefined;
 }
+
+type NetStepState = {
+  mode: 'auto' | 'step';
+  stepIndex: number;
+  stepCount: number;
+  isPlaying: boolean;
+};
 
 // --- SidePanel Component ---
 export function SidePanel() {
@@ -58,6 +75,12 @@ export function SidePanel() {
   const [activePanel, setActivePanel] = useState<string | null>(null);
   const [activeSettingsPanel, setActiveSettingsPanel] = useState<string>('display'); // 'display', 'cuboid'
   const [netVisible, setNetVisible] = useState<boolean>(false);
+  const [netStepState, setNetStepState] = useState<NetStepState>({
+    mode: 'auto',
+    stepIndex: 0,
+    stepCount: 0,
+    isPlaying: false
+  });
 
   useEffect(() => {
     // Register global function to allow main.ts to update the mode
@@ -82,11 +105,18 @@ export function SidePanel() {
     if (engine && typeof engine.getNetVisible === 'function') {
       setNetVisible(!!engine.getNetVisible());
     }
+    if (engine && typeof engine.getNetStepInfo === 'function') {
+      setNetStepState(engine.getNetStepInfo());
+    }
     globalThis.__setNetVisible = (visible: boolean) => {
       setNetVisible(!!visible);
     };
+    globalThis.__setNetStepState = (state: NetStepState) => {
+      setNetStepState(state);
+    };
     return () => {
       if (globalThis.__setNetVisible) delete globalThis.__setNetVisible;
+      if (globalThis.__setNetStepState) delete globalThis.__setNetStepState;
     };
   }, []);
 
@@ -122,6 +152,31 @@ export function SidePanel() {
       globalThis.__engine.setPanelOpen(panelOpen);
     }
   }, [panelOpen]);
+
+  const handleNetPlaybackToggle = () => {
+    const engine = globalThis.__engine;
+    if (!engine || typeof engine.setNetPlaybackMode !== 'function') return;
+    const nextMode = netStepState.mode === 'step' ? 'auto' : 'step';
+    engine.setNetPlaybackMode(nextMode);
+  };
+
+  const handleNetStepForward = () => {
+    const engine = globalThis.__engine;
+    if (engine && typeof engine.stepNetForward === 'function') {
+      engine.stepNetForward();
+    }
+  };
+
+  const handleNetStepBackward = () => {
+    const engine = globalThis.__engine;
+    if (engine && typeof engine.stepNetBackward === 'function') {
+      engine.stepNetBackward();
+    }
+  };
+
+  const stepDisabled = netStepState.mode !== 'step' || netStepState.isPlaying;
+  const canStepForward = !stepDisabled && netStepState.stepIndex < netStepState.stepCount;
+  const canStepBackward = !stepDisabled && netStepState.stepIndex > 0;
 
   return React.createElement(
     'div',
@@ -220,6 +275,53 @@ export function SidePanel() {
             activePanel: activeSettingsPanel,
             onPanelChange: handleSettingsPanelChange
         }),
+    ),
+
+    netVisible && React.createElement(
+      'div',
+      {
+        style: {
+          position: 'fixed',
+          left: 'calc(var(--sidebar-width, 64px) + var(--panel-offset, 0px) + 12px)',
+          bottom: '16px',
+          zIndex: 1200,
+          background: 'rgba(255, 255, 255, 0.92)',
+          border: '1px solid rgba(0,0,0,0.12)',
+          borderRadius: '12px',
+          padding: '8px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          pointerEvents: 'auto',
+          boxShadow: '0 8px 18px rgba(0,0,0,0.12)'
+        }
+      },
+      React.createElement('span', { className: 'small text-muted' },
+        netStepState.mode === 'step'
+          ? `ステップ ${netStepState.stepIndex}/${Math.max(0, netStepState.stepCount)}`
+          : '連続再生'
+      ),
+      React.createElement('button', {
+        type: 'button',
+        className: 'btn btn-sm btn-outline-secondary',
+        onClick: handleNetStepBackward,
+        disabled: !canStepBackward,
+        title: '前の面'
+      }, '戻る'),
+      React.createElement('button', {
+        type: 'button',
+        className: 'btn btn-sm btn-outline-secondary',
+        onClick: handleNetStepForward,
+        disabled: !canStepForward,
+        title: '次の面'
+      }, '次へ'),
+      React.createElement('button', {
+        type: 'button',
+        className: netStepState.mode === 'step' ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-outline-primary',
+        onClick: handleNetPlaybackToggle,
+        disabled: netStepState.isPlaying,
+        title: netStepState.mode === 'step' ? '連続再生へ切替' : 'ステップ再生へ切替'
+      }, netStepState.mode === 'step' ? '連続再生' : 'ステップ再生')
     )
   );
 }
