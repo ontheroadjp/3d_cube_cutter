@@ -18,8 +18,9 @@ export class Cube {
   faceHiddenOutlines: Map<FaceID, THREE.LineSegments>;
   faceOutlineVisible: boolean;
   cutFaceVisible: boolean;
-  faceColorCache: Map<FaceID, number>;
-  faceColorPalette: number[];
+  faceColorCache: Map<string, number>;
+  faceColorTheme: 'blue' | 'red' | 'green' | 'colorful';
+  faceColorPalettes: Record<string, number[]>;
   edgeLines: Map<EdgeID, THREE.Line>;
   vertexHitboxes: Map<VertexID, THREE.Mesh>;
   edgeHitboxes: Map<EdgeID, THREE.Mesh>;
@@ -81,20 +82,26 @@ export class Cube {
     this.faceOutlineVisible = false;
     this.cutFaceVisible = true;
     this.faceColorCache = new Map();
-    this.faceColorPalette = [
-        0xa6cee3,
-        0xb2df8a,
-        0xfdbf6f,
-        0xcab2d6,
-        0xffffb3,
-        0xb3de69,
-        0xfccde5,
-        0x8dd3c7,
-        0xbebada,
-        0xfb8072,
-        0x80b1d3,
-        0xfed9a6
-    ];
+    this.faceColorTheme = 'blue';
+    this.faceColorPalettes = {
+        blue: [0xc6dbef, 0x9ecae1, 0x6baed6, 0x3182bd, 0x9ecae1, 0x6baed6],
+        red: [0xfcbba1, 0xfc9272, 0xfb6a4a, 0xde2d26, 0xfc9272, 0xfb6a4a],
+        green: [0xc7e9c0, 0xa1d99b, 0x74c476, 0x238b45, 0xa1d99b, 0x74c476],
+        colorful: [
+          0xa6cee3,
+          0xb2df8a,
+          0xfdbf6f,
+          0xcab2d6,
+          0xffffb3,
+          0xb3de69,
+          0xfccde5,
+          0x8dd3c7,
+          0xbebada,
+          0xfb8072,
+          0x80b1d3,
+          0xfed9a6
+        ]
+    };
     this.edgeLines = new Map();
     this.vertexHitboxes = new Map();
     this.edgeHitboxes = new Map();
@@ -537,22 +544,76 @@ export class Cube {
   private getFaceBaseColor(faceId: FaceID, pres?: any, sourceFaceId?: FaceID | null) {
     if (pres?.isCutFace) return 0xffcccc;
     const baseId = sourceFaceId || faceId;
-    const cached = this.faceColorCache.get(baseId);
+    const theme = this.faceColorTheme || 'colorful';
+    const cacheKey = `${theme}:${baseId}`;
+    const cached = this.faceColorCache.get(cacheKey);
     if (typeof cached === 'number') return cached;
-    let hash = 0;
-    for (let i = 0; i < baseId.length; i++) {
-      hash = ((hash << 5) - hash) + baseId.charCodeAt(i);
-      hash |= 0;
+    const palette = this.getFaceThemePalette(theme);
+    const groupIndex = this.getFaceGroupIndex(baseId);
+    let color = 0xffffff;
+    if (groupIndex !== null) {
+      color = palette[groupIndex % palette.length];
+    } else {
+      let hash = 0;
+      for (let i = 0; i < baseId.length; i++) {
+        hash = ((hash << 5) - hash) + baseId.charCodeAt(i);
+        hash |= 0;
+      }
+      const index = Math.abs(hash) % palette.length;
+      color = palette[index];
     }
-    const index = Math.abs(hash) % this.faceColorPalette.length;
-    const color = this.faceColorPalette[index];
-    this.faceColorCache.set(baseId, color);
+    this.faceColorCache.set(cacheKey, color);
     return color;
+  }
+
+  private getFaceThemePalette(theme: string) {
+    return this.faceColorPalettes[theme] || this.faceColorPalettes.colorful;
+  }
+
+  private getFaceGroupIndex(faceId: FaceID): number | null {
+    const groups: Record<string, number> = {
+      'F:0-1-5-4': 2,
+      'F:2-3-7-6': 2,
+      'F:4-5-6-7': 1,
+      'F:0-3-2-1': 1,
+      'F:0-4-7-3': 0,
+      'F:1-2-6-5': 0
+    };
+    if (Object.prototype.hasOwnProperty.call(groups, faceId)) {
+      return groups[faceId];
+    }
+    return null;
+  }
+
+  private applyFaceBaseColor(faceId: FaceID) {
+    const mesh = this.faceMeshes.get(faceId);
+    if (!mesh) return;
+    const material = mesh.material;
+    if (!(material instanceof THREE.MeshBasicMaterial)) return;
+    const isCutFace = !!mesh.userData?.isCutFace;
+    const sourceFaceId = mesh.userData?.sourceFaceId || null;
+    const color = this.getFaceBaseColor(faceId, { isCutFace }, sourceFaceId);
+    material.color.setHex(color);
+    material.needsUpdate = true;
+  }
+
+  resetFaceColor(faceId: FaceID) {
+    this.applyFaceBaseColor(faceId);
+  }
+
+  setFaceColorTheme(theme: 'blue' | 'red' | 'green' | 'colorful') {
+    const next = theme || 'colorful';
+    if (this.faceColorTheme === next) return;
+    this.faceColorTheme = next;
+    this.faceColorCache.clear();
+    this.faceMeshes.forEach((_, faceId) => {
+      this.applyFaceBaseColor(faceId);
+    });
   }
 
   private createFaceMaterial(faceId: FaceID, pres?: any, sourceFaceId?: FaceID | null) {
     const isCutFace = pres?.isCutFace;
-    return new THREE.MeshPhongMaterial({
+    return new THREE.MeshBasicMaterial({
       color: this.getFaceBaseColor(faceId, pres, sourceFaceId),
       transparent: true,
       opacity: 0.4,
@@ -705,7 +766,8 @@ export class Cube {
 
   toggleTransparency(transparent: boolean) {
     this.faceMeshes.forEach(mesh => {
-      const mat = mesh.material as THREE.MeshPhongMaterial;
+      const mat = mesh.material;
+      if (!(mat instanceof THREE.MeshBasicMaterial)) return;
       mat.transparent = transparent;
       mat.opacity = transparent ? 0.4 : 1.0;
       mat.depthWrite = !transparent;

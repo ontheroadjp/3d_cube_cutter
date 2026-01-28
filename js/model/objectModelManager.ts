@@ -43,7 +43,8 @@ const DEFAULT_DISPLAY: DisplayState = {
   cubeTransparent: false,
   showCutPoints: true,
   colorizeCutLines: false,
-  showNormalHelper: false
+  showNormalHelper: false,
+  faceColorTheme: 'blue'
 };
 
 // Helper to create default empty cut derived
@@ -187,6 +188,7 @@ export class ObjectModelManager {
     
     this.cube.toggleVertexLabels(display.showVertexLabels);
     this.cube.toggleFaceLabels(display.showFaceLabels);
+    this.cube.setFaceColorTheme(display.faceColorTheme || 'colorful');
     if (this.selection) {
       this.selection.toggleVertexLabels(display.showVertexLabels);
       this.selection.setEdgeLabelMode(display.edgeLabelMode);

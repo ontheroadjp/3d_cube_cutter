@@ -1637,6 +1637,7 @@ class App {
         this.cutter.setVisible(false);
         this.highlightMarker.visible = false;
         this.snappedPointInfo = null;
+        this.clearNetSelectionHighlight();
         this.resetNetAnimationCaches();
         this.netAnimationDirection = 'open';
         this.prepareNetAnimationZoom('open', false);
@@ -2128,15 +2129,9 @@ class App {
         const mesh = this.cube.faceMeshes.get(faceId);
         if (!mesh) return;
         const material = mesh.material;
-        if (!(material instanceof THREE.MeshPhongMaterial)) return;
-        if (mesh.userData && mesh.userData.originalColor === undefined) {
-            mesh.userData.originalColor = material.color.getHex();
-        }
+        if (!(material instanceof THREE.MeshBasicMaterial)) return;
         if (kind === 'none') {
-            const baseColor = mesh.userData ? mesh.userData.originalColor : null;
-            if (typeof baseColor === 'number') {
-                material.color.setHex(baseColor);
-            }
+            this.cube.resetFaceColor(faceId);
             return;
         }
         material.color.setHex(0xffcc55);

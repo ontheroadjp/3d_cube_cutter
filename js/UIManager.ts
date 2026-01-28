@@ -147,7 +147,8 @@ export class UIManager {
       cubeTransparent: this.toggleCubeTransparency ? this.toggleCubeTransparency.checked : false,
       showCutPoints: this.toggleCutPoints ? this.toggleCutPoints.checked : true,
       colorizeCutLines: this.toggleCutLineColor ? this.toggleCutLineColor.checked : false,
-      showNormalHelper: false
+      showNormalHelper: false,
+      faceColorTheme: 'blue'
     };
     this.currentMode = this.modeSelector ? this.modeSelector.value : 'free';
     this.currentSettingsCategory = this.settingsCategorySelector ? this.settingsCategorySelector.value : 'display';
@@ -207,7 +208,8 @@ export class UIManager {
       cubeTransparent: this.displayState.cubeTransparent,
       showCutPoints: this.displayState.showCutPoints,
       colorizeCutLines: this.displayState.colorizeCutLines,
-      showNormalHelper: this.displayState.showNormalHelper
+      showNormalHelper: this.displayState.showNormalHelper,
+      faceColorTheme: this.displayState.faceColorTheme || 'blue'
     };
   }
 
