@@ -304,6 +304,8 @@ class App {
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
         this.controls.target.set(0, 0, 0);
+        this.controls.enableRotate = this.uiMode === 'rotate';
+        this.controls.enableZoom = true;
         this.controls.update();
 
         this.raycaster = new THREE.Raycaster();
@@ -519,6 +521,9 @@ class App {
     executeCut() {
         const success = this.cutService.executeCut();
         this.isCutExecuted = !!success;
+        if (success && this.uiMode === 'cut') {
+            this.setUiMode('rotate');
+        }
     }
 
     finalizeResetScene() {
@@ -1042,6 +1047,10 @@ class App {
         this.uiMode = mode;
         if (typeof (globalThis as any).__setUiMode === 'function') {
             (globalThis as any).__setUiMode(mode);
+        }
+        if (this.controls) {
+            this.controls.enableRotate = mode === 'rotate';
+            this.controls.enableZoom = true;
         }
     }
     
