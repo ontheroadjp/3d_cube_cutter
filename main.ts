@@ -1357,6 +1357,7 @@ class App {
     }
 
     handleResetClick() {
+        this.resetScene();
         this.handleModeChange('free');
         if (!this.useReactPresets) {
             this.ui.resetToFreeSelectMode();
