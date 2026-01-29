@@ -1062,7 +1062,7 @@ class App {
             this.cancelNetBaseSelection();
         }
         if (this.controls) {
-            this.controls.enableRotate = mode === 'rotate';
+            this.controls.enableRotate = mode !== 'cut';
             this.controls.enableZoom = true;
         }
     }
